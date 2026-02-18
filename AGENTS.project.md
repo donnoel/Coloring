@@ -28,11 +28,13 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Deterministic local export with atomic writes
 - Prevent duplicate export runs while an export is already in progress
 - Keep file-import disk reads off the main thread
+- Restore imported drawings from iCloud when local files are missing
 
 4) Testing priorities
 - View-model state transitions (scene switching, coloring, clearing)
 - Export state handling
 - Template image synchronization when switching between same-size templates
+- Imported drawing reset flows (single delete and delete-all confirmation behavior)
 
 ## Architecture snapshot (current)
 - App entry: `/Users/donnoel/Development/Coloring/Coloring/ColoringApp.swift`
@@ -53,6 +55,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 ## Behavior invariants (do not regress)
 - Template Studio works offline for built-in templates.
 - Imported templates are saved locally with atomic writes.
+- Imported templates are mirrored to iCloud when available and restored locally if missing.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Library sidebar lists both built-in and imported templates together.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.

@@ -42,6 +42,10 @@ final class TemplateStudioViewModel: ObservableObject {
         templates.first { $0.id == selectedTemplateID }
     }
 
+    var hasImportedTemplates: Bool {
+        templates.contains(where: \.isImported)
+    }
+
     var selectedTemplateAspectRatio: CGFloat {
         guard let size = selectedTemplateImage?.size,
               size.width > 0,
@@ -162,6 +166,27 @@ final class TemplateStudioViewModel: ObservableObject {
             await reloadTemplates()
             invalidateExport()
             importStatusMessage = "Drawing deleted."
+        } catch {
+            importErrorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteAllImportedTemplates() async {
+        importErrorMessage = nil
+        importStatusMessage = nil
+
+        do {
+            let importedTemplateIDs = templates
+                .filter(\.isImported)
+                .map(\.id)
+            try await templateLibrary.deleteAllImportedTemplates()
+            for templateID in importedTemplateIDs {
+                drawingsByTemplateID.removeValue(forKey: templateID)
+            }
+
+            await reloadTemplates()
+            invalidateExport()
+            importStatusMessage = "All imported drawings deleted."
         } catch {
             importErrorMessage = error.localizedDescription
         }

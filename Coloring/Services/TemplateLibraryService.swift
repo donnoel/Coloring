@@ -7,6 +7,7 @@ protocol TemplateLibraryProviding: Actor {
     func importTemplate(imageData: Data, preferredName: String?) throws -> ColoringTemplate
     func renameImportedTemplate(id: String, newTitle: String) throws -> ColoringTemplate
     func deleteImportedTemplate(id: String) throws
+    func deleteAllImportedTemplates() throws
 }
 
 actor TemplateLibraryService: TemplateLibraryProviding {
@@ -40,15 +41,33 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private let bundle: Bundle
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
     private let logger: Logger
+    private let cloudContainerIdentifier: String?
+    private let documentsDirectoryURLProvider: @Sendable () throws -> URL
+    private let ubiquityContainerURLProvider: @Sendable (String?) -> URL?
 
     init(
         bundle: Bundle = .main,
-        logger: Logger = Logger(subsystem: "Coloring", category: "TemplateLibrary")
+        logger: Logger = Logger(subsystem: "Coloring", category: "TemplateLibrary"),
+        fileManager: FileManager = .default,
+        cloudContainerIdentifier: String? = "iCloud.dn.coloring",
+        documentsDirectoryURLProvider: @escaping @Sendable () throws -> URL = {
+            guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            return documentsURL
+        },
+        ubiquityContainerURLProvider: @escaping @Sendable (String?) -> URL? = {
+            FileManager.default.url(forUbiquityContainerIdentifier: $0)
+        }
     ) {
         self.bundle = bundle
+        self.fileManager = fileManager
         self.logger = logger
+        self.cloudContainerIdentifier = cloudContainerIdentifier
+        self.documentsDirectoryURLProvider = documentsDirectoryURLProvider
+        self.ubiquityContainerURLProvider = ubiquityContainerURLProvider
     }
 
     func loadTemplates() throws -> [ColoringTemplate] {
@@ -78,6 +97,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let destinationURL = try importedDirectoryURL().appendingPathComponent(filename)
 
         try imageData.write(to: destinationURL, options: [.atomic])
+        syncLocalImportedFileToCloudIfNeeded(destinationURL)
         logger.log("Imported template saved to \(destinationURL.path, privacy: .public)")
 
         return ColoringTemplate(
@@ -109,6 +129,8 @@ actor TemplateLibraryService: TemplateLibraryProviding {
 
         if sourceURL != destinationURL {
             try fileManager.moveItem(at: sourceURL, to: destinationURL)
+            syncRenameToCloudIfNeeded(from: sourceURL.lastPathComponent, to: destinationURL.lastPathComponent)
+            syncLocalImportedFileToCloudIfNeeded(destinationURL)
         }
 
         logger.log("Imported template renamed to \(destinationURL.lastPathComponent, privacy: .public)")
@@ -126,7 +148,25 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     func deleteImportedTemplate(id: String) throws {
         let template = try importedTemplate(matchingID: id)
         try fileManager.removeItem(at: template.fileURL)
+        syncDeleteFromCloudIfNeeded(filename: template.fileURL.lastPathComponent)
         logger.log("Imported template deleted: \(template.fileURL.lastPathComponent, privacy: .public)")
+    }
+
+    func deleteAllImportedTemplates() throws {
+        let localDirectoryURL = try importedDirectoryURL()
+        let localFileURLs = try pngFileURLs(in: localDirectoryURL)
+        for fileURL in localFileURLs {
+            try fileManager.removeItem(at: fileURL)
+        }
+
+        if let cloudDirectoryURL = cloudImportedDirectoryURL() {
+            let cloudFileURLs = try pngFileURLs(in: cloudDirectoryURL)
+            for fileURL in cloudFileURLs {
+                try fileManager.removeItem(at: fileURL)
+            }
+        }
+
+        logger.log("All imported templates deleted.")
     }
 
     private func loadBuiltInTemplates() throws -> [ColoringTemplate] {
@@ -198,6 +238,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
 
     private func loadImportedTemplates() throws -> [ColoringTemplate] {
         let directoryURL = try importedDirectoryURL()
+        synchronizeImportedTemplatesWithCloud(localDirectoryURL: directoryURL)
         let fileURLs = try fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -220,16 +261,133 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private func importedDirectoryURL() throws -> URL {
-        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            throw CocoaError(.fileNoSuchFile)
+        let documentsURL = try documentsDirectoryURLProvider()
+        let directoryURL = documentsURL.appendingPathComponent("ImportedTemplates", isDirectory: true)
+        try ensureDirectoryExists(at: directoryURL)
+        return directoryURL
+    }
+
+    private func cloudImportedDirectoryURL() -> URL? {
+        guard let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) else {
+            return nil
         }
 
-        let directoryURL = documentsURL.appendingPathComponent("ImportedTemplates", isDirectory: true)
+        let directoryURL = cloudRootURL
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent("ImportedTemplates", isDirectory: true)
+        do {
+            try ensureDirectoryExists(at: directoryURL)
+            return directoryURL
+        } catch {
+            logger.error("Could not access iCloud template folder: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func ensureDirectoryExists(at directoryURL: URL) throws {
         if !fileManager.fileExists(atPath: directoryURL.path) {
             try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         }
+    }
 
-        return directoryURL
+    private func pngFileURLs(in directoryURL: URL) throws -> [URL] {
+        try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        .filter { $0.pathExtension.lowercased() == "png" }
+    }
+
+    private func synchronizeImportedTemplatesWithCloud(localDirectoryURL: URL) {
+        guard let cloudDirectoryURL = cloudImportedDirectoryURL() else {
+            return
+        }
+
+        do {
+            let localFiles = try pngFileURLs(in: localDirectoryURL)
+            let cloudFiles = try pngFileURLs(in: cloudDirectoryURL)
+
+            let localByName = Dictionary(uniqueKeysWithValues: localFiles.map { ($0.lastPathComponent, $0) })
+            let cloudByName = Dictionary(uniqueKeysWithValues: cloudFiles.map { ($0.lastPathComponent, $0) })
+
+            for (filename, cloudURL) in cloudByName where localByName[filename] == nil {
+                let localURL = localDirectoryURL.appendingPathComponent(filename)
+                try writeImageData(from: cloudURL, to: localURL)
+            }
+
+            for (filename, localURL) in localByName where cloudByName[filename] == nil {
+                let cloudURL = cloudDirectoryURL.appendingPathComponent(filename)
+                try writeImageData(from: localURL, to: cloudURL)
+            }
+        } catch {
+            logger.error("Template iCloud sync failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func syncLocalImportedFileToCloudIfNeeded(_ localFileURL: URL) {
+        guard let cloudDirectoryURL = cloudImportedDirectoryURL() else {
+            return
+        }
+
+        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(localFileURL.lastPathComponent)
+        do {
+            try writeImageData(from: localFileURL, to: cloudFileURL)
+        } catch {
+            logger.error("Failed to sync imported file to iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func syncRenameToCloudIfNeeded(from oldFileName: String, to newFileName: String) {
+        guard oldFileName != newFileName,
+              let cloudDirectoryURL = cloudImportedDirectoryURL()
+        else {
+            return
+        }
+
+        let oldCloudURL = cloudDirectoryURL.appendingPathComponent(oldFileName)
+        let newCloudURL = cloudDirectoryURL.appendingPathComponent(newFileName)
+
+        do {
+            if fileManager.fileExists(atPath: oldCloudURL.path) {
+                if fileManager.fileExists(atPath: newCloudURL.path) {
+                    try fileManager.removeItem(at: newCloudURL)
+                }
+                try fileManager.moveItem(at: oldCloudURL, to: newCloudURL)
+            }
+        } catch {
+            logger.error("Failed to sync rename to iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func syncDeleteFromCloudIfNeeded(filename: String) {
+        guard let cloudDirectoryURL = cloudImportedDirectoryURL() else {
+            return
+        }
+
+        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
+        guard fileManager.fileExists(atPath: cloudFileURL.path) else {
+            return
+        }
+
+        do {
+            try fileManager.removeItem(at: cloudFileURL)
+        } catch {
+            logger.error("Failed to delete iCloud template file: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func writeImageData(from sourceURL: URL, to destinationURL: URL) throws {
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            return
+        }
+
+        if sourceURL.hasDirectoryPath {
+            return
+        }
+
+        let sourceData = try Data(contentsOf: sourceURL)
+        try sourceData.write(to: destinationURL, options: [.atomic])
     }
 
     private func importedTemplate(matchingID id: String) throws -> ColoringTemplate {

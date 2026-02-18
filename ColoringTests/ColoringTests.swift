@@ -158,7 +158,7 @@ final class ColoringTests: XCTestCase {
             title: "Old Name",
             source: .imported
         )
-        let library = StubTemplateLibrary(templates: [importedTemplate])
+        let library = StubTemplateLibrary(templates: [importedTemplate], importedCount: 1)
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
@@ -183,7 +183,10 @@ final class ColoringTests: XCTestCase {
             title: "Imported One",
             source: .imported
         )
-        let library = StubTemplateLibrary(templates: [builtInTemplate, importedTemplate])
+        let library = StubTemplateLibrary(
+            templates: [builtInTemplate, importedTemplate],
+            importedCount: 1
+        )
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
@@ -198,6 +201,39 @@ final class ColoringTests: XCTestCase {
             XCTAssertFalse(viewModel.templates.contains(where: { $0.id == "imported-1" }))
             XCTAssertEqual(viewModel.importStatusMessage, "Drawing deleted.")
             XCTAssertEqual(viewModel.selectedTemplate?.id, "builtin-1")
+        }
+    }
+
+    func testDeleteAllImportedTemplatesKeepsBuiltInTemplates() async {
+        let builtInTemplate = Self.makeTemplate(id: "builtin-1", title: "Built In")
+        let importedTemplateOne = Self.makeTemplate(
+            id: "imported-1",
+            title: "Imported One",
+            source: .imported
+        )
+        let importedTemplateTwo = Self.makeTemplate(
+            id: "imported-2",
+            title: "Imported Two",
+            source: .imported
+        )
+        let library = StubTemplateLibrary(
+            templates: [builtInTemplate, importedTemplateOne, importedTemplateTwo],
+            importedCount: 2
+        )
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await viewModel.deleteAllImportedTemplates()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.templates.map(\.id), [builtInTemplate.id])
+            XCTAssertEqual(viewModel.importStatusMessage, "All imported drawings deleted.")
+            XCTAssertFalse(viewModel.hasImportedTemplates)
         }
     }
 
@@ -350,20 +386,24 @@ private final class StubExportService: ArtworkExporting {
 }
 
 private actor StubTemplateLibrary: TemplateLibraryProviding {
-    private var templates: [ColoringTemplate]
+    private var builtInTemplates: [ColoringTemplate]
+    private var importedTemplates: [ColoringTemplate]
     private var imageDataSequence: [Data]
     private var imageDataIndex = 0
     private let fallbackTemplateImageData = Data(
         base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBgGd9mKsAAAAASUVORK5CYII="
     )!
 
-    init(templates: [ColoringTemplate], imageDataSequence: [Data] = []) {
-        self.templates = templates
+    init(templates: [ColoringTemplate], imageDataSequence: [Data] = [], importedCount: Int = 0) {
+        let clampedImportedCount = max(0, min(importedCount, templates.count))
+        let builtInCount = templates.count - clampedImportedCount
+        self.builtInTemplates = Array(templates.prefix(builtInCount))
+        self.importedTemplates = Array(templates.suffix(clampedImportedCount))
         self.imageDataSequence = imageDataSequence
     }
 
     func loadTemplates() throws -> [ColoringTemplate] {
-        templates
+        builtInTemplates + importedTemplates
     }
 
     func imageData(for _: ColoringTemplate) throws -> Data {
@@ -379,22 +419,22 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
     func importTemplate(imageData _: Data, preferredName: String?) throws -> ColoringTemplate {
         let filenameTitle = preferredName ?? "Imported Drawing"
         let imported = ColoringTemplate(
-            id: "imported-\(templates.count + 1)",
+            id: "imported-\(importedTemplates.count + 1)",
             title: filenameTitle,
             category: "Imported",
             source: .imported,
-            filePath: "/tmp/imported-\(templates.count + 1).png"
+            filePath: "/tmp/imported-\(importedTemplates.count + 1).png"
         )
-        templates.append(imported)
+        importedTemplates.append(imported)
         return imported
     }
 
     func renameImportedTemplate(id: String, newTitle: String) throws -> ColoringTemplate {
-        guard !templates.isEmpty else {
+        guard !importedTemplates.isEmpty else {
             throw CocoaError(.fileNoSuchFile)
         }
 
-        let index = templates.count - 1
+        let index = importedTemplates.count - 1
         let renamed = ColoringTemplate(
             id: id,
             title: newTitle,
@@ -402,17 +442,20 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
             source: .imported,
             filePath: "/tmp/\(id)-renamed.png"
         )
-        templates[index] = renamed
+        importedTemplates[index] = renamed
         return renamed
     }
 
     func deleteImportedTemplate(id _: String) throws {
-        guard !templates.isEmpty else {
+        guard !importedTemplates.isEmpty else {
             throw CocoaError(.fileNoSuchFile)
         }
 
-        let index = templates.count - 1
-        templates.remove(at: index)
+        importedTemplates.removeLast()
+    }
+
+    func deleteAllImportedTemplates() throws {
+        importedTemplates.removeAll()
     }
 }
 

@@ -11,6 +11,7 @@ struct TemplateStudioView: View {
     @State private var templatePendingRename: ColoringTemplate?
     @State private var renameDraftTitle = ""
     @State private var templatePendingDeletion: ColoringTemplate?
+    @State private var isDeleteAllImportedConfirmationPresented = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -67,7 +68,20 @@ struct TemplateStudioView: View {
                 templatePendingDeletion = nil
             }
         } message: {
-            Text("This removes the imported drawing from this iPad.")
+            Text("This removes the imported drawing from this iPad and iCloud.")
+        }
+        .confirmationDialog(
+            "Delete All Imported Drawings",
+            isPresented: $isDeleteAllImportedConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete All", role: .destructive) {
+                confirmDeleteAllImported()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes every imported drawing from this iPad and iCloud. Built-in drawings are not affected.")
         }
     }
 
@@ -117,6 +131,13 @@ struct TemplateStudioView: View {
                     Label("Clear Strokes", systemImage: "trash")
                 }
                 .disabled(viewModel.selectedTemplateImage == nil)
+
+                Button(role: .destructive) {
+                    isDeleteAllImportedConfirmationPresented = true
+                } label: {
+                    Label("Delete All Imported Drawings", systemImage: "trash.slash")
+                }
+                .disabled(!viewModel.hasImportedTemplates)
             }
 
             Section("Status") {
@@ -423,6 +444,13 @@ struct TemplateStudioView: View {
         self.templatePendingDeletion = nil
         Task {
             await viewModel.deleteTemplate(templatePendingDeletion.id)
+        }
+    }
+
+    private func confirmDeleteAllImported() {
+        isDeleteAllImportedConfirmationPresented = false
+        Task {
+            await viewModel.deleteAllImportedTemplates()
         }
     }
 
