@@ -1,0 +1,580 @@
+// !$*UTF8*$!
+{
+    archiveVersion = 1;
+    classes = {
+    };
+    objectVersion = 77;
+    objects = {
+
+/* Begin PBXContainerItemProxy section */
+        5A63FFDB2F44E19C00885BD6 /* PBXContainerItemProxy */ = {
+            isa = PBXContainerItemProxy;
+            containerPortal = 5A63FFC12F44E19C00885BD6 /* Project object */;
+            proxyType = 1;
+            remoteGlobalIDString = 5A63FFC82F44E19C00885BD6;
+            remoteInfo = Coloring;
+        };
+        5A63FFE52F44E19C00885BD6 /* PBXContainerItemProxy */ = {
+            isa = PBXContainerItemProxy;
+            containerPortal = 5A63FFC12F44E19C00885BD6 /* Project object */;
+            proxyType = 1;
+            remoteGlobalIDString = 5A63FFC82F44E19C00885BD6;
+            remoteInfo = Coloring;
+        };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+        5A63FFC92F44E19C00885BD6 /* Coloring.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Coloring.app; sourceTree = BUILT_PRODUCTS_DIR; };
+        5A63FFDA2F44E19C00885BD6 /* ColoringTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColoringTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+        5A63FFE42F44E19C00885BD6 /* ColoringUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColoringUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+        5A63FFEC2F44E19C00885BD6 /* Exceptions for "Coloring" folder in "Coloring" target */ = {
+            isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+            membershipExceptions = (
+                Info.plist,
+            );
+            target = 5A63FFC82F44E19C00885BD6 /* Coloring */;
+        };
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+        5A63FFCB2F44E19C00885BD6 /* Coloring */ = {
+            isa = PBXFileSystemSynchronizedRootGroup;
+            exceptions = (
+                5A63FFEC2F44E19C00885BD6 /* Exceptions for "Coloring" folder in "Coloring" target */,
+            );
+            path = Coloring;
+            sourceTree = "<group>";
+        };
+        5A63FFDD2F44E19C00885BD6 /* ColoringTests */ = {
+            isa = PBXFileSystemSynchronizedRootGroup;
+            path = ColoringTests;
+            sourceTree = "<group>";
+        };
+        5A63FFE72F44E19C00885BD6 /* ColoringUITests */ = {
+            isa = PBXFileSystemSynchronizedRootGroup;
+            path = ColoringUITests;
+            sourceTree = "<group>";
+        };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+        5A63FFC62F44E19C00885BD6 /* Frameworks */ = {
+            isa = PBXFrameworksBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+        5A63FFD72F44E19C00885BD6 /* Frameworks */ = {
+            isa = PBXFrameworksBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+        5A63FFE12F44E19C00885BD6 /* Frameworks */ = {
+            isa = PBXFrameworksBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+        5A63FFC02F44E19C00885BD6 = {
+            isa = PBXGroup;
+            children = (
+                5A63FFCB2F44E19C00885BD6 /* Coloring */,
+                5A63FFDD2F44E19C00885BD6 /* ColoringTests */,
+                5A63FFE72F44E19C00885BD6 /* ColoringUITests */,
+                5A63FFCA2F44E19C00885BD6 /* Products */,
+            );
+            sourceTree = "<group>";
+        };
+        5A63FFCA2F44E19C00885BD6 /* Products */ = {
+            isa = PBXGroup;
+            children = (
+                5A63FFC92F44E19C00885BD6 /* Coloring.app */,
+                5A63FFDA2F44E19C00885BD6 /* ColoringTests.xctest */,
+                5A63FFE42F44E19C00885BD6 /* ColoringUITests.xctest */,
+            );
+            name = Products;
+            sourceTree = "<group>";
+        };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+        5A63FFC82F44E19C00885BD6 /* Coloring */ = {
+            isa = PBXNativeTarget;
+            buildConfigurationList = 5A63FFED2F44E19C00885BD6 /* Build configuration list for PBXNativeTarget "Coloring" */;
+            buildPhases = (
+                5A63FFC52F44E19C00885BD6 /* Sources */,
+                5A63FFC62F44E19C00885BD6 /* Frameworks */,
+                5A63FFC72F44E19C00885BD6 /* Resources */,
+            );
+            buildRules = (
+            );
+            dependencies = (
+            );
+            fileSystemSynchronizedGroups = (
+                5A63FFCB2F44E19C00885BD6 /* Coloring */,
+            );
+            name = Coloring;
+            packageProductDependencies = (
+            );
+            productName = Coloring;
+            productReference = 5A63FFC92F44E19C00885BD6 /* Coloring.app */;
+            productType = "com.apple.product-type.application";
+        };
+        5A63FFD92F44E19C00885BD6 /* ColoringTests */ = {
+            isa = PBXNativeTarget;
+            buildConfigurationList = 5A63FFF02F44E19C00885BD6 /* Build configuration list for PBXNativeTarget "ColoringTests" */;
+            buildPhases = (
+                5A63FFD62F44E19C00885BD6 /* Sources */,
+                5A63FFD72F44E19C00885BD6 /* Frameworks */,
+                5A63FFD82F44E19C00885BD6 /* Resources */,
+            );
+            buildRules = (
+            );
+            dependencies = (
+                5A63FFDC2F44E19C00885BD6 /* PBXTargetDependency */,
+            );
+            fileSystemSynchronizedGroups = (
+                5A63FFDD2F44E19C00885BD6 /* ColoringTests */,
+            );
+            name = ColoringTests;
+            packageProductDependencies = (
+            );
+            productName = ColoringTests;
+            productReference = 5A63FFDA2F44E19C00885BD6 /* ColoringTests.xctest */;
+            productType = "com.apple.product-type.bundle.unit-test";
+        };
+        5A63FFE32F44E19C00885BD6 /* ColoringUITests */ = {
+            isa = PBXNativeTarget;
+            buildConfigurationList = 5A63FFF32F44E19C00885BD6 /* Build configuration list for PBXNativeTarget "ColoringUITests" */;
+            buildPhases = (
+                5A63FFE02F44E19C00885BD6 /* Sources */,
+                5A63FFE12F44E19C00885BD6 /* Frameworks */,
+                5A63FFE22F44E19C00885BD6 /* Resources */,
+            );
+            buildRules = (
+            );
+            dependencies = (
+                5A63FFE62F44E19C00885BD6 /* PBXTargetDependency */,
+            );
+            fileSystemSynchronizedGroups = (
+                5A63FFE72F44E19C00885BD6 /* ColoringUITests */,
+            );
+            name = ColoringUITests;
+            packageProductDependencies = (
+            );
+            productName = ColoringUITests;
+            productReference = 5A63FFE42F44E19C00885BD6 /* ColoringUITests.xctest */;
+            productType = "com.apple.product-type.bundle.ui-testing";
+        };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+        5A63FFC12F44E19C00885BD6 /* Project object */ = {
+            isa = PBXProject;
+            attributes = {
+                BuildIndependentTargetsInParallel = 1;
+                LastUpgradeCheck = 1630;
+                TargetAttributes = {
+                    5A63FFC82F44E19C00885BD6 = {
+                        CreatedOnToolsVersion = 16.3;
+                        DevelopmentTeam = H7LG8SK72M;
+                    };
+                    5A63FFD92F44E19C00885BD6 = {
+                        CreatedOnToolsVersion = 16.3;
+                        TestTargetID = 5A63FFC82F44E19C00885BD6;
+                    };
+                    5A63FFE32F44E19C00885BD6 = {
+                        CreatedOnToolsVersion = 16.3;
+                        TestTargetID = 5A63FFC82F44E19C00885BD6;
+                    };
+                };
+            };
+            buildConfigurationList = 5A63FFC42F44E19C00885BD6 /* Build configuration list for PBXProject "Coloring" */;
+            compatibilityVersion = "Xcode 14.0";
+            developmentRegion = en;
+            hasScannedForEncodings = 0;
+            knownRegions = (
+                en,
+                Base,
+            );
+            mainGroup = 5A63FFC02F44E19C00885BD6;
+            productRefGroup = 5A63FFCA2F44E19C00885BD6 /* Products */;
+            projectDirPath = "";
+            projectRoot = "";
+            targets = (
+                5A63FFC82F44E19C00885BD6 /* Coloring */,
+                5A63FFD92F44E19C00885BD6 /* ColoringTests */,
+                5A63FFE32F44E19C00885BD6 /* ColoringUITests */,
+            );
+        };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+        5A63FFC72F44E19C00885BD6 /* Resources */ = {
+            isa = PBXResourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+        5A63FFD82F44E19C00885BD6 /* Resources */ = {
+            isa = PBXResourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+        5A63FFE22F44E19C00885BD6 /* Resources */ = {
+            isa = PBXResourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+        5A63FFC52F44E19C00885BD6 /* Sources */ = {
+            isa = PBXSourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+        5A63FFD62F44E19C00885BD6 /* Sources */ = {
+            isa = PBXSourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+        5A63FFE02F44E19C00885BD6 /* Sources */ = {
+            isa = PBXSourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+        5A63FFDC2F44E19C00885BD6 /* PBXTargetDependency */ = {
+            isa = PBXTargetDependency;
+            target = 5A63FFC82F44E19C00885BD6 /* Coloring */;
+            targetProxy = 5A63FFDB2F44E19C00885BD6 /* PBXContainerItemProxy */;
+        };
+        5A63FFE62F44E19C00885BD6 /* PBXTargetDependency */ = {
+            isa = PBXTargetDependency;
+            target = 5A63FFC82F44E19C00885BD6 /* Coloring */;
+            targetProxy = 5A63FFE52F44E19C00885BD6 /* PBXContainerItemProxy */;
+        };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+        5A63FFEE2F44E19C00885BD6 /* Debug */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+                ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+                CODE_SIGN_ENTITLEMENTS = Coloring/Coloring.entitlements;
+                CODE_SIGN_STYLE = Automatic;
+                CURRENT_PROJECT_VERSION = 1;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                ENABLE_APP_SANDBOX = YES;
+                ENABLE_APP_INTENTS_METADATA_GENERATION = NO;
+                ENABLE_HARDENED_RUNTIME = YES;
+                ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+                ENABLE_PREVIEWS = YES;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_FILE = Coloring/Info.plist;
+                INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+                INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+                INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+                INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+                INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                LD_RUNPATH_SEARCH_PATHS = (
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                );
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                MARKETING_VERSION = 1.0;
+                PRODUCT_BUNDLE_IDENTIFIER = "dn.coloring";
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                REGISTER_APP_GROUPS = YES;
+                STRING_CATALOG_GENERATE_SYMBOLS = YES;
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+                SUPPORTS_MACCATALYST = NO;
+                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SWIFT_APPROACHABLE_CONCURRENCY = YES;
+                SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+                SWIFT_EMIT_LOC_STRINGS = YES;
+                SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = "1,2";
+            };
+            name = Debug;
+        };
+        5A63FFEF2F44E19C00885BD6 /* Release */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+                ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+                CODE_SIGN_ENTITLEMENTS = Coloring/Coloring.entitlements;
+                CODE_SIGN_STYLE = Automatic;
+                CURRENT_PROJECT_VERSION = 1;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                ENABLE_APP_SANDBOX = YES;
+                ENABLE_APP_INTENTS_METADATA_GENERATION = NO;
+                ENABLE_HARDENED_RUNTIME = YES;
+                ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+                ENABLE_PREVIEWS = YES;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_FILE = Coloring/Info.plist;
+                INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+                INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+                INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+                INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+                INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                LD_RUNPATH_SEARCH_PATHS = (
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                );
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                MARKETING_VERSION = 1.0;
+                PRODUCT_BUNDLE_IDENTIFIER = "dn.coloring";
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                REGISTER_APP_GROUPS = YES;
+                STRING_CATALOG_GENERATE_SYMBOLS = YES;
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+                SUPPORTS_MACCATALYST = NO;
+                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SWIFT_APPROACHABLE_CONCURRENCY = YES;
+                SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+                SWIFT_EMIT_LOC_STRINGS = YES;
+                SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = "1,2";
+            };
+            name = Release;
+        };
+        5A63FFF12F44E19C00885BD6 /* Debug */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                BUNDLE_LOADER = "$(TEST_HOST)";
+                CODE_SIGN_STYLE = Automatic;
+                CURRENT_PROJECT_VERSION = 1;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                GENERATE_INFOPLIST_FILE = YES;
+                ENABLE_APP_INTENTS_METADATA_GENERATION = NO;
+                INFOPLIST_FILE = ColoringTests/Info.plist;
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                LD_RUNPATH_SEARCH_PATHS = (
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                    "@loader_path/Frameworks",
+                );
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                MARKETING_VERSION = 1.0;
+                PRODUCT_BUNDLE_IDENTIFIER = "dn.coloringTests";
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+                SUPPORTS_MACCATALYST = NO;
+                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = "1,2";
+                TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Coloring.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Coloring";
+            };
+            name = Debug;
+        };
+        5A63FFF22F44E19C00885BD6 /* Release */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                BUNDLE_LOADER = "$(TEST_HOST)";
+                CODE_SIGN_STYLE = Automatic;
+                CURRENT_PROJECT_VERSION = 1;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                GENERATE_INFOPLIST_FILE = YES;
+                ENABLE_APP_INTENTS_METADATA_GENERATION = NO;
+                INFOPLIST_FILE = ColoringTests/Info.plist;
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                LD_RUNPATH_SEARCH_PATHS = (
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                    "@loader_path/Frameworks",
+                );
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                MARKETING_VERSION = 1.0;
+                PRODUCT_BUNDLE_IDENTIFIER = "dn.coloringTests";
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+                SUPPORTS_MACCATALYST = NO;
+                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = "1,2";
+                TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Coloring.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Coloring";
+            };
+            name = Release;
+        };
+        5A63FFF42F44E19C00885BD6 /* Debug */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                CODE_SIGN_STYLE = Automatic;
+                CURRENT_PROJECT_VERSION = 1;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                GENERATE_INFOPLIST_FILE = YES;
+                ENABLE_APP_INTENTS_METADATA_GENERATION = NO;
+                INFOPLIST_FILE = ColoringUITests/Info.plist;
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                LD_RUNPATH_SEARCH_PATHS = (
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                    "@loader_path/Frameworks",
+                );
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                MARKETING_VERSION = 1.0;
+                PRODUCT_BUNDLE_IDENTIFIER = "dn.coloringUITests";
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+                SUPPORTS_MACCATALYST = NO;
+                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = "1,2";
+                TEST_TARGET_NAME = Coloring;
+            };
+            name = Debug;
+        };
+        5A63FFF52F44E19C00885BD6 /* Release */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                CODE_SIGN_STYLE = Automatic;
+                CURRENT_PROJECT_VERSION = 1;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                GENERATE_INFOPLIST_FILE = YES;
+                ENABLE_APP_INTENTS_METADATA_GENERATION = NO;
+                INFOPLIST_FILE = ColoringUITests/Info.plist;
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                LD_RUNPATH_SEARCH_PATHS = (
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                    "@loader_path/Frameworks",
+                );
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                MARKETING_VERSION = 1.0;
+                PRODUCT_BUNDLE_IDENTIFIER = "dn.coloringUITests";
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+                SUPPORTS_MACCATALYST = NO;
+                SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = "1,2";
+                TEST_TARGET_NAME = Coloring;
+            };
+            name = Release;
+        };
+        5A63FFC22F44E19C00885BD6 /* Debug */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+                CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+                CLANG_WARN_SUSPICIOUS_MOVE = YES;
+                CLANG_WARN_UNGUARDED_AVAILABILITY = YES;
+                CODE_SIGN_STYLE = Automatic;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                ENABLE_USER_SCRIPT_SANDBOXING = YES;
+                GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+                GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+                GCC_WARN_UNDECLARED_SELECTOR = YES;
+                GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+                GCC_WARN_UNUSED_FUNCTION = YES;
+                GCC_WARN_UNUSED_VARIABLE = YES;
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                SWIFT_APPROACHABLE_CONCURRENCY = YES;
+                SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+            };
+            name = Debug;
+        };
+        5A63FFC32F44E19C00885BD6 /* Release */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+                CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+                CLANG_WARN_SUSPICIOUS_MOVE = YES;
+                CLANG_WARN_UNGUARDED_AVAILABILITY = YES;
+                CODE_SIGN_STYLE = Automatic;
+                DEVELOPMENT_TEAM = H7LG8SK72M;
+                ENABLE_USER_SCRIPT_SANDBOXING = YES;
+                GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+                GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+                GCC_WARN_UNDECLARED_SELECTOR = YES;
+                GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+                GCC_WARN_UNUSED_FUNCTION = YES;
+                GCC_WARN_UNUSED_VARIABLE = YES;
+                IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+                MACOSX_DEPLOYMENT_TARGET = 26.0;
+                SWIFT_APPROACHABLE_CONCURRENCY = YES;
+                SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+            };
+            name = Release;
+        };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+        5A63FFC42F44E19C00885BD6 /* Build configuration list for PBXProject "Coloring" */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (
+                5A63FFC22F44E19C00885BD6 /* Debug */,
+                5A63FFC32F44E19C00885BD6 /* Release */,
+            );
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+        5A63FFED2F44E19C00885BD6 /* Build configuration list for PBXNativeTarget "Coloring" */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (
+                5A63FFEE2F44E19C00885BD6 /* Debug */,
+                5A63FFEF2F44E19C00885BD6 /* Release */,
+            );
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+        5A63FFF02F44E19C00885BD6 /* Build configuration list for PBXNativeTarget "ColoringTests" */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (
+                5A63FFF12F44E19C00885BD6 /* Debug */,
+                5A63FFF22F44E19C00885BD6 /* Release */,
+            );
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+        5A63FFF32F44E19C00885BD6 /* Build configuration list for PBXNativeTarget "ColoringUITests" */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (
+                5A63FFF42F44E19C00885BD6 /* Debug */,
+                5A63FFF52F44E19C00885BD6 /* Release */,
+            );
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+/* End XCConfigurationList section */
+    };
+    rootObject = 5A63FFC12F44E19C00885BD6 /* Project object */;
+}
