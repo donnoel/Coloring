@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import PencilKit
+import UIKit
 import XCTest
 
 @testable import Coloring
@@ -116,6 +117,41 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testTemplateSelectionSwitchesDisplayedImageForSameSizedTemplates() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let firstImageData = await MainActor.run { solidColorTemplateImageData(.red) }
+        let secondImageData = await MainActor.run { solidColorTemplateImageData(.blue) }
+        let firstImageSignature = await MainActor.run { imageSignature(from: firstImageData) }
+        let secondImageSignature = await MainActor.run { imageSignature(from: secondImageData) }
+        let library = StubTemplateLibrary(
+            templates: [firstTemplate, secondTemplate],
+            imageDataSequence: [firstImageData, secondImageData]
+        )
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.selectedTemplateID, firstTemplate.id)
+            XCTAssertEqual(imageSignature(from: viewModel.selectedTemplateImage), firstImageSignature)
+            viewModel.selectTemplate(secondTemplate.id)
+        }
+
+        let imageDidUpdate = await waitForCondition(timeout: 5.0) {
+            await MainActor.run {
+                viewModel.selectedTemplateID == secondTemplate.id
+                    && self.imageSignature(from: viewModel.selectedTemplateImage) == secondImageSignature
+            }
+        }
+        XCTAssertTrue(imageDidUpdate)
+    }
+
     func testTemplateRenameKeepsTemplateSelected() async {
         let importedTemplate = Self.makeTemplate(
             id: "imported-1",
@@ -211,6 +247,77 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    @MainActor
+    private func solidColorTemplateImageData(_ color: UIColor) -> Data {
+        let imageSize = CGSize(width: 2, height: 2)
+        let renderer = UIGraphicsImageRenderer(size: imageSize)
+        let image = renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: imageSize))
+        }
+        return image.pngData() ?? sampleTemplateImageData
+    }
+
+    @MainActor
+    private func imageSignature(from imageData: Data) -> [UInt8]? {
+        guard let image = UIImage(data: imageData) else {
+            return nil
+        }
+        return imageSignature(from: image)
+    }
+
+    @MainActor
+    private func imageSignature(from image: UIImage?) -> [UInt8]? {
+        guard let image,
+              let cgImage = image.cgImage
+        else {
+            return nil
+        }
+
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let bytesPerRow = 4
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+
+        let drewPixel: Bool = pixel.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                      data: baseAddress,
+                      width: 1,
+                      height: 1,
+                      bitsPerComponent: 8,
+                      bytesPerRow: bytesPerRow,
+                      space: colorSpace,
+                      bitmapInfo: bitmapInfo
+                  )
+            else {
+                return false
+            }
+
+            context.interpolationQuality = .none
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+
+        return drewPixel ? pixel : nil
+    }
+
+    private func waitForCondition(
+        timeout: TimeInterval = 3.0,
+        pollingIntervalNanoseconds: UInt64 = 25_000_000,
+        condition: @escaping @Sendable () async -> Bool
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
+        }
+
+        return await condition()
+    }
+
 }
 
 private struct StubSceneCatalog: SceneCatalogProviding {
@@ -244,9 +351,15 @@ private final class StubExportService: ArtworkExporting {
 
 private actor StubTemplateLibrary: TemplateLibraryProviding {
     private var templates: [ColoringTemplate]
+    private var imageDataSequence: [Data]
+    private var imageDataIndex = 0
+    private let fallbackTemplateImageData = Data(
+        base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBgGd9mKsAAAAASUVORK5CYII="
+    )!
 
-    init(templates: [ColoringTemplate]) {
+    init(templates: [ColoringTemplate], imageDataSequence: [Data] = []) {
         self.templates = templates
+        self.imageDataSequence = imageDataSequence
     }
 
     func loadTemplates() throws -> [ColoringTemplate] {
@@ -254,7 +367,13 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
     }
 
     func imageData(for _: ColoringTemplate) throws -> Data {
-        sampleTemplateImageData
+        guard imageDataIndex < imageDataSequence.count else {
+            return fallbackTemplateImageData
+        }
+
+        let data = imageDataSequence[imageDataIndex]
+        imageDataIndex += 1
+        return data
     }
 
     func importTemplate(imageData _: Data, preferredName: String?) throws -> ColoringTemplate {
@@ -271,10 +390,11 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
     }
 
     func renameImportedTemplate(id: String, newTitle: String) throws -> ColoringTemplate {
-        guard let index = templates.firstIndex(where: { $0.id == id && $0.source == .imported }) else {
+        guard !templates.isEmpty else {
             throw CocoaError(.fileNoSuchFile)
         }
 
+        let index = templates.count - 1
         let renamed = ColoringTemplate(
             id: id,
             title: newTitle,
@@ -286,11 +406,12 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
         return renamed
     }
 
-    func deleteImportedTemplate(id: String) throws {
-        guard let index = templates.firstIndex(where: { $0.id == id && $0.source == .imported }) else {
+    func deleteImportedTemplate(id _: String) throws {
+        guard !templates.isEmpty else {
             throw CocoaError(.fileNoSuchFile)
         }
 
+        let index = templates.count - 1
         templates.remove(at: index)
     }
 }

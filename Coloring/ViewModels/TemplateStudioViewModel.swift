@@ -58,11 +58,11 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        hasLoadedTemplates = true
-        await reloadTemplates()
+        hasLoadedTemplates = await reloadTemplates()
     }
 
-    func reloadTemplates() async {
+    @discardableResult
+    func reloadTemplates() async -> Bool {
         templateImageLoadTask?.cancel()
         templateImageLoadTask = nil
 
@@ -77,8 +77,10 @@ final class TemplateStudioViewModel: ObservableObject {
 
             restoreDrawingForSelectedTemplate()
             await loadSelectedTemplateImage(for: selectedTemplateID)
+            return true
         } catch {
             importErrorMessage = "Could not load templates: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -180,10 +182,14 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        isExporting = true
+        exportErrorMessage = nil
+        defer {
+            isExporting = false
+        }
+
         do {
             let templateData = try await templateLibrary.imageData(for: selectedTemplate)
-            isExporting = true
-            exportErrorMessage = nil
 
             let canvasSize = bestExportSize(for: selectedTemplateImage)
             let drawingData = currentDrawing.dataRepresentation()
@@ -202,8 +208,6 @@ final class TemplateStudioViewModel: ObservableObject {
             exportStatusMessage = nil
             exportedFileURL = nil
         }
-
-        isExporting = false
     }
 
     private func loadSelectedTemplateImage(for templateID: String) async {

@@ -455,21 +455,28 @@ struct TemplateStudioView: View {
             return
         }
 
-        let didStartScope = fileURL.startAccessingSecurityScopedResource()
-
-        defer {
-            if didStartScope {
-                fileURL.stopAccessingSecurityScopedResource()
+        Task {
+            let didStartScope = fileURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartScope {
+                    fileURL.stopAccessingSecurityScopedResource()
+                }
             }
-        }
 
-        do {
-            let data = try Data(contentsOf: fileURL)
-            Task {
-                await viewModel.importTemplateImage(data, suggestedName: fileURL.deletingPathExtension().lastPathComponent)
+            do {
+                let data = try await Task.detached(priority: .userInitiated) {
+                    try Data(contentsOf: fileURL)
+                }.value
+
+                await viewModel.importTemplateImage(
+                    data,
+                    suggestedName: fileURL.deletingPathExtension().lastPathComponent
+                )
+            } catch {
+                await MainActor.run {
+                    viewModel.reportImportFailure("Could not import the selected file.")
+                }
             }
-        } catch {
-            viewModel.reportImportFailure("Could not import the selected file.")
         }
     }
 }

@@ -26,10 +26,13 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Clean build with no warnings
 - No network dependency for coloring/export
 - Deterministic local export with atomic writes
+- Prevent duplicate export runs while an export is already in progress
+- Keep file-import disk reads off the main thread
 
 4) Testing priorities
 - View-model state transitions (scene switching, coloring, clearing)
 - Export state handling
+- Template image synchronization when switching between same-size templates
 
 ## Architecture snapshot (current)
 - App entry: `/Users/donnoel/Development/Coloring/Coloring/ColoringApp.swift`
