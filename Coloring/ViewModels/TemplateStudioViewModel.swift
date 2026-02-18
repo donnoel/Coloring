@@ -21,6 +21,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let exportService: any TemplateArtworkExporting
     private var hasLoadedTemplates = false
     private var templateImageLoadTask: Task<Void, Never>?
+    private var cloudRestoreTask: Task<Void, Never>?
 
     init(
         templateLibrary: any TemplateLibraryProviding,
@@ -63,6 +64,12 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         hasLoadedTemplates = await reloadTemplates()
+        scheduleDeferredCloudRestoreIfNeeded()
+    }
+
+    func refreshTemplatesFromStorage() async {
+        hasLoadedTemplates = await reloadTemplates()
+        scheduleDeferredCloudRestoreIfNeeded()
     }
 
     @discardableResult
@@ -306,5 +313,31 @@ final class TemplateStudioViewModel: ObservableObject {
         exportedFileURL = nil
         exportStatusMessage = nil
         exportErrorMessage = nil
+    }
+
+    private func scheduleDeferredCloudRestoreIfNeeded() {
+        cloudRestoreTask?.cancel()
+        guard !hasImportedTemplates else {
+            return
+        }
+
+        cloudRestoreTask = Task { [weak self] in
+            await self?.performDeferredCloudRestore()
+        }
+    }
+
+    private func performDeferredCloudRestore() async {
+        let retryDelays: [UInt64] = [1_000_000_000, 2_000_000_000, 4_000_000_000]
+        for delay in retryDelays {
+            try? await Task.sleep(nanoseconds: delay)
+            if Task.isCancelled {
+                return
+            }
+
+            let didReload = await reloadTemplates()
+            if !didReload || hasImportedTemplates {
+                return
+            }
+        }
     }
 }

@@ -268,7 +268,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private func cloudImportedDirectoryURL() -> URL? {
-        guard let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) else {
+        guard let cloudRootURL = cloudContainerRootURL() else {
             return nil
         }
 
@@ -282,6 +282,23 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             logger.error("Could not access iCloud template folder: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    private func cloudContainerRootURL() -> URL? {
+        if let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) {
+            return cloudRootURL
+        }
+
+        guard cloudContainerIdentifier != nil else {
+            return nil
+        }
+
+        if let fallbackCloudRootURL = ubiquityContainerURLProvider(nil) {
+            logger.log("Using default iCloud container fallback for imported template sync.")
+            return fallbackCloudRootURL
+        }
+
+        return nil
     }
 
     private func ensureDirectoryExists(at directoryURL: URL) throws {
@@ -386,8 +403,35 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             return
         }
 
-        let sourceData = try Data(contentsOf: sourceURL)
+        let sourceData = try readImageData(from: sourceURL)
         try sourceData.write(to: destinationURL, options: [.atomic])
+    }
+
+    private func readImageData(from sourceURL: URL) throws -> Data {
+        do {
+            return try Data(contentsOf: sourceURL)
+        } catch {
+            requestUbiquitousDownloadIfNeeded(at: sourceURL)
+            var lastError: Error = error
+            for _ in 0..<8 {
+                Thread.sleep(forTimeInterval: 0.25)
+                do {
+                    return try Data(contentsOf: sourceURL)
+                } catch {
+                    lastError = error
+                }
+            }
+
+            throw lastError
+        }
+    }
+
+    private func requestUbiquitousDownloadIfNeeded(at sourceURL: URL) {
+        do {
+            try fileManager.startDownloadingUbiquitousItem(at: sourceURL)
+        } catch {
+            // Non-ubiquitous local files throw here; ignore and keep local read behavior.
+        }
     }
 
     private func importedTemplate(matchingID id: String) throws -> ColoringTemplate {

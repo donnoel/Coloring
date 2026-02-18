@@ -29,6 +29,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Prevent duplicate export runs while an export is already in progress
 - Keep file-import disk reads off the main thread
 - Restore imported drawings from iCloud when local files are missing
+- Retry imported drawing restore after launch and on app foreground to handle delayed iCloud availability
 
 4) Testing priorities
 - View-model state transitions (scene switching, coloring, clearing)

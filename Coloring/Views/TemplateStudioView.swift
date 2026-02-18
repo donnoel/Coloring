@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct TemplateStudioView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var viewModel: TemplateStudioViewModel
 
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -22,6 +23,15 @@ struct TemplateStudioView: View {
         .navigationSplitViewStyle(.prominentDetail)
         .task {
             await viewModel.loadTemplatesIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else {
+                return
+            }
+
+            Task {
+                await viewModel.refreshTemplatesFromStorage()
+            }
         }
         .onChange(of: selectedPhotoItem) { _, newItem in
             guard let newItem else {
