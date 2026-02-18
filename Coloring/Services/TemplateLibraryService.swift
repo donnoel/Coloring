@@ -154,13 +154,13 @@ actor TemplateLibraryService: TemplateLibraryProviding {
 
     func deleteAllImportedTemplates() throws {
         let localDirectoryURL = try importedDirectoryURL()
-        let localFileURLs = try pngFileURLs(in: localDirectoryURL)
+        let localFileURLs = try importedTemplateFileURLs(in: localDirectoryURL)
         for fileURL in localFileURLs {
             try fileManager.removeItem(at: fileURL)
         }
 
         if let cloudDirectoryURL = cloudImportedDirectoryURL() {
-            let cloudFileURLs = try pngFileURLs(in: cloudDirectoryURL)
+            let cloudFileURLs = try importedTemplateFileURLs(in: cloudDirectoryURL)
             for fileURL in cloudFileURLs {
                 try fileManager.removeItem(at: fileURL)
             }
@@ -307,13 +307,56 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
     }
 
-    private func pngFileURLs(in directoryURL: URL) throws -> [URL] {
+    private func importedTemplateFileURLs(in directoryURL: URL) throws -> [URL] {
         try fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         )
-        .filter { $0.pathExtension.lowercased() == "png" }
+        .filter { logicalPNGFilename(for: $0) != nil }
+    }
+
+    private func pngFilesByLogicalName(in directoryURL: URL) throws -> [String: URL] {
+        var filesByLogicalName: [String: URL] = [:]
+        let files = try importedTemplateFileURLs(in: directoryURL)
+        for fileURL in files {
+            guard let logicalFileName = logicalPNGFilename(for: fileURL) else {
+                continue
+            }
+
+            guard let existingURL = filesByLogicalName[logicalFileName] else {
+                filesByLogicalName[logicalFileName] = fileURL
+                continue
+            }
+
+            if isICloudPlaceholderFile(existingURL), !isICloudPlaceholderFile(fileURL) {
+                filesByLogicalName[logicalFileName] = fileURL
+            }
+        }
+
+        return filesByLogicalName
+    }
+
+    private func logicalPNGFilename(for fileURL: URL) -> String? {
+        let extensionName = fileURL.pathExtension.lowercased()
+        if extensionName == "png" {
+            return fileURL.lastPathComponent
+        }
+
+        guard extensionName == "icloud" else {
+            return nil
+        }
+
+        let ubiquitousFileURL = fileURL.deletingPathExtension()
+        guard ubiquitousFileURL.pathExtension.lowercased() == "png" else {
+            return nil
+        }
+
+        return ubiquitousFileURL.lastPathComponent
+    }
+
+    private func isICloudPlaceholderFile(_ fileURL: URL) -> Bool {
+        fileURL.pathExtension.lowercased() == "icloud"
     }
 
     private func synchronizeImportedTemplatesWithCloud(localDirectoryURL: URL) {
@@ -322,11 +365,8 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
 
         do {
-            let localFiles = try pngFileURLs(in: localDirectoryURL)
-            let cloudFiles = try pngFileURLs(in: cloudDirectoryURL)
-
-            let localByName = Dictionary(uniqueKeysWithValues: localFiles.map { ($0.lastPathComponent, $0) })
-            let cloudByName = Dictionary(uniqueKeysWithValues: cloudFiles.map { ($0.lastPathComponent, $0) })
+            let localByName = try pngFilesByLogicalName(in: localDirectoryURL)
+            let cloudByName = try pngFilesByLogicalName(in: cloudDirectoryURL)
 
             for (filename, cloudURL) in cloudByName where localByName[filename] == nil {
                 let localURL = localDirectoryURL.appendingPathComponent(filename)
@@ -363,14 +403,22 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
 
         let oldCloudURL = cloudDirectoryURL.appendingPathComponent(oldFileName)
+        let oldCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(oldFileName).icloud")
         let newCloudURL = cloudDirectoryURL.appendingPathComponent(newFileName)
+        let newCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(newFileName).icloud")
 
         do {
+            if fileManager.fileExists(atPath: newCloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: newCloudPlaceholderURL)
+            }
+            if fileManager.fileExists(atPath: newCloudURL.path) {
+                try fileManager.removeItem(at: newCloudURL)
+            }
+
             if fileManager.fileExists(atPath: oldCloudURL.path) {
-                if fileManager.fileExists(atPath: newCloudURL.path) {
-                    try fileManager.removeItem(at: newCloudURL)
-                }
                 try fileManager.moveItem(at: oldCloudURL, to: newCloudURL)
+            } else if fileManager.fileExists(atPath: oldCloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: oldCloudPlaceholderURL)
             }
         } catch {
             logger.error("Failed to sync rename to iCloud: \(error.localizedDescription, privacy: .public)")
@@ -382,13 +430,16 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             return
         }
 
-        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
-        guard fileManager.fileExists(atPath: cloudFileURL.path) else {
-            return
-        }
-
         do {
-            try fileManager.removeItem(at: cloudFileURL)
+            let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
+            if fileManager.fileExists(atPath: cloudFileURL.path) {
+                try fileManager.removeItem(at: cloudFileURL)
+            }
+
+            let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
+            if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: cloudPlaceholderURL)
+            }
         } catch {
             logger.error("Failed to delete iCloud template file: \(error.localizedDescription, privacy: .public)")
         }
@@ -408,10 +459,19 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private func readImageData(from sourceURL: URL) throws -> Data {
+        let fallbackDownloadedURL = fallbackDownloadedURLIfPlaceholder(for: sourceURL)
         do {
             return try Data(contentsOf: sourceURL)
         } catch {
+            if let fallbackDownloadedURL,
+               let fallbackData = try? Data(contentsOf: fallbackDownloadedURL) {
+                return fallbackData
+            }
+
             requestUbiquitousDownloadIfNeeded(at: sourceURL)
+            if let fallbackDownloadedURL {
+                requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
+            }
             var lastError: Error = error
             for _ in 0..<8 {
                 Thread.sleep(forTimeInterval: 0.25)
@@ -420,10 +480,26 @@ actor TemplateLibraryService: TemplateLibraryProviding {
                 } catch {
                     lastError = error
                 }
+
+                if let fallbackDownloadedURL {
+                    do {
+                        return try Data(contentsOf: fallbackDownloadedURL)
+                    } catch {
+                        lastError = error
+                    }
+                }
             }
 
             throw lastError
         }
+    }
+
+    private func fallbackDownloadedURLIfPlaceholder(for sourceURL: URL) -> URL? {
+        guard isICloudPlaceholderFile(sourceURL) else {
+            return nil
+        }
+
+        return sourceURL.deletingPathExtension()
     }
 
     private func requestUbiquitousDownloadIfNeeded(at sourceURL: URL) {
