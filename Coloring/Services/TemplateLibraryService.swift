@@ -10,6 +10,303 @@ protocol TemplateLibraryProviding: Actor {
     func deleteAllImportedTemplates() throws
 }
 
+protocol TemplateDrawingStoreProviding: Actor {
+    func loadDrawingData(for templateID: String) throws -> Data?
+    func saveDrawingData(_ drawingData: Data, for templateID: String) throws
+    func renameDrawingData(from oldTemplateID: String, to newTemplateID: String) throws
+    func deleteDrawingData(for templateID: String) throws
+}
+
+actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
+    private let fileManager: FileManager
+    private let logger: Logger
+    private let cloudContainerIdentifier: String?
+    private let documentsDirectoryURLProvider: @Sendable () throws -> URL
+    private let ubiquityContainerURLProvider: @Sendable (String?) -> URL?
+
+    init(
+        fileManager: FileManager = .default,
+        logger: Logger = Logger(subsystem: "Coloring", category: "TemplateDrawingStore"),
+        cloudContainerIdentifier: String? = "iCloud.dn.coloring",
+        documentsDirectoryURLProvider: @escaping @Sendable () throws -> URL = {
+            guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            return documentsURL
+        },
+        ubiquityContainerURLProvider: @escaping @Sendable (String?) -> URL? = {
+            FileManager.default.url(forUbiquityContainerIdentifier: $0)
+        }
+    ) {
+        self.fileManager = fileManager
+        self.logger = logger
+        self.cloudContainerIdentifier = cloudContainerIdentifier
+        self.documentsDirectoryURLProvider = documentsDirectoryURLProvider
+        self.ubiquityContainerURLProvider = ubiquityContainerURLProvider
+    }
+
+    func loadDrawingData(for templateID: String) throws -> Data? {
+        let drawingFilename = Self.drawingFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: drawingFilename)
+        if fileManager.fileExists(atPath: localURL.path) {
+            let localData = try Data(contentsOf: localURL)
+            syncDrawingDataToCloudIfNeeded(localData, filename: drawingFilename)
+            return localData
+        }
+
+        guard let cloudFileURL = cloudDrawingFileURLIfExists(forFilename: drawingFilename) else {
+            return nil
+        }
+
+        let cloudData = try readDrawingData(from: cloudFileURL)
+        try cloudData.write(to: localURL, options: [.atomic])
+        return cloudData
+    }
+
+    func saveDrawingData(_ drawingData: Data, for templateID: String) throws {
+        let drawingFilename = Self.drawingFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: drawingFilename)
+        try drawingData.write(to: localURL, options: [.atomic])
+        syncDrawingDataToCloudIfNeeded(drawingData, filename: drawingFilename)
+    }
+
+    func renameDrawingData(from oldTemplateID: String, to newTemplateID: String) throws {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        let oldFilename = Self.drawingFilename(for: oldTemplateID)
+        let newFilename = Self.drawingFilename(for: newTemplateID)
+        let oldLocalURL = try localDrawingURL(forFilename: oldFilename)
+        let newLocalURL = try localDrawingURL(forFilename: newFilename)
+
+        if fileManager.fileExists(atPath: oldLocalURL.path) {
+            if fileManager.fileExists(atPath: newLocalURL.path) {
+                try fileManager.removeItem(at: newLocalURL)
+            }
+            try fileManager.moveItem(at: oldLocalURL, to: newLocalURL)
+        }
+
+        syncRenameInCloudIfNeeded(from: oldFilename, to: newFilename)
+    }
+
+    func deleteDrawingData(for templateID: String) throws {
+        let drawingFilename = Self.drawingFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: drawingFilename)
+        if fileManager.fileExists(atPath: localURL.path) {
+            try fileManager.removeItem(at: localURL)
+        }
+
+        deleteCloudDrawingIfNeeded(filename: drawingFilename)
+    }
+
+    private func localDrawingURL(forFilename filename: String) throws -> URL {
+        let directoryURL = try localDrawingsDirectoryURL()
+        return directoryURL.appendingPathComponent(filename)
+    }
+
+    private func localDrawingsDirectoryURL() throws -> URL {
+        let documentsURL = try documentsDirectoryURLProvider()
+        let directoryURL = documentsURL.appendingPathComponent("TemplateDrawings", isDirectory: true)
+        try ensureDirectoryExists(at: directoryURL)
+        return directoryURL
+    }
+
+    private func cloudDrawingsDirectoryURL() -> URL? {
+        guard let cloudRootURL = cloudContainerRootURL() else {
+            return nil
+        }
+
+        let directoryURL = cloudRootURL
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent("TemplateDrawings", isDirectory: true)
+        do {
+            try ensureDirectoryExists(at: directoryURL)
+            return directoryURL
+        } catch {
+            logger.error("Could not access iCloud drawing folder: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func cloudContainerRootURL() -> URL? {
+        if let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) {
+            return cloudRootURL
+        }
+
+        guard cloudContainerIdentifier != nil else {
+            return nil
+        }
+
+        if let fallbackCloudRootURL = ubiquityContainerURLProvider(nil) {
+            logger.log("Using default iCloud container fallback for drawing sync.")
+            return fallbackCloudRootURL
+        }
+
+        return nil
+    }
+
+    private func syncDrawingDataToCloudIfNeeded(_ drawingData: Data, filename: String) {
+        guard let cloudDirectoryURL = cloudDrawingsDirectoryURL() else {
+            return
+        }
+
+        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
+        let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
+        do {
+            if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: cloudPlaceholderURL)
+            }
+            if fileManager.fileExists(atPath: cloudFileURL.path) {
+                try fileManager.removeItem(at: cloudFileURL)
+            }
+
+            try drawingData.write(to: cloudFileURL, options: [.atomic])
+        } catch {
+            logger.error("Failed to sync drawing to iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func syncRenameInCloudIfNeeded(from oldFilename: String, to newFilename: String) {
+        guard oldFilename != newFilename,
+              let cloudDirectoryURL = cloudDrawingsDirectoryURL()
+        else {
+            return
+        }
+
+        let oldCloudURL = cloudDirectoryURL.appendingPathComponent(oldFilename)
+        let oldCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(oldFilename).icloud")
+        let newCloudURL = cloudDirectoryURL.appendingPathComponent(newFilename)
+        let newCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(newFilename).icloud")
+        do {
+            if fileManager.fileExists(atPath: newCloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: newCloudPlaceholderURL)
+            }
+            if fileManager.fileExists(atPath: newCloudURL.path) {
+                try fileManager.removeItem(at: newCloudURL)
+            }
+
+            if fileManager.fileExists(atPath: oldCloudURL.path) {
+                try fileManager.moveItem(at: oldCloudURL, to: newCloudURL)
+            } else if fileManager.fileExists(atPath: oldCloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: oldCloudPlaceholderURL)
+            }
+        } catch {
+            logger.error("Failed to sync drawing rename to iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func deleteCloudDrawingIfNeeded(filename: String) {
+        guard let cloudDirectoryURL = cloudDrawingsDirectoryURL() else {
+            return
+        }
+
+        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
+        let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
+        do {
+            if fileManager.fileExists(atPath: cloudFileURL.path) {
+                try fileManager.removeItem(at: cloudFileURL)
+            }
+            if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
+                try fileManager.removeItem(at: cloudPlaceholderURL)
+            }
+        } catch {
+            logger.error("Failed to delete drawing from iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func cloudDrawingFileURLIfExists(forFilename filename: String) -> URL? {
+        guard let cloudDirectoryURL = cloudDrawingsDirectoryURL() else {
+            return nil
+        }
+
+        let cloudURL = cloudDirectoryURL.appendingPathComponent(filename)
+        if fileManager.fileExists(atPath: cloudURL.path) {
+            return cloudURL
+        }
+
+        let placeholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
+        if fileManager.fileExists(atPath: placeholderURL.path) {
+            return placeholderURL
+        }
+
+        return nil
+    }
+
+    private func readDrawingData(from sourceURL: URL) throws -> Data {
+        let fallbackDownloadedURL = fallbackDownloadedURLIfPlaceholder(for: sourceURL)
+        do {
+            return try Data(contentsOf: sourceURL)
+        } catch {
+            if let fallbackDownloadedURL,
+               let fallbackData = try? Data(contentsOf: fallbackDownloadedURL) {
+                return fallbackData
+            }
+
+            requestUbiquitousDownloadIfNeeded(at: sourceURL)
+            if let fallbackDownloadedURL {
+                requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
+            }
+
+            var lastError: Error = error
+            for _ in 0..<8 {
+                Thread.sleep(forTimeInterval: 0.25)
+                do {
+                    return try Data(contentsOf: sourceURL)
+                } catch {
+                    lastError = error
+                }
+
+                if let fallbackDownloadedURL {
+                    do {
+                        return try Data(contentsOf: fallbackDownloadedURL)
+                    } catch {
+                        lastError = error
+                    }
+                }
+            }
+
+            throw lastError
+        }
+    }
+
+    private func fallbackDownloadedURLIfPlaceholder(for sourceURL: URL) -> URL? {
+        guard isICloudPlaceholderFile(sourceURL) else {
+            return nil
+        }
+
+        return sourceURL.deletingPathExtension()
+    }
+
+    private func requestUbiquitousDownloadIfNeeded(at sourceURL: URL) {
+        do {
+            try fileManager.startDownloadingUbiquitousItem(at: sourceURL)
+        } catch {
+            // Non-ubiquitous local files throw here; ignore and keep local read behavior.
+        }
+    }
+
+    private func ensureDirectoryExists(at directoryURL: URL) throws {
+        if !fileManager.fileExists(atPath: directoryURL.path) {
+            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        }
+    }
+
+    private func isICloudPlaceholderFile(_ fileURL: URL) -> Bool {
+        fileURL.pathExtension.lowercased() == "icloud"
+    }
+
+    nonisolated private static func drawingFilename(for templateID: String) -> String {
+        "\(encodedTemplateID(templateID)).drawing"
+    }
+
+    nonisolated private static func encodedTemplateID(_ templateID: String) -> String {
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        return templateID.addingPercentEncoding(withAllowedCharacters: allowedCharacters)
+            ?? templateID.replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "-", options: .regularExpression)
+    }
+}
+
 actor TemplateLibraryService: TemplateLibraryProviding {
     enum LibraryError: LocalizedError {
         case invalidImageData

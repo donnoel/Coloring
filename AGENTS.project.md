@@ -30,6 +30,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Keep file-import disk reads off the main thread
 - Restore imported drawings from iCloud when local files are missing
 - Retry imported drawing restore after launch and on app foreground to handle delayed iCloud availability
+- Persist per-template coloring strokes locally and mirror them to iCloud for reinstall recovery
 
 4) Testing priorities
 - View-model state transitions (scene switching, coloring, clearing)
@@ -57,6 +58,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Template Studio works offline for built-in templates.
 - Imported templates are saved locally with atomic writes.
 - Imported templates are mirrored to iCloud when available and restored locally if missing.
+- Template stroke progress is saved per drawing and restored from iCloud after reinstall.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Library sidebar lists both built-in and imported templates together.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.

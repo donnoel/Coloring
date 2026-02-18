@@ -19,23 +19,28 @@ final class TemplateStudioViewModel: ObservableObject {
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
+    private let drawingStore: any TemplateDrawingStoreProviding
     private var hasLoadedTemplates = false
     private var templateImageLoadTask: Task<Void, Never>?
+    private var drawingRestoreTask: Task<Void, Never>?
     private var cloudRestoreTask: Task<Void, Never>?
 
     init(
         templateLibrary: any TemplateLibraryProviding,
-        exportService: any TemplateArtworkExporting
+        exportService: any TemplateArtworkExporting,
+        drawingStore: any TemplateDrawingStoreProviding
     ) {
         self.templateLibrary = templateLibrary
         self.exportService = exportService
+        self.drawingStore = drawingStore
         self.currentDrawing = PKDrawing()
     }
 
     convenience init() {
         self.init(
             templateLibrary: TemplateLibraryService(),
-            exportService: TemplateArtworkExportService()
+            exportService: TemplateArtworkExportService(),
+            drawingStore: TemplateDrawingStoreService()
         )
     }
 
@@ -76,10 +81,14 @@ final class TemplateStudioViewModel: ObservableObject {
     func reloadTemplates() async -> Bool {
         templateImageLoadTask?.cancel()
         templateImageLoadTask = nil
+        drawingRestoreTask?.cancel()
+        drawingRestoreTask = nil
 
         do {
             let loadedTemplates = try await templateLibrary.loadTemplates()
             templates = loadedTemplates
+            let validTemplateIDs = Set(loadedTemplates.map(\.id))
+            drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             importErrorMessage = nil
 
             if selectedTemplateID.isEmpty || !templates.contains(where: { $0.id == selectedTemplateID }) {
@@ -102,12 +111,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         persistCurrentDrawing()
         selectedTemplateID = templateID
-
-        if let savedDrawing = drawingsByTemplateID[templateID] {
-            currentDrawing = savedDrawing
-        } else {
-            currentDrawing = PKDrawing()
-        }
+        restoreDrawingForSelectedTemplate()
 
         templateImageLoadTask?.cancel()
         templateImageLoadTask = Task { [weak self] in
@@ -120,12 +124,14 @@ final class TemplateStudioViewModel: ObservableObject {
     func updateDrawing(_ drawing: PKDrawing) {
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
+        persistDrawing(drawing, for: selectedTemplateID)
         invalidateExport()
     }
 
     func clearDrawing() {
         currentDrawing = PKDrawing()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
+        persistDrawing(currentDrawing, for: selectedTemplateID)
         invalidateExport()
     }
 
@@ -149,9 +155,11 @@ final class TemplateStudioViewModel: ObservableObject {
 
         do {
             let renamedTemplate = try await templateLibrary.renameImportedTemplate(id: templateID, newTitle: newTitle)
+            try await drawingStore.renameDrawingData(from: templateID, to: renamedTemplate.id)
 
             if let drawing = drawingsByTemplateID.removeValue(forKey: templateID) {
                 drawingsByTemplateID[renamedTemplate.id] = drawing
+                persistDrawing(drawing, for: renamedTemplate.id)
             }
 
             await reloadTemplates()
@@ -168,6 +176,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         do {
             try await templateLibrary.deleteImportedTemplate(id: templateID)
+            try await drawingStore.deleteDrawingData(for: templateID)
             drawingsByTemplateID.removeValue(forKey: templateID)
 
             await reloadTemplates()
@@ -188,6 +197,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 .map(\.id)
             try await templateLibrary.deleteAllImportedTemplates()
             for templateID in importedTemplateIDs {
+                try await drawingStore.deleteDrawingData(for: templateID)
                 drawingsByTemplateID.removeValue(forKey: templateID)
             }
 
@@ -281,15 +291,28 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
+        persistDrawing(currentDrawing, for: selectedTemplateID)
     }
 
     private func restoreDrawingForSelectedTemplate() {
         guard !selectedTemplateID.isEmpty else {
             currentDrawing = PKDrawing()
+            drawingRestoreTask?.cancel()
+            drawingRestoreTask = nil
             return
         }
 
-        currentDrawing = drawingsByTemplateID[selectedTemplateID] ?? PKDrawing()
+        if let drawing = drawingsByTemplateID[selectedTemplateID] {
+            currentDrawing = drawing
+            return
+        }
+
+        currentDrawing = PKDrawing()
+        drawingRestoreTask?.cancel()
+        let templateID = selectedTemplateID
+        drawingRestoreTask = Task { [weak self] in
+            await self?.loadPersistedDrawing(for: templateID)
+        }
     }
 
     private func bestExportSize(for image: UIImage?) -> CGSize {
@@ -313,6 +336,44 @@ final class TemplateStudioViewModel: ObservableObject {
         exportedFileURL = nil
         exportStatusMessage = nil
         exportErrorMessage = nil
+    }
+
+    private func persistDrawing(_ drawing: PKDrawing, for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        let drawingData = drawing.dataRepresentation()
+        Task { [drawingStore, templateID, drawingData] in
+            try? await drawingStore.saveDrawingData(drawingData, for: templateID)
+        }
+    }
+
+    private func loadPersistedDrawing(for templateID: String) async {
+        do {
+            guard let drawingData = try await drawingStore.loadDrawingData(for: templateID) else {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+
+            let drawing = try PKDrawing(data: drawingData)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard drawingsByTemplateID[templateID] == nil else {
+                return
+            }
+
+            drawingsByTemplateID[templateID] = drawing
+            if selectedTemplateID == templateID {
+                currentDrawing = drawing
+            }
+        } catch {
+            // Keep existing drawing state if persistence read fails.
+        }
     }
 
     private func scheduleDeferredCloudRestoreIfNeeded() {

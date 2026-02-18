@@ -84,7 +84,8 @@ final class ColoringTests: XCTestCase {
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
-                exportService: StubTemplateExportService()
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore()
             )
         }
 
@@ -103,7 +104,8 @@ final class ColoringTests: XCTestCase {
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
-                exportService: StubTemplateExportService()
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore()
             )
         }
 
@@ -131,7 +133,8 @@ final class ColoringTests: XCTestCase {
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
-                exportService: StubTemplateExportService()
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore()
             )
         }
 
@@ -162,7 +165,8 @@ final class ColoringTests: XCTestCase {
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
-                exportService: StubTemplateExportService()
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore()
             )
         }
 
@@ -190,7 +194,8 @@ final class ColoringTests: XCTestCase {
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
-                exportService: StubTemplateExportService()
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore()
             )
         }
 
@@ -223,7 +228,8 @@ final class ColoringTests: XCTestCase {
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
-                exportService: StubTemplateExportService()
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore()
             )
         }
 
@@ -235,6 +241,51 @@ final class ColoringTests: XCTestCase {
             XCTAssertEqual(viewModel.importStatusMessage, "All imported drawings deleted.")
             XCTAssertFalse(viewModel.hasImportedTemplates)
         }
+    }
+
+    func testTemplateDrawingPersistsAcrossViewModelReload() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let drawingStore = StubTemplateDrawingStore()
+        let firstLibrary = StubTemplateLibrary(templates: [template])
+        let firstViewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: firstLibrary,
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore
+            )
+        }
+
+        await firstViewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        let sampleStrokeCount = sampleDrawing.strokes.count
+        await MainActor.run {
+            firstViewModel.updateDrawing(sampleDrawing)
+        }
+
+        let didPersistDrawing = await waitForCondition(timeout: 3.0) {
+            let persistedDrawingData = await drawingStore.drawingData(for: template.id)
+            return persistedDrawingData?.isEmpty == false
+        }
+        XCTAssertTrue(didPersistDrawing, "Expected drawing data to be persisted for selected template.")
+
+        let secondLibrary = StubTemplateLibrary(templates: [template])
+        let secondViewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: secondLibrary,
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore
+            )
+        }
+
+        await secondViewModel.loadTemplatesIfNeeded()
+
+        let didRestoreDrawing = await waitForCondition(timeout: 5.0) {
+            await MainActor.run {
+                secondViewModel.selectedTemplateID == template.id &&
+                secondViewModel.currentDrawing.strokes.count == sampleStrokeCount
+            }
+        }
+        XCTAssertTrue(didRestoreDrawing, "Expected persisted drawing strokes to restore after reload.")
     }
 
     @MainActor
@@ -292,6 +343,34 @@ final class ColoringTests: XCTestCase {
             context.fill(CGRect(origin: .zero, size: imageSize))
         }
         return image.pngData() ?? sampleTemplateImageData
+    }
+
+    @MainActor
+    private func makeSampleTemplateDrawing() -> PKDrawing {
+        let ink = PKInk(.pen, color: .black)
+        let points = [
+            PKStrokePoint(
+                location: CGPoint(x: 10, y: 10),
+                timeOffset: 0,
+                size: CGSize(width: 6, height: 6),
+                opacity: 1,
+                force: 1,
+                azimuth: 0,
+                altitude: .pi / 2
+            ),
+            PKStrokePoint(
+                location: CGPoint(x: 160, y: 120),
+                timeOffset: 0.1,
+                size: CGSize(width: 6, height: 6),
+                opacity: 1,
+                force: 1,
+                azimuth: 0,
+                altitude: .pi / 2
+            )
+        ]
+        let path = PKStrokePath(controlPoints: points, creationDate: Date())
+        let stroke = PKStroke(ink: ink, path: path)
+        return PKDrawing(strokes: [stroke])
     }
 
     @MainActor
@@ -456,6 +535,36 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
 
     func deleteAllImportedTemplates() throws {
         importedTemplates.removeAll()
+    }
+}
+
+private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
+    private var drawingDataByTemplateID: [String: Data] = [:]
+
+    func loadDrawingData(for templateID: String) throws -> Data? {
+        drawingDataByTemplateID[templateID]
+    }
+
+    func saveDrawingData(_ drawingData: Data, for templateID: String) throws {
+        drawingDataByTemplateID[templateID] = drawingData
+    }
+
+    func renameDrawingData(from oldTemplateID: String, to newTemplateID: String) throws {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        if let drawingData = drawingDataByTemplateID.removeValue(forKey: oldTemplateID) {
+            drawingDataByTemplateID[newTemplateID] = drawingData
+        }
+    }
+
+    func deleteDrawingData(for templateID: String) throws {
+        drawingDataByTemplateID.removeValue(forKey: templateID)
+    }
+
+    func drawingData(for templateID: String) -> Data? {
+        drawingDataByTemplateID[templateID]
     }
 }
 
