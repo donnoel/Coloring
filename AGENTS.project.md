@@ -14,7 +14,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - PNG export + share flow
 - Apple Pencil Template Studio with 20 built-in 4:3 line-art templates
 - Imported drawing templates from Photos/Files
-- Immersive template workflow: always-full-screen canvas first, native PencilKit picker, pinch-to-zoom, and sidebar-managed import/export/clear/rename/delete controls
+- Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
 
 2) Architecture boundaries
 - SwiftUI views handle presentation and interaction only

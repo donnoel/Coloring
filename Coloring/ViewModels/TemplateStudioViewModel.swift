@@ -20,6 +20,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
     private var hasLoadedTemplates = false
+    private var templateImageLoadTask: Task<Void, Never>?
 
     init(
         templateLibrary: any TemplateLibraryProviding,
@@ -62,6 +63,9 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func reloadTemplates() async {
+        templateImageLoadTask?.cancel()
+        templateImageLoadTask = nil
+
         do {
             let loadedTemplates = try await templateLibrary.loadTemplates()
             templates = loadedTemplates
@@ -72,7 +76,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             restoreDrawingForSelectedTemplate()
-            await loadSelectedTemplateImage()
+            await loadSelectedTemplateImage(for: selectedTemplateID)
         } catch {
             importErrorMessage = "Could not load templates: \(error.localizedDescription)"
         }
@@ -92,8 +96,9 @@ final class TemplateStudioViewModel: ObservableObject {
             currentDrawing = PKDrawing()
         }
 
-        Task {
-            await loadSelectedTemplateImage()
+        templateImageLoadTask?.cancel()
+        templateImageLoadTask = Task { [weak self] in
+            await self?.loadSelectedTemplateImage(for: templateID)
         }
 
         invalidateExport()
@@ -201,16 +206,34 @@ final class TemplateStudioViewModel: ObservableObject {
         isExporting = false
     }
 
-    private func loadSelectedTemplateImage() async {
-        guard let selectedTemplate else {
-            selectedTemplateImage = nil
+    private func loadSelectedTemplateImage(for templateID: String) async {
+        guard let template = templates.first(where: { $0.id == templateID }) else {
+            if selectedTemplateID == templateID {
+                selectedTemplateImage = nil
+            }
             return
         }
 
         do {
-            let templateData = try await templateLibrary.imageData(for: selectedTemplate)
+            let templateData = try await templateLibrary.imageData(for: template)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard selectedTemplateID == templateID else {
+                return
+            }
+
             selectedTemplateImage = UIImage(data: templateData)
         } catch {
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard selectedTemplateID == templateID else {
+                return
+            }
+
             selectedTemplateImage = nil
             importErrorMessage = "Could not load selected template image."
         }
