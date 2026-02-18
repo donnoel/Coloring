@@ -11,6 +11,8 @@ struct TemplateStudioView: View {
     @State private var templatePendingRename: ColoringTemplate?
     @State private var renameDraftTitle = ""
     @State private var templatePendingDeletion: ColoringTemplate?
+    @State private var canvasBaseScale: CGFloat = 1.0
+    @GestureState private var canvasPinchScale: CGFloat = 1.0
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -30,6 +32,9 @@ struct TemplateStudioView: View {
             Task {
                 await importPhotoItem(newItem)
             }
+        }
+        .onChange(of: viewModel.selectedTemplateID) { _, _ in
+            canvasBaseScale = 1.0
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
@@ -149,7 +154,7 @@ struct TemplateStudioView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(.ultraThinMaterial)
-        .navigationTitle("Library")
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var importControls: some View {
@@ -348,6 +353,7 @@ struct TemplateStudioView: View {
 
     private func templateCanvas(templateImage: UIImage) -> some View {
         let aspectRatio = max(0.1, viewModel.selectedTemplateAspectRatio)
+        let effectiveScale = clampedCanvasScale(canvasBaseScale * canvasPinchScale)
 
         return ZStack {
             Color.white
@@ -367,10 +373,26 @@ struct TemplateStudioView: View {
             }
             .aspectRatio(aspectRatio, contentMode: .fill)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaleEffect(effectiveScale)
             .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .gesture(canvasMagnificationGesture)
+    }
+
+    private var canvasMagnificationGesture: some Gesture {
+        MagnificationGesture()
+            .updating($canvasPinchScale) { value, state, _ in
+                state = value
+            }
+            .onEnded { value in
+                canvasBaseScale = clampedCanvasScale(canvasBaseScale * value)
+            }
+    }
+
+    private func clampedCanvasScale(_ scale: CGFloat) -> CGFloat {
+        min(max(scale, 1.0), 4.0)
     }
 
     private var canSaveRename: Bool {

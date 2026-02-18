@@ -12,6 +12,7 @@ Coloring is an iPad-first SwiftUI coloring book app focused on full-screen outli
   - Squeeze switches to eraser
   - Double-tap opens the tool/color picker
 - Always-full-screen canvas with no extra overlay chrome
+- Pinch-to-zoom on the canvas for close coloring detail
 - Sidebar-managed actions for `Export`, `Share`, `Clear`, plus imported drawing `Rename` and `Delete`
 - Premium liquid-glass import card for Photos/Files
 - PNG export with share sheet support
