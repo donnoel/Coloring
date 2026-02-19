@@ -24,6 +24,7 @@ struct PencilCanvasView: UIViewRepresentable {
 
         context.coordinator.connect(to: canvasView, containerView: containerView)
         containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
+        containerView.captureDrawingReference(drawing)
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
         return containerView
@@ -137,6 +138,7 @@ struct PencilCanvasView: UIViewRepresentable {
         func applyExternalDrawing(_ drawing: PKDrawing, to canvasView: PKCanvasView) {
             isApplyingExternalDrawing = true
             canvasView.drawing = drawing
+            containerView?.captureDrawingReference(drawing)
             isApplyingExternalDrawing = false
         }
 
@@ -145,6 +147,10 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            let isProgrammaticTransform = containerView?.consumePendingProgrammaticDrawingChange(for: canvasView.drawing) == true
+            if !isProgrammaticTransform {
+                containerView?.captureDrawingReference(canvasView.drawing)
+            }
             parent.drawing = canvasView.drawing
             parent.onDrawingChanged?(canvasView.drawing)
         }
@@ -201,6 +207,9 @@ final class ZoomableCanvasContainerView: UIView {
     private var templateAspectRatio: CGFloat = 4.0 / 3.0
     private var currentTemplateID: String = ""
     private var lastBoundsSize: CGSize = .zero
+    private var referenceDrawing: PKDrawing = PKDrawing()
+    private var referenceDrawingSize: CGSize = .zero
+    private var pendingProgrammaticDrawingData: Data?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -264,6 +273,24 @@ final class ZoomableCanvasContainerView: UIView {
         )
     }
 
+    func captureDrawingReference(_ drawing: PKDrawing) {
+        referenceDrawing = drawing
+        referenceDrawingSize = contentView.bounds.size
+    }
+
+    func consumePendingProgrammaticDrawingChange(for drawing: PKDrawing) -> Bool {
+        guard let pendingProgrammaticDrawingData else {
+            return false
+        }
+
+        guard drawing.dataRepresentation() == pendingProgrammaticDrawingData else {
+            return false
+        }
+
+        self.pendingProgrammaticDrawingData = nil
+        return true
+    }
+
     private func setupSubviews() {
         backgroundColor = .clear
 
@@ -315,27 +342,37 @@ final class ZoomableCanvasContainerView: UIView {
     }
 
     private func scaleDrawingIfNeeded(from oldSize: CGSize, to newSize: CGSize) {
-        guard oldSize.width > 0,
-              oldSize.height > 0,
-              newSize.width > 0,
-              newSize.height > 0
+        guard newSize.width > 0, newSize.height > 0 else {
+            return
+        }
+
+        let sourceDrawing: PKDrawing
+        let sourceSize: CGSize
+        if referenceDrawingSize.width > 0, referenceDrawingSize.height > 0 {
+            sourceDrawing = referenceDrawing
+            sourceSize = referenceDrawingSize
+        } else {
+            sourceDrawing = canvasView.drawing
+            sourceSize = oldSize
+        }
+
+        guard sourceSize.width > 0,
+              sourceSize.height > 0,
+              !sourceDrawing.strokes.isEmpty
         else {
             return
         }
 
-        let scaleX = newSize.width / oldSize.width
-        let scaleY = newSize.height / oldSize.height
+        let scaleX = newSize.width / sourceSize.width
+        let scaleY = newSize.height / sourceSize.height
         guard abs(scaleX - 1) > 0.0001 || abs(scaleY - 1) > 0.0001 else {
             return
         }
 
-        let currentDrawing = canvasView.drawing
-        guard !currentDrawing.strokes.isEmpty else {
-            return
-        }
-
         let transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
-        canvasView.drawing = currentDrawing.transformed(using: transform)
+        let transformedDrawing = sourceDrawing.transformed(using: transform)
+        pendingProgrammaticDrawingData = transformedDrawing.dataRepresentation()
+        canvasView.drawing = transformedDrawing
     }
 
     private static func aspectRatio(for image: UIImage) -> CGFloat {

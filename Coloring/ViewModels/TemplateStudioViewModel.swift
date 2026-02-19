@@ -30,13 +30,26 @@ final class TemplateStudioViewModel: ObservableObject {
         templateLibrary: any TemplateLibraryProviding,
         exportService: any TemplateArtworkExporting,
         drawingStore: any TemplateDrawingStoreProviding,
-        selectionStore: any TemplateSelectionStoreProviding = TemplateSelectionStore()
+        selectionStore: any TemplateSelectionStoreProviding
     ) {
         self.templateLibrary = templateLibrary
         self.exportService = exportService
         self.drawingStore = drawingStore
         self.selectionStore = selectionStore
         self.currentDrawing = PKDrawing()
+    }
+
+    convenience init(
+        templateLibrary: any TemplateLibraryProviding,
+        exportService: any TemplateArtworkExporting,
+        drawingStore: any TemplateDrawingStoreProviding
+    ) {
+        self.init(
+            templateLibrary: templateLibrary,
+            exportService: exportService,
+            drawingStore: drawingStore,
+            selectionStore: TemplateSelectionStore()
+        )
     }
 
     convenience init() {
