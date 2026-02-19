@@ -20,6 +20,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
     private let drawingStore: any TemplateDrawingStoreProviding
+    private let selectionStore: any TemplateSelectionStoreProviding
     private var hasLoadedTemplates = false
     private var templateImageLoadTask: Task<Void, Never>?
     private var drawingRestoreTask: Task<Void, Never>?
@@ -28,11 +29,13 @@ final class TemplateStudioViewModel: ObservableObject {
     init(
         templateLibrary: any TemplateLibraryProviding,
         exportService: any TemplateArtworkExporting,
-        drawingStore: any TemplateDrawingStoreProviding
+        drawingStore: any TemplateDrawingStoreProviding,
+        selectionStore: any TemplateSelectionStoreProviding = TemplateSelectionStore()
     ) {
         self.templateLibrary = templateLibrary
         self.exportService = exportService
         self.drawingStore = drawingStore
+        self.selectionStore = selectionStore
         self.currentDrawing = PKDrawing()
     }
 
@@ -40,7 +43,8 @@ final class TemplateStudioViewModel: ObservableObject {
         self.init(
             templateLibrary: TemplateLibraryService(),
             exportService: TemplateArtworkExportService(),
-            drawingStore: TemplateDrawingStoreService()
+            drawingStore: TemplateDrawingStoreService(),
+            selectionStore: TemplateSelectionStore()
         )
     }
 
@@ -91,9 +95,8 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             importErrorMessage = nil
 
-            if selectedTemplateID.isEmpty || !templates.contains(where: { $0.id == selectedTemplateID }) {
-                selectedTemplateID = templates.first?.id ?? ""
-            }
+            selectedTemplateID = resolvedSelectedTemplateID(from: loadedTemplates)
+            persistSelectedTemplateID(selectedTemplateID)
 
             restoreDrawingForSelectedTemplate()
             await loadSelectedTemplateImage(for: selectedTemplateID)
@@ -111,6 +114,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         persistCurrentDrawing()
         selectedTemplateID = templateID
+        persistSelectedTemplateID(templateID)
         restoreDrawingForSelectedTemplate()
 
         templateImageLoadTask?.cancel()
@@ -292,6 +296,24 @@ final class TemplateStudioViewModel: ObservableObject {
 
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         persistDrawing(currentDrawing, for: selectedTemplateID)
+    }
+
+    private func resolvedSelectedTemplateID(from templates: [ColoringTemplate]) -> String {
+        let validTemplateIDs = Set(templates.map(\.id))
+        if validTemplateIDs.contains(selectedTemplateID) {
+            return selectedTemplateID
+        }
+
+        if let persistedTemplateID = selectionStore.loadSelectedTemplateID(),
+           validTemplateIDs.contains(persistedTemplateID) {
+            return persistedTemplateID
+        }
+
+        return templates.first?.id ?? ""
+    }
+
+    private func persistSelectedTemplateID(_ templateID: String) {
+        selectionStore.saveSelectedTemplateID(templateID.isEmpty ? nil : templateID)
     }
 
     private func restoreDrawingForSelectedTemplate() {

@@ -217,9 +217,14 @@ final class ZoomableCanvasContainerView: UIView {
         scrollView.frame = bounds
 
         let didBoundsChange = bounds.size != lastBoundsSize
+        let previousContentSize = contentView.bounds.size
         lastBoundsSize = bounds.size
 
         layoutContentFrame()
+        if didBoundsChange {
+            scaleDrawingIfNeeded(from: previousContentSize, to: contentView.bounds.size)
+        }
+
         if didBoundsChange, scrollView.zoomScale <= scrollView.minimumZoomScale {
             resetZoomToFit()
         } else {
@@ -307,6 +312,30 @@ final class ZoomableCanvasContainerView: UIView {
         scrollView.zoomScale = scrollView.minimumZoomScale
         scrollView.contentOffset = .zero
         updateContentInsetForCentering()
+    }
+
+    private func scaleDrawingIfNeeded(from oldSize: CGSize, to newSize: CGSize) {
+        guard oldSize.width > 0,
+              oldSize.height > 0,
+              newSize.width > 0,
+              newSize.height > 0
+        else {
+            return
+        }
+
+        let scaleX = newSize.width / oldSize.width
+        let scaleY = newSize.height / oldSize.height
+        guard abs(scaleX - 1) > 0.0001 || abs(scaleY - 1) > 0.0001 else {
+            return
+        }
+
+        let currentDrawing = canvasView.drawing
+        guard !currentDrawing.strokes.isEmpty else {
+            return
+        }
+
+        let transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
+        canvasView.drawing = currentDrawing.transformed(using: transform)
     }
 
     private static func aspectRatio(for image: UIImage) -> CGFloat {
