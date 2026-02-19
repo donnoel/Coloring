@@ -1,74 +1,94 @@
-# Coloring
+# **Coloring**
+### *An iPad-first coloring studio with Apple Pencil-native drawing and resilient iCloud recovery.*
 
-An iPad-first SwiftUI coloring studio focused on fullscreen templates, Apple Pencil-native drawing, and resilient local plus iCloud-backed recovery.
+<p align="center">
+  <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift">
+  <img src="https://img.shields.io/badge/Platform-iPadOS-blue">
+  <img src="https://img.shields.io/badge/Templates-20%20Built--In-purple">
+  <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud">
+</p>
 
 ---
 
-## What Is Coloring?
+## What is Coloring?
 
-Coloring is built for a direct "open and color" flow:
-- pick any template from one unified library,
-- draw with native PencilKit controls,
-- zoom and pan naturally for detail work,
-- export as a composited PNG when done.
+**Coloring** is a fullscreen iPad coloring app designed around a direct workflow:
 
-The app is intentionally offline-first, with iCloud used for backup/recovery of imported templates and per-template drawing progress.
+- choose a built-in or imported template,
+- color with native PencilKit tools,
+- zoom into detail work with natural gestures,
+- export a composited PNG when finished.
+
+The app is offline-first for day-to-day use and uses iCloud for recovery of imported templates and per-template drawing progress.
 
 ---
 
 ## Core Features
 
 | Feature | Description |
-|---|---|
-| Fullscreen Studio | Single immersive studio with no tab switching between scenes/templates. |
-| Unified Library | Built-in and imported drawings appear in one sidebar list. |
-| Built-In Templates | 20 included 4:3 line-art templates across scenery, racing, and fun themes. |
-| Import From Photos/Files | Add custom outline drawings and manage them in-app. |
-| Native PencilKit Tools | Apple-native pen/marker/eraser/color tool picker behavior. |
-| Apple Pencil Gestures | Squeeze to switch eraser, double-tap to open tool/color picker. |
-| Native Zoom + Pan | Pinch-to-zoom and natural canvas navigation for close detail coloring. |
-| PNG Export + Share | Composites template and strokes into a shareable PNG file. |
-| Imported Template iCloud Recovery | Imported templates are mirrored to iCloud and restored if local files are missing. |
-| Per-Template Stroke Recovery | Drawing strokes are saved per template and mirrored to iCloud for reinstall recovery. |
-| Safe Delete Flows | Single-delete and delete-all imported reset actions include confirmation dialogs. |
-| Name/Image Mapping Stability | Built-in library loading keeps template names aligned to correct artwork assets. |
+|--------|-------------|
+| **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
+| **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
+| **20 Built-In 4:3 Templates** | Included line-art packs for scenery, racing, and fun categories. |
+| **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
+| **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
+| **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
+| **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
+| **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
+| **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
+| **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |
+| **Delete Confirmations** | Confirmation prompts for single imported delete and delete-all imported actions. |
+| **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
 ---
 
-## Persistence and iCloud Behavior
+## Controls
 
-Coloring uses an offline-first model with iCloud backup/restore:
+- **Template Selection**: Choose any built-in or imported template from the sidebar.
+- **Coloring**: Draw directly with PencilKit tools and Apple Pencil gestures.
+- **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
+- **Import**: Add templates from Photos or Files.
+- **Manage Imported Templates**: Rename, delete one, or delete all imported templates (with confirmations).
+- **Export**: Create a PNG and share from the system share sheet.
 
-- Imported templates are written locally with atomic writes.
-- Imported templates are mirrored into iCloud Documents when available.
-- Per-template drawing data is stored locally and mirrored to iCloud.
-- On launch and foreground, missing local content can be restored from iCloud.
-- iCloud placeholder files are handled to reduce failed restore cases.
+---
 
-This supports the recovery scenario:
-1. Install app and color a template.
-2. Delete app/build.
-3. Reinstall app/build.
-4. Reopen same template and recover prior work (after iCloud sync delay if needed).
+## How it works
+
+Coloring follows a predictable persistence and rendering pipeline:
+
+1. Load built-in templates from bundled manifest/resources.
+2. Load imported template metadata from local storage.
+3. Attempt imported template recovery from iCloud when local files are unavailable.
+4. Load selected template image into the studio.
+5. Persist drawing updates per template locally.
+6. Mirror drawing data and imported templates to iCloud when available.
+7. Restore drawing data for the selected template on reload/reinstall.
+8. Export template image + drawing strokes into a composited PNG.
 
 ---
 
 ## Architecture Overview
 
-Coloring follows SwiftUI + MVVM with focused services:
+### **TemplateStudioViewModel (`@MainActor`)**
+- Coordinates template selection, drawing state, import/export actions, and user-facing status messages.
+- Triggers drawing persistence and restoration by template identifier.
 
-- `Coloring/ViewModels/TemplateStudioViewModel.swift`
-  - owns studio state, selection, drawing updates, import/export actions, and persistence orchestration.
-- `Coloring/Services/TemplateLibraryService.swift`
-  - owns built-in/imported template catalog, atomic import persistence, iCloud template sync/restore, and drawing-data store services.
-- `Coloring/Services/TemplateArtworkExportService.swift`
-  - composites selected template image with `PKDrawing` and writes export PNG.
-- `Coloring/Views/TemplateStudioView.swift`
-  - main iPad studio shell, sidebar management actions, and confirmation-driven destructive actions.
-- `Coloring/Views/PencilCanvasView.swift`
-  - PencilKit canvas bridge, native tool picker, and zoom/pan behavior.
-- `ColoringTests/ColoringTests.swift`
-  - view-model and template flow coverage, including persistence/reload behavior.
+### **TemplateLibraryService (actor)**
+- Owns built-in/imported template catalog loading.
+- Handles atomic imported template writes and iCloud mirror/restore behavior.
+
+### **TemplateDrawingStoreService (actor)**
+- Owns per-template drawing persistence.
+- Mirrors drawing data to iCloud Documents and restores when local data is missing.
+
+### **TemplateArtworkExportService (actor)**
+- Composites selected template bitmap + `PKDrawing` data.
+- Writes deterministic PNG output for share/export.
+
+### **UI Layer (SwiftUI + PencilKit bridge)**
+- `TemplateStudioView` provides iPad-first library + studio shell.
+- `PencilCanvasView` bridges PencilKit canvas, tool picker, and native gesture behavior.
 
 ---
 
@@ -94,45 +114,64 @@ Coloring/
 
 ### Requirements
 - Xcode 17+
-- iOS/iPad simulator runtime
+- iPad simulator runtime (or physical iPad device)
 
-### Run
+### Setup
 1. Open `/Users/donnoel/Development/Coloring/Coloring.xcodeproj`.
 2. Select scheme `Coloring`.
-3. Choose an iPad destination (simulator or device).
+3. Choose an iPad destination.
 4. Build and run.
 
----
-
-## Build and Test
-
-Clean build:
-
+### Build
 ```bash
 xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/platform=iOS Simulator' clean build
 ```
 
-Run full tests:
-
+### Test
 ```bash
 xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=iOS Simulator,name=iPad (A16)' test
 ```
 
 ---
 
-## Troubleshooting
+## Notes and Conventions
 
-- If imported templates or drawings do not appear immediately after reinstall:
-  - verify same iCloud account and iCloud Drive enabled,
-  - open app and wait briefly for iCloud hydration,
-  - background/foreground app once to trigger deferred restore retry.
-- If iCloud is unavailable, the app continues to work with local-only storage.
-- If restore is still missing after several minutes, collect device logs for ubiquity container availability and restore errors.
+- Persistence is **offline-first** with iCloud used for backup and recovery.
+- Imported templates and drawing progress use atomic local writes where appropriate.
+- If iCloud is unavailable, the app remains fully usable with local storage.
+- Deferred restore retries are used to handle delayed iCloud availability at launch/foreground.
 
 ---
 
-## Near-Term Roadmap
+## Troubleshooting
 
-- Template category filtering and favorites.
-- Undo/redo workflow improvements.
-- Broader automated coverage and lower simulator test flakiness.
+- **Imported template missing after reinstall**
+  - Confirm same Apple ID and iCloud Drive enabled on device.
+  - Launch app and allow short hydration time.
+  - Background/foreground once to trigger deferred retry.
+
+- **Drawing progress not visible immediately**
+  - Open the same template ID/title and wait for iCloud restore completion.
+  - Verify iCloud container entitlement and account state on device.
+
+- **Export failed**
+  - Ensure a template is selected and retry export.
+  - Check free disk space and share-sheet availability.
+
+---
+
+## Roadmap
+
+- [ ] Template category filtering and favorites.
+- [ ] Undo/redo workflow improvements.
+- [ ] Additional automated test coverage and reduced simulator flakiness.
+
+---
+
+## Credits
+
+Built with care by **Don Noel** and AI collaboration.
+
+---
+
+> *Coloring is designed to keep the drawing experience simple, focused, and recoverable across app reinstalls.*
