@@ -8,7 +8,9 @@ struct TemplateStudioView: View {
 
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isFileImporterPresented = false
-    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    // Default to showing the library so the user always has a reliable starting point.
+    // We still collapse to the canvas after a template is selected.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var templatePendingRename: ColoringTemplate?
     @State private var renameDraftTitle = ""
     @State private var templatePendingDeletion: ColoringTemplate?
@@ -348,9 +350,7 @@ struct TemplateStudioView: View {
     private var templateWorkspace: some View {
         ZStack {
             if let templateImage = viewModel.selectedTemplateImage {
-                templateCanvas(
-                    templateImage: templateImage
-                )
+                templateCanvas(templateImage: templateImage)
             } else {
                 ContentUnavailableView(
                     "No Template Selected",
@@ -372,9 +372,62 @@ struct TemplateStudioView: View {
                     .padding(.bottom, 40)
                 }
             }
+
+            libraryToggle
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var libraryToggle: some View {
+        VStack {
+            HStack {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
+                    }
+                } label: {
+                    Image(systemName: "sidebar.leading")
+                        .font(.headline.weight(.semibold))
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Toggle Library")
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 12)
+                        .onEnded { value in
+                            guard columnVisibility == .all else {
+                                return
+                            }
+
+                            // Allow a simple, reliable swipe-left gesture on the toggle handle to close the library.
+                            // Keep it conservative so it doesn't interfere with normal drawing gestures.
+                            let isMostlyHorizontal = abs(value.translation.height) < 28
+                            let isClosingSwipe = value.translation.width < -44
+                            guard isMostlyHorizontal, isClosingSwipe else {
+                                return
+                            }
+
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                columnVisibility = .detailOnly
+                            }
+                        }
+                )
+
+                Spacer()
+            }
+            .padding(.top, 10)
+            .padding(.leading, 10)
+
+            Spacer()
+        }
+        .allowsHitTesting(true)
     }
 
     private func templateCanvas(templateImage: UIImage) -> some View {

@@ -37,8 +37,6 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |
-| **Last Open Drawing Restore** | The most recently selected template is reopened automatically on launch when still available. |
-| **Orientation-Locked Strokes** | Pencil strokes stay aligned with template artwork when rotating between landscape and portrait. |
 | **Delete Confirmations** | Confirmation prompts for single imported delete and delete-all imported actions. |
 | **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
@@ -62,12 +60,11 @@ Coloring follows a predictable persistence and rendering pipeline:
 1. Load built-in templates from bundled manifest/resources.
 2. Load imported template metadata from local storage.
 3. Attempt imported template recovery from iCloud when local files are unavailable.
-4. Restore the last selected template ID and fall back safely if it no longer exists.
-5. Load selected template image into the studio.
-6. Persist drawing updates per template locally.
-7. Mirror drawing data and imported templates to iCloud when available.
-8. Restore drawing data for the selected template on reload/reinstall.
-9. Export template image + drawing strokes into a composited PNG.
+4. Load selected template image into the studio.
+5. Persist drawing updates per template locally.
+6. Mirror drawing data and imported templates to iCloud when available.
+7. Restore drawing data for the selected template on reload/reinstall.
+8. Export template image + drawing strokes into a composited PNG.
 
 ---
 

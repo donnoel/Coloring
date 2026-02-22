@@ -24,7 +24,6 @@ struct PencilCanvasView: UIViewRepresentable {
 
         context.coordinator.connect(to: canvasView, containerView: containerView)
         containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
-        containerView.captureDrawingReference(drawing)
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
         return containerView
@@ -138,7 +137,6 @@ struct PencilCanvasView: UIViewRepresentable {
         func applyExternalDrawing(_ drawing: PKDrawing, to canvasView: PKCanvasView) {
             isApplyingExternalDrawing = true
             canvasView.drawing = drawing
-            containerView?.captureDrawingReference(drawing)
             isApplyingExternalDrawing = false
         }
 
@@ -147,10 +145,6 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            let isProgrammaticTransform = containerView?.consumePendingProgrammaticDrawingChange(for: canvasView.drawing) == true
-            if !isProgrammaticTransform {
-                containerView?.captureDrawingReference(canvasView.drawing)
-            }
             parent.drawing = canvasView.drawing
             parent.onDrawingChanged?(canvasView.drawing)
         }
@@ -204,12 +198,10 @@ final class ZoomableCanvasContainerView: UIView {
     let imageView = UIImageView()
     let canvasView = PKCanvasView()
 
-    private var templateAspectRatio: CGFloat = 4.0 / 3.0
     private var currentTemplateID: String = ""
-    private var lastBoundsSize: CGSize = .zero
-    private var referenceDrawing: PKDrawing = PKDrawing()
-    private var referenceDrawingSize: CGSize = .zero
-    private var pendingProgrammaticDrawingData: Data?
+    private var canvasBaseSize: CGSize = .zero
+    private var lastFitZoomScale: CGFloat = 1.0
+    private let maxCanvasLongEdge: CGFloat = 2048
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -225,38 +217,23 @@ final class ZoomableCanvasContainerView: UIView {
         super.layoutSubviews()
         scrollView.frame = bounds
 
-        let didBoundsChange = bounds.size != lastBoundsSize
-        let previousContentSize = contentView.bounds.size
-        lastBoundsSize = bounds.size
-
-        layoutContentFrame()
-        if didBoundsChange {
-            scaleDrawingIfNeeded(from: previousContentSize, to: contentView.bounds.size)
-        }
-
-        if didBoundsChange, scrollView.zoomScale <= scrollView.minimumZoomScale {
-            resetZoomToFit()
-        } else {
-            updateContentInsetForCentering()
-        }
+        // Keep the user's zoom during normal layout passes.
+        // On rotation/resizing, if the user was at "fit", we'll snap to the new fit scale.
+        updateZoomScaleLimits(maintainUserZoom: true)
     }
 
     func applyTemplateImage(_ image: UIImage, templateID: String, resetZoom: Bool) {
         imageView.image = image
-        let nextAspectRatio = Self.aspectRatio(for: image)
-        let aspectRatioChanged = abs(nextAspectRatio - templateAspectRatio) > 0.0001
         let templateChanged = currentTemplateID != templateID
-        templateAspectRatio = nextAspectRatio
         currentTemplateID = templateID
+
+        canvasBaseSize = Self.normalizedCanvasSize(for: image, maxLongEdge: maxCanvasLongEdge)
+        layoutContentFrame()
 
         setNeedsLayout()
         layoutIfNeeded()
 
-        if resetZoom || templateChanged || aspectRatioChanged {
-            resetZoomToFit()
-        } else {
-            updateContentInsetForCentering()
-        }
+        updateZoomScaleLimits(maintainUserZoom: !resetZoom && !templateChanged)
     }
 
     func updateContentInsetForCentering() {
@@ -271,24 +248,6 @@ final class ZoomableCanvasContainerView: UIView {
             bottom: verticalInset,
             right: horizontalInset
         )
-    }
-
-    func captureDrawingReference(_ drawing: PKDrawing) {
-        referenceDrawing = drawing
-        referenceDrawingSize = contentView.bounds.size
-    }
-
-    func consumePendingProgrammaticDrawingChange(for drawing: PKDrawing) -> Bool {
-        guard let pendingProgrammaticDrawingData else {
-            return false
-        }
-
-        guard drawing.dataRepresentation() == pendingProgrammaticDrawingData else {
-            return false
-        }
-
-        self.pendingProgrammaticDrawingData = nil
-        return true
     }
 
     private func setupSubviews() {
@@ -325,81 +284,56 @@ final class ZoomableCanvasContainerView: UIView {
     }
 
     private func layoutContentFrame() {
-        let contentSize = Self.fittedContentSize(
-            in: scrollView.bounds.size,
-            aspectRatio: templateAspectRatio
-        )
+        let contentSize = canvasBaseSize == .zero ? CGSize(width: 1024, height: 768) : canvasBaseSize
         contentView.frame = CGRect(origin: .zero, size: contentSize)
         imageView.frame = contentView.bounds
         canvasView.frame = contentView.bounds
         scrollView.contentSize = contentSize
     }
 
-    private func resetZoomToFit() {
-        scrollView.zoomScale = scrollView.minimumZoomScale
-        scrollView.contentOffset = .zero
-        updateContentInsetForCentering()
-    }
-
-    private func scaleDrawingIfNeeded(from oldSize: CGSize, to newSize: CGSize) {
-        guard newSize.width > 0, newSize.height > 0 else {
-            return
-        }
-
-        let sourceDrawing: PKDrawing
-        let sourceSize: CGSize
-        if referenceDrawingSize.width > 0, referenceDrawingSize.height > 0 {
-            sourceDrawing = referenceDrawing
-            sourceSize = referenceDrawingSize
-        } else {
-            sourceDrawing = canvasView.drawing
-            sourceSize = oldSize
-        }
-
-        guard sourceSize.width > 0,
-              sourceSize.height > 0,
-              !sourceDrawing.strokes.isEmpty
+    private func updateZoomScaleLimits(maintainUserZoom: Bool) {
+        guard contentView.bounds.width > 0,
+              contentView.bounds.height > 0,
+              scrollView.bounds.width > 0,
+              scrollView.bounds.height > 0
         else {
             return
         }
 
-        let scaleX = newSize.width / sourceSize.width
-        let scaleY = newSize.height / sourceSize.height
-        guard abs(scaleX - 1) > 0.0001 || abs(scaleY - 1) > 0.0001 else {
-            return
+        let fitScaleX = scrollView.bounds.width / contentView.bounds.width
+        let fitScaleY = scrollView.bounds.height / contentView.bounds.height
+        let fitScale = min(fitScaleX, fitScaleY)
+
+        // Allow users to zoom out to 1.0 even on large iPads where "fit" would upscale.
+        scrollView.minimumZoomScale = min(fitScale, 1.0)
+        scrollView.maximumZoomScale = max(scrollView.minimumZoomScale * 8.0, 8.0)
+
+        let isEffectivelyAtFit = abs(scrollView.zoomScale - lastFitZoomScale) < 0.02
+        let shouldSnapToFit = !maintainUserZoom || isEffectivelyAtFit
+
+        if shouldSnapToFit {
+            scrollView.zoomScale = fitScale
+            scrollView.contentOffset = .zero
+        } else if scrollView.zoomScale < scrollView.minimumZoomScale {
+            scrollView.zoomScale = scrollView.minimumZoomScale
         }
 
-        let transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
-        let transformedDrawing = sourceDrawing.transformed(using: transform)
-        pendingProgrammaticDrawingData = transformedDrawing.dataRepresentation()
-        canvasView.drawing = transformedDrawing
+        lastFitZoomScale = fitScale
+        updateContentInsetForCentering()
     }
 
-    private static func aspectRatio(for image: UIImage) -> CGFloat {
-        guard image.size.width > 0, image.size.height > 0 else {
-            return 4.0 / 3.0
+    private static func normalizedCanvasSize(for image: UIImage, maxLongEdge: CGFloat) -> CGSize {
+        let rawSize = image.size
+        guard rawSize.width > 0, rawSize.height > 0 else {
+            return CGSize(width: 1024, height: 768)
         }
 
-        return image.size.width / image.size.height
-    }
-
-    private static func fittedContentSize(in viewportSize: CGSize, aspectRatio: CGFloat) -> CGSize {
-        guard viewportSize.width > 0, viewportSize.height > 0 else {
-            return .zero
+        let longEdge = max(rawSize.width, rawSize.height)
+        guard longEdge > maxLongEdge else {
+            return rawSize
         }
 
-        let safeAspectRatio = max(aspectRatio, 0.1)
-        let viewportAspectRatio = viewportSize.width / viewportSize.height
-        if safeAspectRatio > viewportAspectRatio {
-            return CGSize(
-                width: viewportSize.width,
-                height: viewportSize.width / safeAspectRatio
-            )
-        }
-
-        return CGSize(
-            width: viewportSize.height * safeAspectRatio,
-            height: viewportSize.height
-        )
+        let scale = maxLongEdge / longEdge
+        return CGSize(width: rawSize.width * scale, height: rawSize.height * scale)
     }
 }

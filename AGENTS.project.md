@@ -31,8 +31,6 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Restore imported drawings from iCloud when local files are missing
 - Retry imported drawing restore after launch and on app foreground to handle delayed iCloud availability
 - Persist per-template coloring strokes locally and mirror them to iCloud for reinstall recovery
-- Restore the last selected drawing on launch when still present
-- Keep Pencil strokes aligned with template artwork across orientation changes
 
 4) Testing priorities
 - View-model state transitions (scene switching, coloring, clearing)
@@ -61,8 +59,6 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Imported templates are saved locally with atomic writes.
 - Imported templates are mirrored to iCloud when available and restored locally if missing.
 - Template stroke progress is saved per drawing and restored from iCloud after reinstall.
-- The last selected drawing is restored on launch when available.
-- Pencil stroke geometry stays locked to template artwork in portrait and landscape.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Library sidebar lists both built-in and imported templates together.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.

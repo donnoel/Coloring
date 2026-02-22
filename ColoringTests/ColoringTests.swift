@@ -98,52 +98,6 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    func testTemplateLoadRestoresPersistedLastSelection() async {
-        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
-        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
-        let selectionStore = StubTemplateSelectionStore(selectedTemplateID: secondTemplate.id)
-        let library = StubTemplateLibrary(templates: [firstTemplate, secondTemplate])
-        let viewModel = await MainActor.run {
-            TemplateStudioViewModel(
-                templateLibrary: library,
-                exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore(),
-                selectionStore: selectionStore
-            )
-        }
-
-        await viewModel.loadTemplatesIfNeeded()
-
-        await MainActor.run {
-            XCTAssertEqual(viewModel.selectedTemplateID, secondTemplate.id)
-            XCTAssertEqual(selectionStore.selectedTemplateID, secondTemplate.id)
-        }
-    }
-
-    func testTemplateSelectionPersistsLastSelection() async {
-        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
-        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
-        let selectionStore = StubTemplateSelectionStore()
-        let library = StubTemplateLibrary(templates: [firstTemplate, secondTemplate])
-        let viewModel = await MainActor.run {
-            TemplateStudioViewModel(
-                templateLibrary: library,
-                exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore(),
-                selectionStore: selectionStore
-            )
-        }
-
-        await viewModel.loadTemplatesIfNeeded()
-        await MainActor.run {
-            viewModel.selectTemplate(secondTemplate.id)
-        }
-
-        await MainActor.run {
-            XCTAssertEqual(selectionStore.selectedTemplateID, secondTemplate.id)
-        }
-    }
-
     func testTemplateImportAddsAndSelectsImportedTemplate() async {
         let initialTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let library = StubTemplateLibrary(templates: [initialTemplate])
@@ -335,37 +289,6 @@ final class ColoringTests: XCTestCase {
     }
 
     @MainActor
-    func testZoomableCanvasMaintainsStableDrawingCoordinatesAcrossBoundsChanges() {
-        let templateImage = solidColorTemplateImage(.white, size: CGSize(width: 1200, height: 900))
-        let containerView = ZoomableCanvasContainerView(frame: CGRect(x: 0, y: 0, width: 1366, height: 1024))
-        containerView.applyTemplateImage(templateImage, templateID: "builtin-1", resetZoom: true)
-        containerView.layoutIfNeeded()
-        containerView.canvasView.drawing = makeSampleTemplateDrawing()
-
-        let initialCanvasSize = containerView.canvasView.bounds.size
-        let initialDrawingBounds = containerView.canvasView.drawing.bounds
-        let initialImageSize = containerView.imageView.bounds.size
-
-        containerView.frame = CGRect(x: 0, y: 0, width: 1024, height: 1366)
-        containerView.setNeedsLayout()
-        containerView.layoutIfNeeded()
-
-        XCTAssertEqual(containerView.canvasView.bounds.width, containerView.imageView.bounds.width, accuracy: 0.001)
-        XCTAssertEqual(containerView.canvasView.bounds.height, containerView.imageView.bounds.height, accuracy: 0.001)
-
-        let widthScale = containerView.canvasView.bounds.width / initialCanvasSize.width
-        let heightScale = containerView.canvasView.bounds.height / initialCanvasSize.height
-        let drawingBoundsAfterRotation = containerView.canvasView.drawing.bounds
-        XCTAssertEqual(drawingBoundsAfterRotation.origin.x, initialDrawingBounds.origin.x * widthScale, accuracy: 0.5)
-        XCTAssertEqual(drawingBoundsAfterRotation.origin.y, initialDrawingBounds.origin.y * heightScale, accuracy: 0.5)
-        XCTAssertEqual(drawingBoundsAfterRotation.width, initialDrawingBounds.width * widthScale, accuracy: 0.5)
-        XCTAssertEqual(drawingBoundsAfterRotation.height, initialDrawingBounds.height * heightScale, accuracy: 0.5)
-
-        XCTAssertNotEqual(containerView.canvasView.bounds.width, initialCanvasSize.width, accuracy: 0.001)
-        XCTAssertNotEqual(containerView.imageView.bounds.height, initialImageSize.height, accuracy: 0.001)
-    }
-
-    @MainActor
     private func makeViewModel(
         scenes: [ColoringScene],
         exportService: any ArtworkExporting = NoOpExportService()
@@ -420,15 +343,6 @@ final class ColoringTests: XCTestCase {
             context.fill(CGRect(origin: .zero, size: imageSize))
         }
         return image.pngData() ?? sampleTemplateImageData
-    }
-
-    @MainActor
-    private func solidColorTemplateImage(_ color: UIColor, size: CGSize) -> UIImage {
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { context in
-            color.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
-        }
     }
 
     @MainActor
@@ -651,23 +565,6 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func drawingData(for templateID: String) -> Data? {
         drawingDataByTemplateID[templateID]
-    }
-}
-
-@MainActor
-private final class StubTemplateSelectionStore: TemplateSelectionStoreProviding {
-    private(set) var selectedTemplateID: String?
-
-    init(selectedTemplateID: String? = nil) {
-        self.selectedTemplateID = selectedTemplateID
-    }
-
-    func loadSelectedTemplateID() -> String? {
-        selectedTemplateID
-    }
-
-    func saveSelectedTemplateID(_ templateID: String?) {
-        selectedTemplateID = templateID
     }
 }
 
