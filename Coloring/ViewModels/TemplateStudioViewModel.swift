@@ -5,6 +5,10 @@ import UIKit
 
 @MainActor
 final class TemplateStudioViewModel: ObservableObject {
+    private enum DefaultsKey {
+        static let lastSelectedTemplateID = "lastSelectedTemplateID"
+    }
+
     @Published private(set) var templates: [ColoringTemplate] = []
     @Published var selectedTemplateID: String = ""
     @Published var currentDrawing: PKDrawing
@@ -91,11 +95,20 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             importErrorMessage = nil
 
-            if selectedTemplateID.isEmpty || !templates.contains(where: { $0.id == selectedTemplateID }) {
-                selectedTemplateID = templates.first?.id ?? ""
+            if selectedTemplateID.isEmpty || !validTemplateIDs.contains(selectedTemplateID) {
+                let lastSelected = UserDefaults.standard.string(forKey: DefaultsKey.lastSelectedTemplateID) ?? ""
+                if !lastSelected.isEmpty, validTemplateIDs.contains(lastSelected) {
+                    selectedTemplateID = lastSelected
+                } else {
+                    selectedTemplateID = templates.first?.id ?? ""
+                }
             }
 
+            persistLastSelectedTemplateID(selectedTemplateID)
+
             restoreDrawingForSelectedTemplate()
+            // Prevent showing a stale image while the new selection loads.
+            selectedTemplateImage = nil
             await loadSelectedTemplateImage(for: selectedTemplateID)
             return true
         } catch {
@@ -111,6 +124,9 @@ final class TemplateStudioViewModel: ObservableObject {
 
         persistCurrentDrawing()
         selectedTemplateID = templateID
+        persistLastSelectedTemplateID(templateID)
+        // Clear immediately so the canvas never shows a mismatched image/drawing pair.
+        selectedTemplateImage = nil
         restoreDrawingForSelectedTemplate()
 
         templateImageLoadTask?.cancel()
@@ -336,6 +352,14 @@ final class TemplateStudioViewModel: ObservableObject {
         exportedFileURL = nil
         exportStatusMessage = nil
         exportErrorMessage = nil
+    }
+
+    private func persistLastSelectedTemplateID(_ templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        UserDefaults.standard.set(templateID, forKey: DefaultsKey.lastSelectedTemplateID)
     }
 
     private func persistDrawing(_ drawing: PKDrawing, for templateID: String) {

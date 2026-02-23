@@ -351,6 +351,9 @@ struct TemplateStudioView: View {
         ZStack {
             if let templateImage = viewModel.selectedTemplateImage {
                 templateCanvas(templateImage: templateImage)
+            } else if !viewModel.selectedTemplateID.isEmpty {
+                ProgressView("Loading Drawing…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
                     "No Template Selected",
