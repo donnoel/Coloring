@@ -725,6 +725,7 @@ private actor StubGalleryStore: GalleryStoreProviding {
     }
 
     func deleteEntry(_ id: String) throws {
-        entries.removeAll { $0.id == id }
+        let targetID = id
+        entries.removeAll { entry in entry.id == targetID }
     }
 }

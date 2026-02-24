@@ -208,6 +208,17 @@ struct TemplateStudioView: View {
                         .font(.footnote)
                         .foregroundStyle(.red)
                 }
+
+                if let drawingRestoreError = viewModel.drawingRestoreErrorMessage {
+                    Label {
+                        Text(drawingRestoreError)
+                            .font(.footnote)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .foregroundStyle(.orange)
+                }
             }
             .listRowSeparator(.hidden)
         }

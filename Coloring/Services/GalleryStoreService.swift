@@ -11,7 +11,7 @@ actor GalleryStoreService: GalleryStoreProviding {
     private let fileManager = FileManager.default
     private var cachedEntries: [ArtworkEntry]?
 
-    static let galleryDirectoryURL: URL = {
+    nonisolated static let galleryDirectoryURL: URL = {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         return documents.appendingPathComponent("Gallery", isDirectory: true)
     }()
@@ -27,10 +27,6 @@ actor GalleryStoreService: GalleryStoreProviding {
     }
 
     func loadEntries() throws -> [ArtworkEntry] {
-        if let cached = cachedEntries {
-            return cached
-        }
-
         ensureDirectoryExists()
 
         guard fileManager.fileExists(atPath: manifestURL.path) else {

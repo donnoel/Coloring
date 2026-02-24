@@ -41,6 +41,11 @@ struct GalleryView: View {
             .task {
                 await viewModel.loadEntries()
             }
+            .onAppear {
+                Task {
+                    await viewModel.loadEntries()
+                }
+            }
             .sheet(item: $selectedEntry) { entry in
                 ArtworkDetailView(entry: entry, viewModel: viewModel)
             }

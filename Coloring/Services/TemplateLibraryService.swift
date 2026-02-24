@@ -313,7 +313,9 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
 
             var lastError: Error = error
             for _ in 0..<8 {
-                Thread.sleep(forTimeInterval: 0.25)
+                // Use a shorter sleep to reduce actor blocking time.
+                // Total worst-case: 8 × 100ms = 800ms (down from 8 × 250ms = 2s).
+                Thread.sleep(forTimeInterval: 0.1)
                 do {
                     return try Data(contentsOf: sourceURL)
                 } catch {
@@ -830,21 +832,36 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let newCloudURL = cloudDirectoryURL.appendingPathComponent(newFileName)
         let newCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(newFileName).icloud")
 
-        do {
-            if fileManager.fileExists(atPath: newCloudPlaceholderURL.path) {
-                try fileManager.removeItem(at: newCloudPlaceholderURL)
-            }
-            if fileManager.fileExists(atPath: newCloudURL.path) {
-                try fileManager.removeItem(at: newCloudURL)
-            }
+        // Coordinate the rename to prevent races with concurrent sync operations.
+        var coordinatorError: NSError?
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(
+            writingItemAt: oldCloudURL,
+            options: .forMoving,
+            writingItemAt: newCloudURL,
+            options: .forReplacing,
+            error: &coordinatorError
+        ) { coordOldURL, coordNewURL in
+            do {
+                if fileManager.fileExists(atPath: newCloudPlaceholderURL.path) {
+                    try fileManager.removeItem(at: newCloudPlaceholderURL)
+                }
+                if fileManager.fileExists(atPath: coordNewURL.path) {
+                    try fileManager.removeItem(at: coordNewURL)
+                }
 
-            if fileManager.fileExists(atPath: oldCloudURL.path) {
-                try fileManager.moveItem(at: oldCloudURL, to: newCloudURL)
-            } else if fileManager.fileExists(atPath: oldCloudPlaceholderURL.path) {
-                try fileManager.removeItem(at: oldCloudPlaceholderURL)
+                if fileManager.fileExists(atPath: coordOldURL.path) {
+                    try fileManager.moveItem(at: coordOldURL, to: coordNewURL)
+                } else if fileManager.fileExists(atPath: oldCloudPlaceholderURL.path) {
+                    try fileManager.removeItem(at: oldCloudPlaceholderURL)
+                }
+            } catch {
+                logger.error("Failed to sync rename to iCloud: \(error.localizedDescription, privacy: .public)")
             }
-        } catch {
-            logger.error("Failed to sync rename to iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+
+        if let coordinatorError {
+            logger.error("File coordination failed during cloud rename: \(coordinatorError.localizedDescription, privacy: .public)")
         }
     }
 
@@ -878,7 +895,30 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
 
         let sourceData = try readImageData(from: sourceURL)
-        try sourceData.write(to: destinationURL, options: [.atomic])
+
+        // Use NSFileCoordinator for safe iCloud writes to avoid race conditions
+        // when renames or other sync operations happen concurrently.
+        var coordinatorError: NSError?
+        var writeError: Error?
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(
+            writingItemAt: destinationURL,
+            options: .forReplacing,
+            error: &coordinatorError
+        ) { coordURL in
+            do {
+                try sourceData.write(to: coordURL, options: [.atomic])
+            } catch {
+                writeError = error
+            }
+        }
+
+        if let coordinatorError {
+            throw coordinatorError
+        }
+        if let writeError {
+            throw writeError
+        }
     }
 
     private func readImageData(from sourceURL: URL) throws -> Data {
@@ -897,7 +937,9 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             }
             var lastError: Error = error
             for _ in 0..<8 {
-                Thread.sleep(forTimeInterval: 0.25)
+                // Use a shorter sleep to reduce actor blocking time.
+                // Total worst-case: 8 × 100ms = 800ms (down from 8 × 250ms = 2s).
+                Thread.sleep(forTimeInterval: 0.1)
                 do {
                     return try Data(contentsOf: sourceURL)
                 } catch {

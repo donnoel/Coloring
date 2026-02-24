@@ -19,6 +19,7 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var importErrorMessage: String?
     @Published private(set) var exportedFileURL: URL?
     @Published private(set) var isExporting: Bool = false
+    @Published private(set) var drawingRestoreErrorMessage: String?
 
     // Fill mode state
     @Published var isFillModeActive: Bool = false
@@ -62,6 +63,8 @@ final class TemplateStudioViewModel: ObservableObject {
     private var templateImageLoadTask: Task<Void, Never>?
     private var drawingRestoreTask: Task<Void, Never>?
     private var cloudRestoreTask: Task<Void, Never>?
+    private var debouncedPersistTask: Task<Void, Never>?
+    private var pendingPersistTemplateIDs: Set<String> = []
 
     init(
         templateLibrary: any TemplateLibraryProviding,
@@ -129,6 +132,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         hasLoadedTemplates = await reloadTemplates()
         scheduleDeferredCloudRestoreIfNeeded()
+        cleanUpStaleExportFiles()
     }
 
     func refreshTemplatesFromStorage() async {
@@ -207,7 +211,7 @@ final class TemplateStudioViewModel: ObservableObject {
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(drawing.dataRepresentation(), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
-        persistLayerStack(for: selectedTemplateID)
+        debouncedPersistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
 
@@ -698,18 +702,56 @@ final class TemplateStudioViewModel: ObservableObject {
             exportedFileURL = exportedURL
             exportStatusMessage = "Template export is ready to share."
 
-            // Also save to gallery
-            if let exportImageData = try? Data(contentsOf: exportedURL) {
-                _ = try? await galleryStore.saveArtwork(
+            // Also save to gallery.
+            // Read the exported PNG data and hand it to the gallery store.
+            do {
+                let exportImageData = try Data(contentsOf: exportedURL)
+                _ = try await galleryStore.saveArtwork(
                     imageData: exportImageData,
                     sourceTemplateID: selectedTemplate.id,
                     sourceTemplateName: selectedTemplate.title
                 )
+            } catch {
+                // Gallery save is best-effort; don't fail the export.
             }
         } catch {
             exportErrorMessage = error.localizedDescription
             exportStatusMessage = nil
             exportedFileURL = nil
+        }
+    }
+
+    // MARK: - Private: Export Cleanup
+
+    /// Remove old template export PNGs from the temp directory to avoid accumulating stale files.
+    private func cleanUpStaleExportFiles() {
+        Task.detached(priority: .utility) {
+            let tempDir = FileManager.default.temporaryDirectory
+            guard let contents = try? FileManager.default.contentsOfDirectory(
+                at: tempDir,
+                includingPropertiesForKeys: [.creationDateKey],
+                options: .skipsHiddenFiles
+            ) else {
+                return
+            }
+
+            let exportPrefix = "template-"
+            let pngSuffix = ".png"
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60) // 24 hours ago
+
+            for fileURL in contents {
+                let filename = fileURL.lastPathComponent
+                guard filename.hasPrefix(exportPrefix),
+                      filename.hasSuffix(pngSuffix)
+                else {
+                    continue
+                }
+
+                let values = try? fileURL.resourceValues(forKeys: [.creationDateKey])
+                if let createdAt = values?.creationDate, createdAt < cutoff {
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
+            }
         }
     }
 
@@ -754,6 +796,10 @@ final class TemplateStudioViewModel: ObservableObject {
         guard !selectedTemplateID.isEmpty else {
             return
         }
+
+        // Cancel any pending debounced persist and flush immediately.
+        debouncedPersistTask?.cancel()
+        pendingPersistTemplateIDs.remove(selectedTemplateID)
 
         syncActiveLayerDrawingToStack()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
@@ -842,12 +888,42 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
+    /// Debounced version of persistLayerStack — coalesces rapid stroke updates
+    /// into a single write every 2 seconds to avoid a file-write storm.
+    private func debouncedPersistLayerStack(for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        pendingPersistTemplateIDs.insert(templateID)
+        debouncedPersistTask?.cancel()
+        debouncedPersistTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            self.flushPendingPersists()
+        }
+    }
+
+    private func flushPendingPersists() {
+        let templateIDs = pendingPersistTemplateIDs
+        pendingPersistTemplateIDs.removeAll()
+        for templateID in templateIDs {
+            persistLayerStack(for: templateID)
+        }
+    }
+
     private func loadPersistedDrawing(for templateID: String) async {
+        drawingRestoreErrorMessage = nil
+
         // Try layer stack first.
         do {
-            if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID),
-               let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData)
-            {
+            if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID) {
+                guard let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData) else {
+                    drawingRestoreErrorMessage = "Drawing data for this template appears to be corrupted. Your strokes may not have been restored."
+                    return
+                }
+
                 guard !Task.isCancelled else { return }
                 guard layerStacksByTemplateID[templateID] == nil else { return }
 
@@ -872,7 +948,14 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
-            let drawing = try PKDrawing(data: drawingData)
+            let drawing: PKDrawing
+            do {
+                drawing = try PKDrawing(data: drawingData)
+            } catch {
+                drawingRestoreErrorMessage = "Could not restore drawing strokes — the saved data may be corrupted."
+                return
+            }
+
             guard !Task.isCancelled else {
                 return
             }
@@ -896,7 +979,7 @@ final class TemplateStudioViewModel: ObservableObject {
             // Persist the migrated layer stack.
             persistLayerStack(for: templateID)
         } catch {
-            // Keep existing drawing state if persistence read fails.
+            drawingRestoreErrorMessage = "Could not read saved drawing data. Your previous strokes may not have been restored."
         }
     }
 
