@@ -15,6 +15,9 @@ struct TemplateStudioView: View {
     @State private var renameDraftTitle = ""
     @State private var templatePendingDeletion: ColoringTemplate?
     @State private var isDeleteAllImportedConfirmationPresented = false
+    @State private var isLayerPanelPresented = false
+    @State private var isBrushPanelPresented = false
+    @State private var isCategoryManagementPresented = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -25,6 +28,8 @@ struct TemplateStudioView: View {
         .navigationSplitViewStyle(.prominentDetail)
         .task {
             await viewModel.loadTemplatesIfNeeded()
+            viewModel.loadBrushPresetsIfNeeded()
+            viewModel.loadCategoriesIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
@@ -95,6 +100,9 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes every imported drawing from this iPad and iCloud. Built-in drawings are not affected.")
         }
+        .sheet(isPresented: $isCategoryManagementPresented) {
+            CategoryManagementView(viewModel: viewModel)
+        }
     }
 
     private var templateLibrary: some View {
@@ -106,7 +114,12 @@ struct TemplateStudioView: View {
                     .listRowSeparator(.hidden)
             }
 
-            Section("All Drawings") {
+            Section {
+                categoryFilterChips
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
                 if sortedTemplates.isEmpty {
                     Text("No drawings available yet.")
                         .foregroundStyle(.secondary)
@@ -114,6 +127,18 @@ struct TemplateStudioView: View {
                     ForEach(sortedTemplates) { template in
                         templateRow(template)
                     }
+                }
+            } header: {
+                HStack {
+                    Text("Drawings")
+                    Spacer()
+                    Button {
+                        isCategoryManagementPresented = true
+                    } label: {
+                        Image(systemName: "folder.badge.gearshape")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -143,6 +168,13 @@ struct TemplateStudioView: View {
                     Label("Clear Strokes", systemImage: "trash")
                 }
                 .disabled(viewModel.selectedTemplateImage == nil)
+
+                Button(role: .destructive) {
+                    viewModel.clearFills()
+                } label: {
+                    Label("Clear Fills", systemImage: "drop.triangle")
+                }
+                .disabled(viewModel.currentFillImage == nil)
 
                 Button(role: .destructive) {
                     isDeleteAllImportedConfirmationPresented = true
@@ -312,6 +344,26 @@ struct TemplateStudioView: View {
                     Label("Rename", systemImage: "pencil")
                 }
 
+                if !viewModel.userCategories.isEmpty {
+                    Menu {
+                        Button {
+                            viewModel.assignTemplate(template.id, toCategoryID: nil)
+                        } label: {
+                            Label("Imported (Default)", systemImage: "tray.and.arrow.down")
+                        }
+
+                        ForEach(viewModel.userCategories) { category in
+                            Button {
+                                viewModel.assignTemplate(template.id, toCategoryID: category.id)
+                            } label: {
+                                Label(category.name, systemImage: "folder")
+                            }
+                        }
+                    } label: {
+                        Label("Move to Category", systemImage: "folder")
+                    }
+                }
+
                 Button(role: .destructive) {
                     requestDeletion(template)
                 } label: {
@@ -338,12 +390,47 @@ struct TemplateStudioView: View {
     }
 
     private var sortedTemplates: [ColoringTemplate] {
-        viewModel.templates.sorted { lhs, rhs in
+        viewModel.filteredTemplates.sorted { lhs, rhs in
             if lhs.source != rhs.source {
                 return lhs.source == .imported
             }
 
             return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    private var categoryFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(viewModel.allCategories) { category in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.selectedCategoryFilter = category.id
+                        }
+                    } label: {
+                        Text(category.name)
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                viewModel.selectedCategoryFilter == category.id
+                                    ? Color.accentColor.opacity(0.2)
+                                    : Color(.systemGray5),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(
+                                        viewModel.selectedCategoryFilter == category.id
+                                            ? Color.accentColor
+                                            : Color.clear,
+                                        lineWidth: 1
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -423,6 +510,44 @@ struct TemplateStudioView: View {
                         }
                 )
 
+                if viewModel.selectedTemplateImage != nil {
+                    Button {
+                        isLayerPanelPresented.toggle()
+                    } label: {
+                        Image(systemName: "square.3.layers.3d")
+                            .font(.headline.weight(.semibold))
+                            .padding(10)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Toggle Layers")
+                    .popover(isPresented: $isLayerPanelPresented) {
+                        LayerPanelView(viewModel: viewModel)
+                    }
+
+                    Button {
+                        isBrushPanelPresented.toggle()
+                    } label: {
+                        Image(systemName: "paintbrush.pointed")
+                            .font(.headline.weight(.semibold))
+                            .padding(10)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Toggle Brushes")
+                    .popover(isPresented: $isBrushPanelPresented) {
+                        BrushCustomizationView(viewModel: viewModel)
+                    }
+                }
+
                 Spacer()
             }
             .padding(.top, 10)
@@ -443,8 +568,30 @@ struct TemplateStudioView: View {
                 drawing: $viewModel.currentDrawing,
                 onDrawingChanged: { drawing in
                     viewModel.updateDrawing(drawing)
-                }
+                },
+                fillMode: viewModel.isFillModeActive,
+                selectedFillColor: viewModel.selectedFillColor?.uiColor,
+                fillImage: viewModel.currentFillImage,
+                onFillTap: { imagePoint in
+                    viewModel.handleFillTap(at: imagePoint)
+                },
+                belowLayerImage: viewModel.belowLayerImage,
+                aboveLayerImage: viewModel.aboveLayerImage,
+                brushTool: viewModel.currentBrushTool
             )
+
+            VStack {
+                Spacer()
+                TemplatePaletteBarView(
+                    isFillModeActive: $viewModel.isFillModeActive,
+                    selectedColorID: $viewModel.selectedFillColorID,
+                    onClearFills: {
+                        viewModel.clearFills()
+                    }
+                )
+                .padding(.bottom, 20)
+                .padding(.horizontal, 20)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()

@@ -20,10 +20,44 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var exportedFileURL: URL?
     @Published private(set) var isExporting: Bool = false
 
+    // Fill mode state
+    @Published var isFillModeActive: Bool = false
+    @Published var selectedFillColorID: String = ColoringColor.defaultColorID
+    @Published private(set) var currentFillImage: UIImage?
+
+    // Layer state
+    @Published private(set) var currentLayerStack: LayerStack = .singleLayer()
+    @Published private(set) var belowLayerImage: UIImage?
+    @Published private(set) var aboveLayerImage: UIImage?
+
+    // Brush state
+    @Published private(set) var activeBrushPreset: BrushPreset = BrushPreset.builtInPresets.first(where: { $0.id == BrushPreset.defaultPresetID }) ?? BrushPreset.builtInPresets[0]
+    @Published var customBrushWidth: CGFloat = 12 {
+        didSet { updateCurrentBrushTool() }
+    }
+    @Published var customBrushOpacity: CGFloat = 1.0 {
+        didSet { updateCurrentBrushTool() }
+    }
+    @Published private(set) var currentBrushTool: PKInkingTool = PKInkingTool(.marker, color: .black, width: 12)
+    @Published private(set) var userBrushPresets: [BrushPreset] = []
+
+    // Category state
+    @Published var selectedCategoryFilter: String = TemplateCategory.allCategory.id
+    @Published private(set) var builtInCategories: [TemplateCategory] = []
+    @Published private(set) var userCategories: [TemplateCategory] = []
+    @Published private(set) var categoryAssignments: [String: String] = [:]
+
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
+    private var layerStacksByTemplateID: [String: LayerStack] = [:]
+    private var fillImagesByTemplateID: [String: Data] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
     private let drawingStore: any TemplateDrawingStoreProviding
+    private let floodFillService: any FloodFillProviding
+    private let layerCompositor: any LayerCompositing
+    private let brushPresetStore: any BrushPresetStoreProviding
+    private let categoryStore: any TemplateCategoryStoreProviding
+    private let galleryStore: any GalleryStoreProviding
     private var hasLoadedTemplates = false
     private var templateImageLoadTask: Task<Void, Never>?
     private var drawingRestoreTask: Task<Void, Never>?
@@ -32,11 +66,21 @@ final class TemplateStudioViewModel: ObservableObject {
     init(
         templateLibrary: any TemplateLibraryProviding,
         exportService: any TemplateArtworkExporting,
-        drawingStore: any TemplateDrawingStoreProviding
+        drawingStore: any TemplateDrawingStoreProviding,
+        floodFillService: any FloodFillProviding,
+        layerCompositor: any LayerCompositing,
+        brushPresetStore: any BrushPresetStoreProviding,
+        categoryStore: any TemplateCategoryStoreProviding,
+        galleryStore: any GalleryStoreProviding
     ) {
         self.templateLibrary = templateLibrary
         self.exportService = exportService
         self.drawingStore = drawingStore
+        self.floodFillService = floodFillService
+        self.layerCompositor = layerCompositor
+        self.brushPresetStore = brushPresetStore
+        self.categoryStore = categoryStore
+        self.galleryStore = galleryStore
         self.currentDrawing = PKDrawing()
     }
 
@@ -44,7 +88,12 @@ final class TemplateStudioViewModel: ObservableObject {
         self.init(
             templateLibrary: TemplateLibraryService(),
             exportService: TemplateArtworkExportService(),
-            drawingStore: TemplateDrawingStoreService()
+            drawingStore: TemplateDrawingStoreService(),
+            floodFillService: FloodFillService(),
+            layerCompositor: LayerCompositorService(),
+            brushPresetStore: BrushPresetStoreService(),
+            categoryStore: TemplateCategoryStoreService(),
+            galleryStore: GalleryStoreService()
         )
     }
 
@@ -66,6 +115,12 @@ final class TemplateStudioViewModel: ObservableObject {
 
         return size.width / size.height
     }
+
+    var selectedFillColor: ColoringColor? {
+        ColoringColor.palette.first { $0.id == selectedFillColorID }
+    }
+
+    // MARK: - Template Loading
 
     func loadTemplatesIfNeeded() async {
         guard !hasLoadedTemplates else {
@@ -91,8 +146,11 @@ final class TemplateStudioViewModel: ObservableObject {
         do {
             let loadedTemplates = try await templateLibrary.loadTemplates()
             templates = loadedTemplates
+            builtInCategories = TemplateCategory.builtInCategories(from: loadedTemplates)
             let validTemplateIDs = Set(loadedTemplates.map(\.id))
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
             importErrorMessage = nil
 
             if selectedTemplateID.isEmpty || !validTemplateIDs.contains(selectedTemplateID) {
@@ -107,6 +165,7 @@ final class TemplateStudioViewModel: ObservableObject {
             persistLastSelectedTemplateID(selectedTemplateID)
 
             restoreDrawingForSelectedTemplate()
+            restoreFillForSelectedTemplate()
             // Prevent showing a stale image while the new selection loads.
             selectedTemplateImage = nil
             await loadSelectedTemplateImage(for: selectedTemplateID)
@@ -117,17 +176,21 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Template Selection
+
     func selectTemplate(_ templateID: String) {
         guard templates.contains(where: { $0.id == templateID }) else {
             return
         }
 
         persistCurrentDrawing()
+        persistCurrentFill()
         selectedTemplateID = templateID
         persistLastSelectedTemplateID(templateID)
         // Clear immediately so the canvas never shows a mismatched image/drawing pair.
         selectedTemplateImage = nil
         restoreDrawingForSelectedTemplate()
+        restoreFillForSelectedTemplate()
 
         templateImageLoadTask?.cancel()
         templateImageLoadTask = Task { [weak self] in
@@ -137,19 +200,358 @@ final class TemplateStudioViewModel: ObservableObject {
         invalidateExport()
     }
 
+    // MARK: - Drawing
+
     func updateDrawing(_ drawing: PKDrawing) {
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
-        persistDrawing(drawing, for: selectedTemplateID)
+        currentLayerStack.updateDrawingData(drawing.dataRepresentation(), for: currentLayerStack.activeLayerID)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
 
     func clearDrawing() {
         currentDrawing = PKDrawing()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
-        persistDrawing(currentDrawing, for: selectedTemplateID)
+        currentLayerStack.updateDrawingData(Data(), for: currentLayerStack.activeLayerID)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
+
+    // MARK: - Layers
+
+    func addLayer() {
+        syncActiveLayerDrawingToStack()
+        let newLayer = currentLayerStack.addLayer(name: "Layer \(currentLayerStack.layers.count)")
+        currentDrawing = PKDrawing()
+        drawingsByTemplateID[selectedTemplateID] = currentDrawing
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
+        recompositeLayerOverlays()
+        _ = newLayer
+    }
+
+    func deleteLayer(_ id: UUID) {
+        guard currentLayerStack.layers.count > 1 else {
+            return
+        }
+
+        syncActiveLayerDrawingToStack()
+        let wasActive = currentLayerStack.activeLayerID == id
+        currentLayerStack.removeLayer(id)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+
+        if wasActive {
+            restoreActiveLayerDrawing()
+        }
+
+        persistLayerStack(for: selectedTemplateID)
+        recompositeLayerOverlays()
+        invalidateExport()
+    }
+
+    func selectActiveLayer(_ id: UUID) {
+        guard id != currentLayerStack.activeLayerID else {
+            return
+        }
+
+        syncActiveLayerDrawingToStack()
+        currentLayerStack.activeLayerID = id
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        restoreActiveLayerDrawing()
+        recompositeLayerOverlays()
+    }
+
+    func toggleLayerVisibility(_ id: UUID) {
+        currentLayerStack.toggleVisibility(id)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
+        recompositeLayerOverlays()
+        invalidateExport()
+    }
+
+    func renameLayer(_ id: UUID, to name: String) {
+        currentLayerStack.renameLayer(id, to: name)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
+    }
+
+    func moveLayer(from source: IndexSet, to destination: Int) {
+        currentLayerStack.moveLayer(from: source, to: destination)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
+        recompositeLayerOverlays()
+        invalidateExport()
+    }
+
+    func mergeDown(_ id: UUID) {
+        syncActiveLayerDrawingToStack()
+        guard let pair = currentLayerStack.mergeDown(id) else {
+            return
+        }
+
+        // Composite upper onto lower by combining their drawings.
+        if let upperDrawing = try? PKDrawing(data: pair.upper.drawingData),
+           let lowerDrawing = try? PKDrawing(data: pair.lower.drawingData)
+        {
+            var mergedStrokes = lowerDrawing.strokes
+            mergedStrokes.append(contentsOf: upperDrawing.strokes)
+            let mergedDrawing = PKDrawing(strokes: mergedStrokes)
+            currentLayerStack.updateDrawingData(mergedDrawing.dataRepresentation(), for: pair.lower.id)
+        }
+
+        currentLayerStack.removeLayer(id)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        restoreActiveLayerDrawing()
+        persistLayerStack(for: selectedTemplateID)
+        recompositeLayerOverlays()
+        invalidateExport()
+    }
+
+    private func syncActiveLayerDrawingToStack() {
+        let drawingData = currentDrawing.dataRepresentation()
+        currentLayerStack.updateDrawingData(drawingData, for: currentLayerStack.activeLayerID)
+    }
+
+    private func restoreActiveLayerDrawing() {
+        if let activeLayer = currentLayerStack.activeLayer,
+           !activeLayer.drawingData.isEmpty,
+           let drawing = try? PKDrawing(data: activeLayer.drawingData)
+        {
+            currentDrawing = drawing
+        } else {
+            currentDrawing = PKDrawing()
+        }
+        drawingsByTemplateID[selectedTemplateID] = currentDrawing
+    }
+
+    private func recompositeLayerOverlays() {
+        let canvasSize = bestExportSize(for: selectedTemplateImage)
+        belowLayerImage = layerCompositor.compositeLayersBelow(
+            layers: currentLayerStack.layers,
+            activeLayerID: currentLayerStack.activeLayerID,
+            canvasSize: canvasSize
+        )
+        aboveLayerImage = layerCompositor.compositeLayersAbove(
+            layers: currentLayerStack.layers,
+            activeLayerID: currentLayerStack.activeLayerID,
+            canvasSize: canvasSize
+        )
+    }
+
+    // MARK: - Brush Customization
+
+    var allBrushPresets: [BrushPreset] {
+        BrushPreset.builtInPresets + userBrushPresets
+    }
+
+    func selectBrushPreset(_ preset: BrushPreset) {
+        activeBrushPreset = preset
+        customBrushWidth = preset.width
+        customBrushOpacity = preset.opacity
+        // updateCurrentBrushTool() is triggered by didSet on width/opacity
+    }
+
+    func saveCurrentAsPreset(name: String) {
+        let preset = BrushPreset(
+            id: "custom-\(UUID().uuidString)",
+            name: name,
+            inkType: activeBrushPreset.inkType,
+            width: customBrushWidth,
+            opacity: customBrushOpacity,
+            isBuiltIn: false
+        )
+        userBrushPresets.append(preset)
+        persistUserPresets()
+    }
+
+    func deleteCustomPreset(_ id: String) {
+        userBrushPresets.removeAll { $0.id == id }
+        if activeBrushPreset.id == id {
+            selectBrushPreset(BrushPreset.builtInPresets[0])
+        }
+        persistUserPresets()
+    }
+
+    func loadBrushPresetsIfNeeded() {
+        Task { [brushPresetStore] in
+            do {
+                let presets = try await brushPresetStore.loadUserPresets()
+                self.userBrushPresets = presets
+            } catch {
+                // Silently ignore - user starts with built-in presets only
+            }
+        }
+    }
+
+    private func updateCurrentBrushTool() {
+        currentBrushTool = PKInkingTool(
+            activeBrushPreset.inkType.pkInkType,
+            color: UIColor.black.withAlphaComponent(customBrushOpacity),
+            width: customBrushWidth
+        )
+    }
+
+    private func persistUserPresets() {
+        let presets = userBrushPresets
+        Task { [brushPresetStore, presets] in
+            try? await brushPresetStore.saveUserPresets(presets)
+        }
+    }
+
+    // MARK: - Template Categories
+
+    var allCategories: [TemplateCategory] {
+        [TemplateCategory.allCategory] + builtInCategories + [TemplateCategory.importedCategory] + userCategories
+    }
+
+    var filteredTemplates: [ColoringTemplate] {
+        let filterID = selectedCategoryFilter
+        guard filterID != TemplateCategory.allCategory.id else {
+            return templates
+        }
+
+        if filterID == TemplateCategory.importedCategory.id {
+            return templates.filter { $0.source == .imported && categoryAssignments[$0.id] == nil }
+        }
+
+        // Check user category assignments first
+        let assignedToCategory = templates.filter { categoryAssignments[$0.id] == filterID }
+        if !assignedToCategory.isEmpty {
+            return assignedToCategory
+        }
+
+        // Built-in category: match by category name
+        if let builtInCat = builtInCategories.first(where: { $0.id == filterID }) {
+            return templates.filter { $0.category == builtInCat.name && $0.source == .builtIn }
+        }
+
+        return templates
+    }
+
+    func createUserCategory(name: String) {
+        let category = TemplateCategory(
+            id: "user-\(UUID().uuidString)",
+            name: name,
+            isUserCreated: true
+        )
+        userCategories.append(category)
+        persistUserCategories()
+    }
+
+    func renameUserCategory(_ id: String, to name: String) {
+        guard let index = userCategories.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        userCategories[index].name = name
+        persistUserCategories()
+    }
+
+    func deleteUserCategory(_ id: String) {
+        userCategories.removeAll { $0.id == id }
+        // Unassign templates from the deleted category
+        for (templateID, catID) in categoryAssignments where catID == id {
+            categoryAssignments.removeValue(forKey: templateID)
+        }
+        if selectedCategoryFilter == id {
+            selectedCategoryFilter = TemplateCategory.allCategory.id
+        }
+        persistUserCategories()
+        persistCategoryAssignments()
+    }
+
+    func assignTemplate(_ templateID: String, toCategoryID categoryID: String?) {
+        if let categoryID {
+            categoryAssignments[templateID] = categoryID
+        } else {
+            categoryAssignments.removeValue(forKey: templateID)
+        }
+        persistCategoryAssignments()
+    }
+
+    func loadCategoriesIfNeeded() {
+        Task { [categoryStore] in
+            do {
+                let categories = try await categoryStore.loadUserCategories()
+                self.userCategories = categories
+                let assignments = try await categoryStore.loadCategoryAssignments()
+                self.categoryAssignments = assignments
+            } catch {
+                // Silently ignore - starts with empty user categories
+            }
+        }
+        builtInCategories = TemplateCategory.builtInCategories(from: templates)
+    }
+
+    private func persistUserCategories() {
+        let categories = userCategories
+        Task { [categoryStore, categories] in
+            try? await categoryStore.saveUserCategories(categories)
+        }
+    }
+
+    private func persistCategoryAssignments() {
+        let assignments = categoryAssignments
+        Task { [categoryStore, assignments] in
+            try? await categoryStore.saveCategoryAssignments(assignments)
+        }
+    }
+
+    // MARK: - Fill Mode
+
+    func toggleFillMode() {
+        isFillModeActive.toggle()
+    }
+
+    func selectFillColor(_ colorID: String) {
+        selectedFillColorID = colorID
+    }
+
+    func handleFillTap(at imagePoint: CGPoint) {
+        guard isFillModeActive,
+              let templateImage = selectedTemplateImage,
+              let cgImage = templateImage.cgImage,
+              let fillColor = selectedFillColor
+        else {
+            return
+        }
+
+        // Build the base image: template + existing fill composited.
+        let baseImage = compositeBaseImageForFill(templateCGImage: cgImage)
+
+        guard let filledImage = floodFillService.floodFill(
+            image: baseImage,
+            at: imagePoint,
+            with: fillColor.uiColor,
+            tolerance: 40
+        ) else {
+            return
+        }
+
+        // The flood fill operated on the composited base (template + existing fills).
+        // Extract just the fill overlay by diffing against the original template.
+        let fillOverlay = extractFillOverlay(
+            filledComposite: filledImage,
+            templateCGImage: cgImage,
+            existingFillImage: currentFillImage
+        )
+
+        currentFillImage = fillOverlay
+        fillImagesByTemplateID[selectedTemplateID] = fillOverlay.pngData()
+        persistFill(for: selectedTemplateID)
+        invalidateExport()
+    }
+
+    func clearFills() {
+        currentFillImage = nil
+        fillImagesByTemplateID.removeValue(forKey: selectedTemplateID)
+        persistFill(for: selectedTemplateID)
+        invalidateExport()
+    }
+
+    // MARK: - Import / Rename / Delete
 
     func importTemplateImage(_ imageData: Data, suggestedName: String?) async {
         importErrorMessage = nil
@@ -172,10 +574,19 @@ final class TemplateStudioViewModel: ObservableObject {
         do {
             let renamedTemplate = try await templateLibrary.renameImportedTemplate(id: templateID, newTitle: newTitle)
             try await drawingStore.renameDrawingData(from: templateID, to: renamedTemplate.id)
+            try await drawingStore.renameFillData(from: templateID, to: renamedTemplate.id)
+            try await drawingStore.renameLayerStackData(from: templateID, to: renamedTemplate.id)
 
             if let drawing = drawingsByTemplateID.removeValue(forKey: templateID) {
                 drawingsByTemplateID[renamedTemplate.id] = drawing
-                persistDrawing(drawing, for: renamedTemplate.id)
+            }
+
+            if let layerStack = layerStacksByTemplateID.removeValue(forKey: templateID) {
+                layerStacksByTemplateID[renamedTemplate.id] = layerStack
+            }
+
+            if let fillData = fillImagesByTemplateID.removeValue(forKey: templateID) {
+                fillImagesByTemplateID[renamedTemplate.id] = fillData
             }
 
             await reloadTemplates()
@@ -193,7 +604,11 @@ final class TemplateStudioViewModel: ObservableObject {
         do {
             try await templateLibrary.deleteImportedTemplate(id: templateID)
             try await drawingStore.deleteDrawingData(for: templateID)
+            try await drawingStore.deleteFillData(for: templateID)
+            try await drawingStore.deleteLayerStackData(for: templateID)
             drawingsByTemplateID.removeValue(forKey: templateID)
+            layerStacksByTemplateID.removeValue(forKey: templateID)
+            fillImagesByTemplateID.removeValue(forKey: templateID)
 
             await reloadTemplates()
             invalidateExport()
@@ -214,7 +629,11 @@ final class TemplateStudioViewModel: ObservableObject {
             try await templateLibrary.deleteAllImportedTemplates()
             for templateID in importedTemplateIDs {
                 try await drawingStore.deleteDrawingData(for: templateID)
+                try await drawingStore.deleteFillData(for: templateID)
+                try await drawingStore.deleteLayerStackData(for: templateID)
                 drawingsByTemplateID.removeValue(forKey: templateID)
+                layerStacksByTemplateID.removeValue(forKey: templateID)
+                fillImagesByTemplateID.removeValue(forKey: templateID)
             }
 
             await reloadTemplates()
@@ -229,6 +648,8 @@ final class TemplateStudioViewModel: ObservableObject {
         importErrorMessage = message
         importStatusMessage = nil
     }
+
+    // MARK: - Export
 
     func exportCurrentTemplate() async {
         guard !isExporting else {
@@ -250,23 +671,49 @@ final class TemplateStudioViewModel: ObservableObject {
             let templateData = try await templateLibrary.imageData(for: selectedTemplate)
 
             let canvasSize = bestExportSize(for: selectedTemplateImage)
+            let fillData = currentFillImage?.pngData()
+
+            // Sync the active layer before export.
+            syncActiveLayerDrawingToStack()
+            let allLayersImageData: Data?
+            if currentLayerStack.layers.count > 1 {
+                allLayersImageData = layerCompositor.compositeAllVisibleLayers(
+                    layers: currentLayerStack.layers,
+                    canvasSize: canvasSize
+                )?.pngData()
+            } else {
+                allLayersImageData = nil
+            }
             let drawingData = currentDrawing.dataRepresentation()
 
             let exportedURL = try await exportService.exportPNG(
                 templateData: templateData,
                 drawingData: drawingData,
+                fillLayerData: fillData,
+                compositedLayersImageData: allLayersImageData,
                 canvasSize: canvasSize,
                 templateID: selectedTemplate.id
             )
 
             exportedFileURL = exportedURL
             exportStatusMessage = "Template export is ready to share."
+
+            // Also save to gallery
+            if let exportImageData = try? Data(contentsOf: exportedURL) {
+                _ = try? await galleryStore.saveArtwork(
+                    imageData: exportImageData,
+                    sourceTemplateID: selectedTemplate.id,
+                    sourceTemplateName: selectedTemplate.title
+                )
+            }
         } catch {
             exportErrorMessage = error.localizedDescription
             exportStatusMessage = nil
             exportedFileURL = nil
         }
     }
+
+    // MARK: - Private: Image Loading
 
     private func loadSelectedTemplateImage(for templateID: String) async {
         guard let template = templates.first(where: { $0.id == templateID }) else {
@@ -301,29 +748,49 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Private: Drawing Persistence
+
     private func persistCurrentDrawing() {
         guard !selectedTemplateID.isEmpty else {
             return
         }
 
+        syncActiveLayerDrawingToStack()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
-        persistDrawing(currentDrawing, for: selectedTemplateID)
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        persistLayerStack(for: selectedTemplateID)
     }
 
     private func restoreDrawingForSelectedTemplate() {
         guard !selectedTemplateID.isEmpty else {
             currentDrawing = PKDrawing()
+            currentLayerStack = .singleLayer()
+            belowLayerImage = nil
+            aboveLayerImage = nil
             drawingRestoreTask?.cancel()
             drawingRestoreTask = nil
             return
         }
 
+        if let layerStack = layerStacksByTemplateID[selectedTemplateID] {
+            currentLayerStack = layerStack
+            restoreActiveLayerDrawing()
+            recompositeLayerOverlays()
+            return
+        }
+
         if let drawing = drawingsByTemplateID[selectedTemplateID] {
             currentDrawing = drawing
+            currentLayerStack = .singleLayer(drawingData: drawing.dataRepresentation())
+            belowLayerImage = nil
+            aboveLayerImage = nil
             return
         }
 
         currentDrawing = PKDrawing()
+        currentLayerStack = .singleLayer()
+        belowLayerImage = nil
+        aboveLayerImage = nil
         drawingRestoreTask?.cancel()
         let templateID = selectedTemplateID
         drawingRestoreTask = Task { [weak self] in
@@ -362,18 +829,41 @@ final class TemplateStudioViewModel: ObservableObject {
         UserDefaults.standard.set(templateID, forKey: DefaultsKey.lastSelectedTemplateID)
     }
 
-    private func persistDrawing(_ drawing: PKDrawing, for templateID: String) {
+    private func persistLayerStack(for templateID: String) {
         guard !templateID.isEmpty else {
             return
         }
 
-        let drawingData = drawing.dataRepresentation()
-        Task { [drawingStore, templateID, drawingData] in
-            try? await drawingStore.saveDrawingData(drawingData, for: templateID)
+        let layerStack = layerStacksByTemplateID[templateID] ?? currentLayerStack
+        Task { [drawingStore, templateID, layerStack] in
+            if let data = try? JSONEncoder().encode(layerStack) {
+                try? await drawingStore.saveLayerStackData(data, for: templateID)
+            }
         }
     }
 
     private func loadPersistedDrawing(for templateID: String) async {
+        // Try layer stack first.
+        do {
+            if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID),
+               let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData)
+            {
+                guard !Task.isCancelled else { return }
+                guard layerStacksByTemplateID[templateID] == nil else { return }
+
+                layerStacksByTemplateID[templateID] = layerStack
+                if selectedTemplateID == templateID {
+                    currentLayerStack = layerStack
+                    restoreActiveLayerDrawing()
+                    recompositeLayerOverlays()
+                }
+                return
+            }
+        } catch {
+            // Fall through to legacy loading.
+        }
+
+        // Fall back to legacy single-drawing persistence.
         do {
             guard let drawingData = try await drawingStore.loadDrawingData(for: templateID) else {
                 return
@@ -391,14 +881,192 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
+            // Migrate to layer stack.
+            let layerStack = LayerStack.singleLayer(drawingData: drawingData)
             drawingsByTemplateID[templateID] = drawing
+            layerStacksByTemplateID[templateID] = layerStack
+
             if selectedTemplateID == templateID {
                 currentDrawing = drawing
+                currentLayerStack = layerStack
+                belowLayerImage = nil
+                aboveLayerImage = nil
             }
+
+            // Persist the migrated layer stack.
+            persistLayerStack(for: templateID)
         } catch {
             // Keep existing drawing state if persistence read fails.
         }
     }
+
+    // MARK: - Private: Fill Persistence
+
+    private func persistCurrentFill() {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        if let fillImage = currentFillImage {
+            fillImagesByTemplateID[selectedTemplateID] = fillImage.pngData()
+        }
+        persistFill(for: selectedTemplateID)
+    }
+
+    private func restoreFillForSelectedTemplate() {
+        guard !selectedTemplateID.isEmpty else {
+            currentFillImage = nil
+            return
+        }
+
+        if let fillData = fillImagesByTemplateID[selectedTemplateID] {
+            currentFillImage = UIImage(data: fillData)
+            return
+        }
+
+        currentFillImage = nil
+        let templateID = selectedTemplateID
+        Task { [weak self] in
+            await self?.loadPersistedFill(for: templateID)
+        }
+    }
+
+    private func persistFill(for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        let fillData = fillImagesByTemplateID[templateID]
+        Task { [drawingStore, templateID, fillData] in
+            if let fillData {
+                try? await drawingStore.saveFillData(fillData, for: templateID)
+            } else {
+                try? await drawingStore.deleteFillData(for: templateID)
+            }
+        }
+    }
+
+    private func loadPersistedFill(for templateID: String) async {
+        do {
+            guard let fillData = try await drawingStore.loadFillData(for: templateID) else {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard fillImagesByTemplateID[templateID] == nil else {
+                return
+            }
+
+            fillImagesByTemplateID[templateID] = fillData
+            if selectedTemplateID == templateID {
+                currentFillImage = UIImage(data: fillData)
+            }
+        } catch {
+            // Keep existing fill state if persistence read fails.
+        }
+    }
+
+    // MARK: - Private: Fill Compositing
+
+    private func compositeBaseImageForFill(templateCGImage: CGImage) -> CGImage {
+        let width = templateCGImage.width
+        let height = templateCGImage.height
+        let size = CGSize(width: width, height: height)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let composited = renderer.image { _ in
+            UIImage(cgImage: templateCGImage).draw(in: CGRect(origin: .zero, size: size))
+            if let existingFill = currentFillImage {
+                existingFill.draw(in: CGRect(origin: .zero, size: size))
+            }
+        }
+        return composited.cgImage ?? templateCGImage
+    }
+
+    private func extractFillOverlay(
+        filledComposite: CGImage,
+        templateCGImage: CGImage,
+        existingFillImage: UIImage?
+    ) -> UIImage {
+        let width = templateCGImage.width
+        let height = templateCGImage.height
+        let size = CGSize(width: width, height: height)
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        let totalBytes = height * bytesPerRow
+
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+            return UIImage(cgImage: filledComposite)
+        }
+
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+
+        // Render the template into a buffer.
+        guard let templateContext = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
+        ), let templateData = templateContext.data else {
+            return UIImage(cgImage: filledComposite)
+        }
+        templateContext.draw(templateCGImage, in: CGRect(origin: .zero, size: size))
+        let templatePixels = templateData.bindMemory(to: UInt8.self, capacity: totalBytes)
+
+        // Render the filled composite into a buffer.
+        guard let filledContext = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
+        ), let filledData = filledContext.data else {
+            return UIImage(cgImage: filledComposite)
+        }
+        filledContext.draw(filledComposite, in: CGRect(origin: .zero, size: size))
+        let filledPixels = filledData.bindMemory(to: UInt8.self, capacity: totalBytes)
+
+        // Build the overlay: where the filled differs from template, use the filled pixel.
+        // Start with existing fill overlay if present.
+        guard let overlayContext = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
+        ), let overlayData = overlayContext.data else {
+            return UIImage(cgImage: filledComposite)
+        }
+
+        if let existingFill = existingFillImage?.cgImage {
+            overlayContext.draw(existingFill, in: CGRect(origin: .zero, size: size))
+        }
+
+        let overlayPixels = overlayData.bindMemory(to: UInt8.self, capacity: totalBytes)
+
+        for i in stride(from: 0, to: totalBytes, by: bytesPerPixel) {
+            let templateR = templatePixels[i]
+            let templateG = templatePixels[i + 1]
+            let templateB = templatePixels[i + 2]
+            let filledR = filledPixels[i]
+            let filledG = filledPixels[i + 1]
+            let filledB = filledPixels[i + 2]
+
+            let differs = abs(Int(templateR) - Int(filledR)) > 2
+                || abs(Int(templateG) - Int(filledG)) > 2
+                || abs(Int(templateB) - Int(filledB)) > 2
+
+            if differs {
+                overlayPixels[i] = filledR
+                overlayPixels[i + 1] = filledG
+                overlayPixels[i + 2] = filledB
+                overlayPixels[i + 3] = filledPixels[i + 3]
+            }
+        }
+
+        guard let overlayCGImage = overlayContext.makeImage() else {
+            return UIImage(cgImage: filledComposite)
+        }
+        return UIImage(cgImage: overlayCGImage)
+    }
+
+    // MARK: - Private: Cloud Restore
 
     private func scheduleDeferredCloudRestoreIfNeeded() {
         cloudRestoreTask?.cancel()

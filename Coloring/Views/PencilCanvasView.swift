@@ -7,6 +7,13 @@ struct PencilCanvasView: UIViewRepresentable {
     let templateID: String
     @Binding var drawing: PKDrawing
     var onDrawingChanged: ((PKDrawing) -> Void)?
+    var fillMode: Bool = false
+    var selectedFillColor: UIColor?
+    var fillImage: UIImage?
+    var onFillTap: ((CGPoint) -> Void)?
+    var belowLayerImage: UIImage?
+    var aboveLayerImage: UIImage?
+    var brushTool: PKInkingTool?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -26,6 +33,10 @@ struct PencilCanvasView: UIViewRepresentable {
         containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
+        context.coordinator.updateFillMode(fillMode, in: containerView)
+        containerView.fillImageView.image = fillImage
+        containerView.belowLayerImageView.image = belowLayerImage
+        containerView.aboveLayerImageView.image = aboveLayerImage
         return containerView
     }
 
@@ -53,6 +64,11 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         context.coordinator.lastTemplateID = templateID
+        context.coordinator.updateFillMode(fillMode, in: uiView)
+        context.coordinator.updateBrushTool(brushTool, on: canvasView)
+        uiView.fillImageView.image = fillImage
+        uiView.belowLayerImageView.image = belowLayerImage
+        uiView.aboveLayerImageView.image = aboveLayerImage
     }
 
     static func dismantleUIView(_ uiView: ZoomableCanvasContainerView, coordinator: Coordinator) {
@@ -71,6 +87,8 @@ struct PencilCanvasView: UIViewRepresentable {
         private var isApplyingExternalDrawing = false
         var lastTemplateID: String?
         var lastTemplateImageIdentity: ObjectIdentifier?
+        private var fillTapGesture: UITapGestureRecognizer?
+        private var lastAppliedBrushTool: PKInkingTool?
         private let isRunningTests = NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
 
@@ -140,6 +158,67 @@ struct PencilCanvasView: UIViewRepresentable {
             isApplyingExternalDrawing = false
         }
 
+        func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
+            let canvasView = containerView.canvasView
+            if isFillMode {
+                canvasView.isUserInteractionEnabled = false
+                if fillTapGesture == nil {
+                    let tap = UITapGestureRecognizer(target: self, action: #selector(handleFillTap(_:)))
+                    tap.numberOfTapsRequired = 1
+                    containerView.contentView.addGestureRecognizer(tap)
+                    fillTapGesture = tap
+                }
+                fillTapGesture?.isEnabled = true
+            } else {
+                canvasView.isUserInteractionEnabled = true
+                fillTapGesture?.isEnabled = false
+            }
+        }
+
+        func updateBrushTool(_ brushTool: PKInkingTool?, on canvasView: PKCanvasView) {
+            guard let brushTool else {
+                return
+            }
+
+            // Only apply if the brush tool actually changed to avoid fighting with PKToolPicker.
+            if let last = lastAppliedBrushTool,
+               last.inkType == brushTool.inkType,
+               last.width == brushTool.width,
+               last.color == brushTool.color
+            {
+                return
+            }
+
+            lastAppliedBrushTool = brushTool
+            lastInkTool = brushTool
+            canvasView.tool = brushTool
+        }
+
+        @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
+            guard let containerView else {
+                return
+            }
+
+            let location = gesture.location(in: containerView.contentView)
+            let contentSize = containerView.contentView.bounds.size
+            guard contentSize.width > 0, contentSize.height > 0 else {
+                return
+            }
+
+            guard let imageSize = containerView.imageView.image?.size,
+                  imageSize.width > 0, imageSize.height > 0
+            else {
+                return
+            }
+
+            // Convert tap from content view coordinates to image pixel coordinates.
+            let scaleX = imageSize.width / contentSize.width
+            let scaleY = imageSize.height / contentSize.height
+            let imagePoint = CGPoint(x: location.x * scaleX, y: location.y * scaleY)
+
+            parent.onFillTap?(imagePoint)
+        }
+
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !isApplyingExternalDrawing else {
                 return
@@ -196,7 +275,10 @@ final class ZoomableCanvasContainerView: UIView {
     let scrollView = UIScrollView()
     let contentView = UIView()
     let imageView = UIImageView()
+    let fillImageView = UIImageView()
+    let belowLayerImageView = UIImageView()
     let canvasView = PKCanvasView()
+    let aboveLayerImageView = UIImageView()
 
     private var currentTemplateID: String = ""
     private var canvasBaseSize: CGSize = .zero
@@ -272,6 +354,18 @@ final class ZoomableCanvasContainerView: UIView {
         imageView.clipsToBounds = true
         contentView.addSubview(imageView)
 
+        fillImageView.isOpaque = false
+        fillImageView.backgroundColor = .clear
+        fillImageView.contentMode = .scaleToFill
+        fillImageView.clipsToBounds = true
+        contentView.addSubview(fillImageView)
+
+        belowLayerImageView.isOpaque = false
+        belowLayerImageView.backgroundColor = .clear
+        belowLayerImageView.contentMode = .scaleToFill
+        belowLayerImageView.clipsToBounds = true
+        contentView.addSubview(belowLayerImageView)
+
         canvasView.isOpaque = false
         canvasView.backgroundColor = .clear
         canvasView.alwaysBounceVertical = false
@@ -281,13 +375,23 @@ final class ZoomableCanvasContainerView: UIView {
         canvasView.minimumZoomScale = 1.0
         canvasView.maximumZoomScale = 1.0
         contentView.addSubview(canvasView)
+
+        aboveLayerImageView.isOpaque = false
+        aboveLayerImageView.backgroundColor = .clear
+        aboveLayerImageView.contentMode = .scaleToFill
+        aboveLayerImageView.clipsToBounds = true
+        aboveLayerImageView.isUserInteractionEnabled = false
+        contentView.addSubview(aboveLayerImageView)
     }
 
     private func layoutContentFrame() {
         let contentSize = canvasBaseSize == .zero ? CGSize(width: 1024, height: 768) : canvasBaseSize
         contentView.frame = CGRect(origin: .zero, size: contentSize)
         imageView.frame = contentView.bounds
+        fillImageView.frame = contentView.bounds
+        belowLayerImageView.frame = contentView.bounds
         canvasView.frame = contentView.bounds
+        aboveLayerImageView.frame = contentView.bounds
         scrollView.contentSize = contentSize
     }
 

@@ -15,6 +15,14 @@ protocol TemplateDrawingStoreProviding: Actor {
     func saveDrawingData(_ drawingData: Data, for templateID: String) throws
     func renameDrawingData(from oldTemplateID: String, to newTemplateID: String) throws
     func deleteDrawingData(for templateID: String) throws
+    func loadFillData(for templateID: String) throws -> Data?
+    func saveFillData(_ fillData: Data, for templateID: String) throws
+    func renameFillData(from oldTemplateID: String, to newTemplateID: String) throws
+    func deleteFillData(for templateID: String) throws
+    func loadLayerStackData(for templateID: String) throws -> Data?
+    func saveLayerStackData(_ data: Data, for templateID: String) throws
+    func renameLayerStackData(from oldTemplateID: String, to newTemplateID: String) throws
+    func deleteLayerStackData(for templateID: String) throws
 }
 
 actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
@@ -98,6 +106,61 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
         }
 
         deleteCloudDrawingIfNeeded(filename: drawingFilename)
+    }
+
+    func loadFillData(for templateID: String) throws -> Data? {
+        let fillFilename = Self.fillFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: fillFilename)
+        if fileManager.fileExists(atPath: localURL.path) {
+            let localData = try Data(contentsOf: localURL)
+            syncDrawingDataToCloudIfNeeded(localData, filename: fillFilename)
+            return localData
+        }
+
+        guard let cloudFileURL = cloudDrawingFileURLIfExists(forFilename: fillFilename) else {
+            return nil
+        }
+
+        let cloudData = try readDrawingData(from: cloudFileURL)
+        try cloudData.write(to: localURL, options: [.atomic])
+        return cloudData
+    }
+
+    func saveFillData(_ fillData: Data, for templateID: String) throws {
+        let fillFilename = Self.fillFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: fillFilename)
+        try fillData.write(to: localURL, options: [.atomic])
+        syncDrawingDataToCloudIfNeeded(fillData, filename: fillFilename)
+    }
+
+    func renameFillData(from oldTemplateID: String, to newTemplateID: String) throws {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        let oldFilename = Self.fillFilename(for: oldTemplateID)
+        let newFilename = Self.fillFilename(for: newTemplateID)
+        let oldLocalURL = try localDrawingURL(forFilename: oldFilename)
+        let newLocalURL = try localDrawingURL(forFilename: newFilename)
+
+        if fileManager.fileExists(atPath: oldLocalURL.path) {
+            if fileManager.fileExists(atPath: newLocalURL.path) {
+                try fileManager.removeItem(at: newLocalURL)
+            }
+            try fileManager.moveItem(at: oldLocalURL, to: newLocalURL)
+        }
+
+        syncRenameInCloudIfNeeded(from: oldFilename, to: newFilename)
+    }
+
+    func deleteFillData(for templateID: String) throws {
+        let fillFilename = Self.fillFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: fillFilename)
+        if fileManager.fileExists(atPath: localURL.path) {
+            try fileManager.removeItem(at: localURL)
+        }
+
+        deleteCloudDrawingIfNeeded(filename: fillFilename)
     }
 
     private func localDrawingURL(forFilename filename: String) throws -> URL {
@@ -298,6 +361,69 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
 
     nonisolated private static func drawingFilename(for templateID: String) -> String {
         "\(encodedTemplateID(templateID)).drawing"
+    }
+
+    nonisolated private static func fillFilename(for templateID: String) -> String {
+        "\(encodedTemplateID(templateID)).fill"
+    }
+
+    nonisolated private static func layerStackFilename(for templateID: String) -> String {
+        "\(encodedTemplateID(templateID)).layers"
+    }
+
+    func loadLayerStackData(for templateID: String) throws -> Data? {
+        let filename = Self.layerStackFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: filename)
+        if fileManager.fileExists(atPath: localURL.path) {
+            let localData = try Data(contentsOf: localURL)
+            syncDrawingDataToCloudIfNeeded(localData, filename: filename)
+            return localData
+        }
+
+        guard let cloudFileURL = cloudDrawingFileURLIfExists(forFilename: filename) else {
+            return nil
+        }
+
+        let cloudData = try readDrawingData(from: cloudFileURL)
+        try cloudData.write(to: localURL, options: [.atomic])
+        return cloudData
+    }
+
+    func saveLayerStackData(_ data: Data, for templateID: String) throws {
+        let filename = Self.layerStackFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: filename)
+        try data.write(to: localURL, options: [.atomic])
+        syncDrawingDataToCloudIfNeeded(data, filename: filename)
+    }
+
+    func renameLayerStackData(from oldTemplateID: String, to newTemplateID: String) throws {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        let oldFilename = Self.layerStackFilename(for: oldTemplateID)
+        let newFilename = Self.layerStackFilename(for: newTemplateID)
+        let oldLocalURL = try localDrawingURL(forFilename: oldFilename)
+        let newLocalURL = try localDrawingURL(forFilename: newFilename)
+
+        if fileManager.fileExists(atPath: oldLocalURL.path) {
+            if fileManager.fileExists(atPath: newLocalURL.path) {
+                try fileManager.removeItem(at: newLocalURL)
+            }
+            try fileManager.moveItem(at: oldLocalURL, to: newLocalURL)
+        }
+
+        syncRenameInCloudIfNeeded(from: oldFilename, to: newFilename)
+    }
+
+    func deleteLayerStackData(for templateID: String) throws {
+        let filename = Self.layerStackFilename(for: templateID)
+        let localURL = try localDrawingURL(forFilename: filename)
+        if fileManager.fileExists(atPath: localURL.path) {
+            try fileManager.removeItem(at: localURL)
+        }
+
+        deleteCloudDrawingIfNeeded(filename: filename)
     }
 
     nonisolated private static func encodedTemplateID(_ templateID: String) -> String {

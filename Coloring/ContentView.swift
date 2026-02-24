@@ -2,12 +2,23 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var templateViewModel = TemplateStudioViewModel()
+    @StateObject private var galleryViewModel = GalleryViewModel()
 
     var body: some View {
         ZStack {
             backgroundGradient
 
-            TemplateStudioView(viewModel: templateViewModel)
+            TabView {
+                TemplateStudioView(viewModel: templateViewModel)
+                    .tabItem {
+                        Label("Studio", systemImage: "paintbrush.pointed")
+                    }
+
+                GalleryView(viewModel: galleryViewModel)
+                    .tabItem {
+                        Label("Gallery", systemImage: "photo.on.rectangle.angled")
+                    }
+            }
         }
     }
 

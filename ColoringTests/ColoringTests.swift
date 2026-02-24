@@ -85,7 +85,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: library,
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore()
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -105,7 +110,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: library,
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore()
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -134,7 +144,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: library,
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore()
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -166,7 +181,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: library,
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore()
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -195,7 +215,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: library,
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore()
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -229,7 +254,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: library,
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore()
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -251,7 +281,12 @@ final class ColoringTests: XCTestCase {
             TemplateStudioViewModel(
                 templateLibrary: firstLibrary,
                 exportService: StubTemplateExportService(),
-                drawingStore: drawingStore
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -263,17 +298,22 @@ final class ColoringTests: XCTestCase {
         }
 
         let didPersistDrawing = await waitForCondition(timeout: 3.0) {
-            let persistedDrawingData = await drawingStore.drawingData(for: template.id)
-            return persistedDrawingData?.isEmpty == false
+            let persistedLayerData = try? await drawingStore.loadLayerStackData(for: template.id)
+            return persistedLayerData?.isEmpty == false
         }
-        XCTAssertTrue(didPersistDrawing, "Expected drawing data to be persisted for selected template.")
+        XCTAssertTrue(didPersistDrawing, "Expected layer stack data to be persisted for selected template.")
 
         let secondLibrary = StubTemplateLibrary(templates: [template])
         let secondViewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: secondLibrary,
                 exportService: StubTemplateExportService(),
-                drawingStore: drawingStore
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
             )
         }
 
@@ -540,6 +580,8 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
 
 private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     private var drawingDataByTemplateID: [String: Data] = [:]
+    private var fillDataByTemplateID: [String: Data] = [:]
+    private var layerStackDataByTemplateID: [String: Data] = [:]
 
     func loadDrawingData(for templateID: String) throws -> Data? {
         drawingDataByTemplateID[templateID]
@@ -563,6 +605,50 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
         drawingDataByTemplateID.removeValue(forKey: templateID)
     }
 
+    func loadFillData(for templateID: String) throws -> Data? {
+        fillDataByTemplateID[templateID]
+    }
+
+    func saveFillData(_ fillData: Data, for templateID: String) throws {
+        fillDataByTemplateID[templateID] = fillData
+    }
+
+    func renameFillData(from oldTemplateID: String, to newTemplateID: String) throws {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        if let fillData = fillDataByTemplateID.removeValue(forKey: oldTemplateID) {
+            fillDataByTemplateID[newTemplateID] = fillData
+        }
+    }
+
+    func deleteFillData(for templateID: String) throws {
+        fillDataByTemplateID.removeValue(forKey: templateID)
+    }
+
+    func loadLayerStackData(for templateID: String) throws -> Data? {
+        layerStackDataByTemplateID[templateID]
+    }
+
+    func saveLayerStackData(_ data: Data, for templateID: String) throws {
+        layerStackDataByTemplateID[templateID] = data
+    }
+
+    func renameLayerStackData(from oldTemplateID: String, to newTemplateID: String) throws {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        if let data = layerStackDataByTemplateID.removeValue(forKey: oldTemplateID) {
+            layerStackDataByTemplateID[newTemplateID] = data
+        }
+    }
+
+    func deleteLayerStackData(for templateID: String) throws {
+        layerStackDataByTemplateID.removeValue(forKey: templateID)
+    }
+
     func drawingData(for templateID: String) -> Data? {
         drawingDataByTemplateID[templateID]
     }
@@ -576,9 +662,69 @@ private struct StubTemplateExportService: TemplateArtworkExporting {
     func exportPNG(
         templateData _: Data,
         drawingData _: Data,
+        fillLayerData _: Data?,
+        compositedLayersImageData _: Data?,
         canvasSize _: CGSize,
         templateID _: String
     ) async throws -> URL {
         URL(fileURLWithPath: "/tmp/template-export.png")
+    }
+}
+
+private actor StubBrushPresetStore: BrushPresetStoreProviding {
+    private var presets: [BrushPreset] = []
+
+    func loadUserPresets() throws -> [BrushPreset] {
+        presets
+    }
+
+    func saveUserPresets(_ presets: [BrushPreset]) throws {
+        self.presets = presets
+    }
+}
+
+private actor StubCategoryStore: TemplateCategoryStoreProviding {
+    private var categories: [TemplateCategory] = []
+    private var assignments: [String: String] = [:]
+
+    func loadUserCategories() throws -> [TemplateCategory] {
+        categories
+    }
+
+    func saveUserCategories(_ categories: [TemplateCategory]) throws {
+        self.categories = categories
+    }
+
+    func loadCategoryAssignments() throws -> [String: String] {
+        assignments
+    }
+
+    func saveCategoryAssignments(_ assignments: [String: String]) throws {
+        self.assignments = assignments
+    }
+}
+
+private actor StubGalleryStore: GalleryStoreProviding {
+    private var entries: [ArtworkEntry] = []
+
+    func loadEntries() throws -> [ArtworkEntry] {
+        entries
+    }
+
+    func saveArtwork(imageData: Data, sourceTemplateID: String, sourceTemplateName: String) throws -> ArtworkEntry {
+        let entry = ArtworkEntry(
+            id: UUID().uuidString,
+            sourceTemplateID: sourceTemplateID,
+            sourceTemplateName: sourceTemplateName,
+            createdAt: Date(),
+            fullImageFilename: "test.png",
+            thumbnailFilename: "test_thumb.png"
+        )
+        entries.insert(entry, at: 0)
+        return entry
+    }
+
+    func deleteEntry(_ id: String) throws {
+        entries.removeAll { $0.id == id }
     }
 }

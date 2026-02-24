@@ -7,9 +7,30 @@ protocol TemplateArtworkExporting: Sendable {
     func exportPNG(
         templateData: Data,
         drawingData: Data,
+        fillLayerData: Data?,
+        compositedLayersImageData: Data?,
         canvasSize: CGSize,
         templateID: String
     ) async throws -> URL
+}
+
+extension TemplateArtworkExporting {
+    func exportPNG(
+        templateData: Data,
+        drawingData: Data,
+        fillLayerData: Data? = nil,
+        canvasSize: CGSize,
+        templateID: String
+    ) async throws -> URL {
+        try await exportPNG(
+            templateData: templateData,
+            drawingData: drawingData,
+            fillLayerData: fillLayerData,
+            compositedLayersImageData: nil,
+            canvasSize: canvasSize,
+            templateID: templateID
+        )
+    }
 }
 
 actor TemplateArtworkExportService: TemplateArtworkExporting {
@@ -33,6 +54,8 @@ actor TemplateArtworkExportService: TemplateArtworkExporting {
     func exportPNG(
         templateData: Data,
         drawingData: Data,
+        fillLayerData: Data?,
+        compositedLayersImageData: Data?,
         canvasSize: CGSize,
         templateID: String
     ) async throws -> URL {
@@ -41,8 +64,10 @@ actor TemplateArtworkExportService: TemplateArtworkExporting {
                 throw ExportError.invalidTemplate
             }
 
-            guard let drawing = try? PKDrawing(data: drawingData) else {
-                throw ExportError.invalidDrawing
+            let fillImage: UIImage? = if let fillLayerData {
+                UIImage(data: fillLayerData)
+            } else {
+                nil
             }
 
             let canvasRect = CGRect(origin: .zero, size: canvasSize)
@@ -54,8 +79,19 @@ actor TemplateArtworkExportService: TemplateArtworkExporting {
 
                 templateImage.draw(in: canvasRect)
 
-                let drawingImage = drawing.image(from: canvasRect, scale: 2.0)
-                drawingImage.draw(in: canvasRect)
+                if let fillImage {
+                    fillImage.draw(in: canvasRect)
+                }
+
+                // Use pre-composited layers image if available, otherwise fall back to single drawing.
+                if let compositedLayersImageData,
+                   let layersImage = UIImage(data: compositedLayersImageData)
+                {
+                    layersImage.draw(in: canvasRect)
+                } else if let drawing = try? PKDrawing(data: drawingData) {
+                    let drawingImage = drawing.image(from: canvasRect, scale: 2.0)
+                    drawingImage.draw(in: canvasRect)
+                }
             }
         }
 
