@@ -29,6 +29,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 |--------|-------------|
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
+| **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
 | **20 Built-In Orientation Packs** | Includes 12 landscape and 8 portrait built-in drawings. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
@@ -37,7 +38,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Template Orientation Enforcement** | Landscape templates request landscape mode; portrait templates request portrait mode when opened. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
-| **Calm Sidebar Scrolling** | Sidebar vertical bounce is disabled to prevent top snap/jump behavior. |
+| **Stable Sidebar Scrolling** | Sidebar vertical bounce is disabled and the last scroll position is restored after collapsing/reopening the library. |
 | **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
 | **Carousel Gallery** | Exported artwork appears in a polished page carousel with balanced preview sizing across portrait and landscape pieces. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
@@ -53,9 +54,11 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
 - **Orientation by Template**: Built-in landscape drawings open in landscape mode; built-in portrait drawings open in portrait mode.
 - **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
+- **Sidebar Resize**: Drag the sidebar's trailing handle to set your preferred library width.
 - **Sidebar Status Messages**: Import/export and restore messages are shown inline without a separate "Status" section title.
 - **Coloring**: Draw directly with PencilKit tools and Apple Pencil gestures.
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
+- **Initial Fit Centering**: New templates open centered at fit scale, including portrait drawings on landscape iPad screens.
 - **Fill**: Switch to fill mode in the bottom palette and tap enclosed regions to color them.
 - **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.

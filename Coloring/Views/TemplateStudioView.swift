@@ -4,6 +4,10 @@ import UniformTypeIdentifiers
 import UIKit
 
 struct TemplateStudioView: View {
+    private static let defaultSidebarWidth: Double = 390
+    private static let sidebarMinWidth: CGFloat = 300
+    private static let sidebarMaxWidth: CGFloat = 560
+
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var viewModel: TemplateStudioViewModel
 
@@ -23,6 +27,9 @@ struct TemplateStudioView: View {
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
     @State private var requestedCanvasOrientation: ColoringTemplate.CanvasOrientation = .any
+    @SceneStorage("templateStudio.sidebarWidth") private var sidebarWidth: Double = Self.defaultSidebarWidth
+    @State private var sidebarResizeStartWidth: Double?
+    @State private var sidebarStoredVerticalOffset: CGFloat = 0
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -294,9 +301,17 @@ struct TemplateStudioView: View {
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
-        .background(SidebarScrollConfigurator())
+        .background(SidebarScrollConfigurator(storedVerticalOffset: $sidebarStoredVerticalOffset))
         .scrollContentBackground(.hidden)
         .background(sidebarBackground)
+        .overlay(alignment: .trailing) {
+            sidebarResizeHandle
+        }
+        .navigationSplitViewColumnWidth(
+            min: Self.sidebarMinWidth,
+            ideal: CGFloat(sidebarWidth),
+            max: Self.sidebarMaxWidth
+        )
         .toolbar(.hidden, for: .navigationBar)
     }
 
@@ -630,6 +645,43 @@ struct TemplateStudioView: View {
         )
     }
 
+    private var sidebarResizeHandle: some View {
+        VStack {
+            Spacer(minLength: 120)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.primary.opacity(0.24))
+                .frame(width: 4, height: 76)
+                .padding(.trailing, 2)
+            Spacer(minLength: 120)
+        }
+        .frame(width: 18)
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if sidebarResizeStartWidth == nil {
+                        sidebarResizeStartWidth = sidebarWidth
+                    }
+
+                    guard let sidebarResizeStartWidth else {
+                        return
+                    }
+
+                    let proposedWidth = sidebarResizeStartWidth + Double(value.translation.width)
+                    sidebarWidth = min(
+                        max(proposedWidth, Double(Self.sidebarMinWidth)),
+                        Double(Self.sidebarMaxWidth)
+                    )
+                }
+                .onEnded { _ in
+                    sidebarResizeStartWidth = nil
+                }
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Resize library sidebar")
+        .accessibilityHint("Drag left or right to adjust the drawing library width.")
+    }
+
     private var libraryHeroCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
@@ -894,15 +946,53 @@ private extension ColoringTemplate.CanvasOrientation {
 }
 
 private struct SidebarScrollConfigurator: UIViewRepresentable {
-    func makeUIView(context: Context) -> ProbeView {
-        ProbeView()
+    @Binding var storedVerticalOffset: CGFloat
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(storedVerticalOffset: $storedVerticalOffset)
     }
 
-    func updateUIView(_ uiView: ProbeView, context: Context) {}
+    func makeUIView(context: Context) -> ProbeView {
+        let probeView = ProbeView()
+        probeView.onScrollOffsetChanged = { [weak coordinator = context.coordinator] offset in
+            coordinator?.updateStoredOffset(offset)
+        }
+        return probeView
+    }
+
+    func updateUIView(_ uiView: ProbeView, context: Context) {
+        uiView.storedVerticalOffset = storedVerticalOffset
+    }
+
+    final class Coordinator {
+        private var storedVerticalOffset: Binding<CGFloat>
+
+        init(storedVerticalOffset: Binding<CGFloat>) {
+            self.storedVerticalOffset = storedVerticalOffset
+        }
+
+        func updateStoredOffset(_ offset: CGFloat) {
+            let normalizedOffset = max(0, offset)
+            guard abs(storedVerticalOffset.wrappedValue - normalizedOffset) > 0.5 else {
+                return
+            }
+
+            storedVerticalOffset.wrappedValue = normalizedOffset
+        }
+    }
 }
 
 private final class ProbeView: UIView {
+    var storedVerticalOffset: CGFloat = 0 {
+        didSet {
+            restoreOffsetIfNeeded()
+        }
+    }
+
+    var onScrollOffsetChanged: ((CGFloat) -> Void)?
+
     private weak var configuredScrollView: UIScrollView?
+    private var contentOffsetObservation: NSKeyValueObservation?
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -912,23 +1002,64 @@ private final class ProbeView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         configureEnclosingScrollViewIfNeeded()
+        restoreOffsetIfNeeded()
     }
 
     private func configureEnclosingScrollViewIfNeeded() {
         if let configuredScrollView, configuredScrollView.window != nil {
+            applyConfiguration(to: configuredScrollView)
+            observeContentOffset(of: configuredScrollView)
             return
         }
 
         var currentView: UIView? = superview
         while let candidate = currentView {
             if let scrollView = candidate as? UIScrollView {
-                scrollView.bounces = false
-                scrollView.alwaysBounceVertical = false
-                scrollView.refreshControl = nil
+                applyConfiguration(to: scrollView)
+                observeContentOffset(of: scrollView)
                 configuredScrollView = scrollView
+                restoreOffsetIfNeeded()
                 return
             }
             currentView = candidate.superview
         }
+    }
+
+    private func applyConfiguration(to scrollView: UIScrollView) {
+        scrollView.bounces = false
+        scrollView.alwaysBounceVertical = false
+        scrollView.refreshControl = nil
+    }
+
+    private func observeContentOffset(of scrollView: UIScrollView) {
+        if configuredScrollView === scrollView, contentOffsetObservation != nil {
+            return
+        }
+
+        contentOffsetObservation?.invalidate()
+        contentOffsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
+            self?.onScrollOffsetChanged?(scrollView.contentOffset.y)
+        }
+    }
+
+    private func restoreOffsetIfNeeded() {
+        guard let scrollView = configuredScrollView else {
+            return
+        }
+
+        let maxOffset = max(0, scrollView.contentSize.height - scrollView.bounds.height)
+        let clampedOffset = min(max(storedVerticalOffset, 0), maxOffset)
+        guard clampedOffset > 1 else {
+            return
+        }
+
+        let currentOffset = scrollView.contentOffset.y
+        let shouldRestoreFromTop = currentOffset <= 1
+        let offsetAlreadyMatches = abs(currentOffset - clampedOffset) <= 1
+        guard shouldRestoreFromTop, !offsetAlreadyMatches else {
+            return
+        }
+
+        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: clampedOffset), animated: false)
     }
 }

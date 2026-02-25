@@ -443,13 +443,19 @@ final class ZoomableCanvasContainerView: UIView {
 
         if shouldSnapToFit {
             scrollView.zoomScale = fitScale
-            scrollView.contentOffset = .zero
         } else if scrollView.zoomScale < scrollView.minimumZoomScale {
             scrollView.zoomScale = scrollView.minimumZoomScale
         }
 
         lastFitZoomScale = fitScale
         updateContentInsetForCentering()
+
+        if shouldSnapToFit {
+            scrollView.contentOffset = CGPoint(
+                x: -scrollView.contentInset.left,
+                y: -scrollView.contentInset.top
+            )
+        }
     }
 
     private static func normalizedCanvasSize(for image: UIImage, maxLongEdge: CGFloat) -> CGSize {
