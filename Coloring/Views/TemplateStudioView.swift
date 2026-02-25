@@ -993,11 +993,7 @@ private struct SidebarScrollConfigurator: UIViewRepresentable {
 }
 
 private final class ProbeView: UIView {
-    var storedVerticalOffset: CGFloat = 0 {
-        didSet {
-            restoreOffsetIfNeeded()
-        }
-    }
+    var storedVerticalOffset: CGFloat = 0
 
     var onScrollOffsetChanged: ((CGFloat) -> Void)?
 
@@ -1013,7 +1009,6 @@ private final class ProbeView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         configureEnclosingScrollViewIfNeeded()
-        restoreOffsetIfNeeded()
     }
 
     private func configureEnclosingScrollViewIfNeeded() {
@@ -1040,7 +1035,7 @@ private final class ProbeView: UIView {
     }
 
     private func applyConfiguration(to scrollView: UIScrollView) {
-        scrollView.bounces = false
+        scrollView.bounces = true
         scrollView.alwaysBounceVertical = false
         scrollView.refreshControl = nil
     }
@@ -1065,9 +1060,14 @@ private final class ProbeView: UIView {
             return
         }
 
+        guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else {
+            return
+        }
+
         let maxOffset = max(0, scrollView.contentSize.height - scrollView.bounds.height)
         let clampedOffset = min(max(storedVerticalOffset, 0), maxOffset)
         guard clampedOffset > 1 else {
+            hasCompletedInitialRestore = true
             return
         }
 
