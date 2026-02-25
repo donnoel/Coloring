@@ -12,7 +12,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Single full-screen Apple Pencil studio (no Scene/Templates tab split)
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
-- Apple Pencil Template Studio with orientation-aware built-in packs (12 landscape + 8 portrait)
+- Apple Pencil Template Studio with orientation-aware built-in packs (22 landscape + 8 portrait)
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
 

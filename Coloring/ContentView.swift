@@ -15,17 +15,17 @@ struct ContentView: View {
             backgroundGradient
 
             TabView(selection: $selectedTab) {
-                TemplateStudioView(viewModel: templateViewModel)
-                    .tabItem {
-                        Label("Studio", systemImage: "paintbrush.pointed")
-                    }
-                    .tag(RootTab.studio)
-
                 GalleryView(viewModel: galleryViewModel)
                     .tabItem {
                         Label("Gallery", systemImage: "photo.on.rectangle.angled")
                     }
                     .tag(RootTab.gallery)
+
+                TemplateStudioView(viewModel: templateViewModel)
+                    .tabItem {
+                        Label("Studio", systemImage: "paintbrush.pointed")
+                    }
+                    .tag(RootTab.studio)
             }
         }
     }
