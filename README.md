@@ -4,7 +4,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift">
   <img src="https://img.shields.io/badge/Platform-iPadOS-blue">
-  <img src="https://img.shields.io/badge/Templates-30%20Built--In-purple">
+  <img src="https://img.shields.io/badge/Templates-40%20Built--In-purple">
   <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud">
 </p>
 
@@ -30,7 +30,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
-| **30 Built-In Orientation Packs** | Includes 22 landscape and 8 portrait built-in drawings. |
+| **40 Built-In Orientation Packs** | Includes 22 landscape and 18 portrait built-in drawings. |
 | **Expanded Built-In Folders** | Adds five title-based folders (Cities & Landmarks, Nature & Outdoors, People & Portraits, Animals & Wildlife, Action & Motion); drawings can appear in multiple folders. |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |

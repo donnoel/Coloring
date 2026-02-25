@@ -178,5 +178,65 @@
     "title": "Wheelie",
     "category": "Portrait",
     "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-09.png",
+    "title": "Bicycle and Roses",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-10.png",
+    "title": "Boys and Bikes",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-11.png",
+    "title": "Boys Friend",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-12.png",
+    "title": "Intimacy",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-13.png",
+    "title": "Making Movies",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-14.png",
+    "title": "Melancholy at the Pool",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-15.png",
+    "title": "Nasa Launch",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-16.png",
+    "title": "Sadness",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-17.png",
+    "title": "Self Portrait",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-18.png",
+    "title": "Stuntman Bob",
+    "category": "Portrait",
+    "orientation": "portrait"
   }
 ]
