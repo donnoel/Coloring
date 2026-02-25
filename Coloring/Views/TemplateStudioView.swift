@@ -637,7 +637,7 @@ struct TemplateStudioView: View {
             VStack(spacing: 0) {
                 if isPaletteAtTop {
                     paletteBar
-                        .padding(.top, 20)
+                        .padding(.top, 56)
                 }
 
                 Spacer(minLength: 0)
