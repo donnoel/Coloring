@@ -46,7 +46,7 @@ struct GalleryView: View {
                     await viewModel.loadEntries()
                 }
             }
-            .sheet(item: $selectedEntry) { entry in
+            .fullScreenCover(item: $selectedEntry) { entry in
                 ArtworkDetailView(entry: entry, viewModel: viewModel)
             }
         }

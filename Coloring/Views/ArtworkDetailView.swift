@@ -9,26 +9,24 @@ struct ArtworkDetailView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    if let image = viewModel.fullImage(for: entry) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(
-                                minWidth: geometry.size.width,
-                                minHeight: geometry.size.height
-                            )
-                    } else {
-                        ContentUnavailableView(
-                            "Image Not Found",
-                            systemImage: "exclamationmark.triangle",
-                            description: Text("The artwork file could not be loaded.")
-                        )
+                if let image = viewModel.fullImage(for: entry) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
                         .frame(
                             width: geometry.size.width,
                             height: geometry.size.height
                         )
-                    }
+                } else {
+                    ContentUnavailableView(
+                        "Image Not Found",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("The artwork file could not be loaded.")
+                    )
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height
+                    )
                 }
             }
             .navigationTitle(entry.sourceTemplateName)
