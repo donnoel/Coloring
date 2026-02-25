@@ -31,6 +31,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
 | **30 Built-In Orientation Packs** | Includes 22 landscape and 8 portrait built-in drawings. |
+| **Expanded Built-In Folders** | Adds five title-based folders (Cities & Landmarks, Nature & Outdoors, People & Portraits, Animals & Wildlife, Action & Motion); drawings can appear in multiple folders. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
@@ -52,6 +53,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
+- **Category Folders**: Keep existing built-in folders and filter by five additional title-based folders; the same drawing may appear in more than one folder.
 - **Orientation by Template**: Built-in landscape drawings open in landscape mode; built-in portrait drawings open in portrait mode.
 - **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
 - **Sidebar Resize**: Drag the sidebar's trailing handle to set your preferred library width.

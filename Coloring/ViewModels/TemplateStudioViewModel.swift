@@ -470,7 +470,11 @@ final class TemplateStudioViewModel: ObservableObject {
 
         // Built-in category: match by category name
         if let builtInCat = builtInCategories.first(where: { $0.id == filterID }) {
-            return templates.filter { $0.category == builtInCat.name && $0.source == .builtIn }
+            return templates.filter { template in
+                TemplateCategory
+                    .builtInCategoryNames(for: template)
+                    .contains(builtInCat.name)
+            }
         }
 
         return templates

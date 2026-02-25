@@ -170,6 +170,78 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(imageDidUpdate)
     }
 
+    func testTitleBasedBuiltInCategoriesAppearFromTemplateTitles() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-cats", title: "Cats"),
+            Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge"),
+            Self.makeTemplate(id: "builtin-ocean", title: "Ocean"),
+            Self.makeTemplate(id: "builtin-wheelie", title: "Wheelie"),
+            Self.makeTemplate(id: "builtin-mother", title: "Loving Mother")
+        ]
+        let library = StubTemplateLibrary(templates: templates)
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            let categoryNames = Set(viewModel.builtInCategories.map(\.name))
+            XCTAssertTrue(categoryNames.contains("Cities & Landmarks"))
+            XCTAssertTrue(categoryNames.contains("Nature & Outdoors"))
+            XCTAssertTrue(categoryNames.contains("People & Portraits"))
+            XCTAssertTrue(categoryNames.contains("Animals & Wildlife"))
+            XCTAssertTrue(categoryNames.contains("Action & Motion"))
+        }
+    }
+
+    func testTitleBasedBuiltInCategoriesAllowMultipleFolderMembership() async {
+        let neon = Self.makeTemplate(id: "builtin-neon", title: "Neon City Racing")
+        let bridge = Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge")
+        let wheelie = Self.makeTemplate(id: "builtin-wheelie", title: "Wheelie")
+        let library = StubTemplateLibrary(templates: [neon, bridge, wheelie])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            guard let cityCategoryID = viewModel.allCategories.first(where: { $0.name == "Cities & Landmarks" })?.id else {
+                XCTFail("Expected Cities & Landmarks category.")
+                return
+            }
+            guard let actionCategoryID = viewModel.allCategories.first(where: { $0.name == "Action & Motion" })?.id else {
+                XCTFail("Expected Action & Motion category.")
+                return
+            }
+
+            viewModel.selectedCategoryFilter = cityCategoryID
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([neon.id, bridge.id]))
+
+            viewModel.selectedCategoryFilter = actionCategoryID
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([neon.id, wheelie.id]))
+        }
+    }
+
     func testTemplateRenameKeepsTemplateSelected() async {
         let importedTemplate = Self.makeTemplate(
             id: "imported-1",
