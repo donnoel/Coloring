@@ -84,9 +84,9 @@ struct GalleryView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.94, green: 0.97, blue: 1.00),
-                    Color(red: 0.93, green: 0.96, blue: 0.99),
-                    Color(red: 0.95, green: 0.97, blue: 0.95)
+                    Color(red: 0.91, green: 0.96, blue: 1.00),
+                    Color(red: 0.93, green: 0.92, blue: 0.99),
+                    Color(red: 0.99, green: 0.93, blue: 0.97)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -94,7 +94,7 @@ struct GalleryView: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.56, green: 0.74, blue: 0.97).opacity(0.20),
+                    Color(red: 0.33, green: 0.63, blue: 0.98).opacity(0.20),
                     .clear
                 ],
                 center: .topTrailing,
@@ -104,7 +104,7 @@ struct GalleryView: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.67, green: 0.90, blue: 0.85).opacity(0.22),
+                    Color(red: 0.77, green: 0.55, blue: 0.93).opacity(0.18),
                     .clear
                 ],
                 center: .bottomLeading,
