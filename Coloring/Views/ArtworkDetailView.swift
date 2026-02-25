@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ArtworkDetailView: View {
     let entry: ArtworkEntry
@@ -39,19 +40,20 @@ struct ArtworkDetailView: View {
                 }
 
                 ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 12) {
-                        if viewModel.fullImage(for: entry) != nil {
-                            let url = URL(fileURLWithPath: entry.fullImagePath)
-                            ShareLink(item: url) {
-                                Image(systemName: "square.and.arrow.up")
-                            }
-                        }
-
-                        Button(role: .destructive) {
-                            isDeleteConfirmationPresented = true
+                    if viewModel.fullImage(for: entry) != nil {
+                        Button {
+                            presentShareSheet()
                         } label: {
-                            Image(systemName: "trash")
+                            Image(systemName: "square.and.arrow.up")
                         }
+                    }
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    Button(role: .destructive) {
+                        isDeleteConfirmationPresented = true
+                    } label: {
+                        Image(systemName: "trash")
                     }
                 }
             }
@@ -69,5 +71,46 @@ struct ArtworkDetailView: View {
                 Text("This artwork will be permanently removed.")
             }
         }
+    }
+
+    private func presentShareSheet() {
+        let activityItems: [Any]
+        if let image = viewModel.fullImage(for: entry) {
+            activityItems = [image]
+        } else {
+            activityItems = [URL(fileURLWithPath: entry.fullImagePath)]
+        }
+
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let keyWindow = windowScene.windows.first(where: \.isKeyWindow),
+              let rootViewController = keyWindow.rootViewController
+        else {
+            return
+        }
+
+        let activityViewController = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+
+        if let popover = activityViewController.popoverPresentationController {
+            popover.sourceView = rootViewController.view
+            popover.sourceRect = CGRect(
+                x: rootViewController.view.bounds.midX,
+                y: rootViewController.view.bounds.maxY - 1,
+                width: 1,
+                height: 1
+            )
+            popover.permittedArrowDirections = []
+        }
+
+        var topViewController = rootViewController
+        while let presentedViewController = topViewController.presentedViewController {
+            topViewController = presentedViewController
+        }
+
+        topViewController.present(activityViewController, animated: true)
     }
 }
