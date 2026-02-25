@@ -15,8 +15,9 @@ struct TemplateStudioView: View {
     @State private var renameDraftTitle = ""
     @State private var templatePendingDeletion: ColoringTemplate?
     @State private var isDeleteAllImportedConfirmationPresented = false
+    @State private var isClearStrokesConfirmationPresented = false
+    @State private var isClearFillsConfirmationPresented = false
     @State private var isLayerPanelPresented = false
-    @State private var isBrushPanelPresented = false
     @State private var isCategoryManagementPresented = false
 
     var body: some View {
@@ -88,11 +89,35 @@ struct TemplateStudioView: View {
             Text("This removes the imported drawing from this iPad and iCloud.")
         }
         .confirmationDialog(
+            "Clear Strokes",
+            isPresented: $isClearStrokesConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Confirm Clear Strokes", role: .destructive) {
+                viewModel.clearDrawing()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes all drawn strokes for the selected drawing.")
+        }
+        .confirmationDialog(
+            "Clear Fills",
+            isPresented: $isClearFillsConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Confirm Clear Fills", role: .destructive) {
+                viewModel.clearFills()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes all fill colors for the selected drawing.")
+        }
+        .confirmationDialog(
             "Delete All Imported Drawings",
             isPresented: $isDeleteAllImportedConfirmationPresented,
             titleVisibility: .visible
         ) {
-            Button("Delete All", role: .destructive) {
+            Button("Confirm Delete All", role: .destructive) {
                 confirmDeleteAllImported()
             }
 
@@ -102,6 +127,9 @@ struct TemplateStudioView: View {
         }
         .sheet(isPresented: $isCategoryManagementPresented) {
             CategoryManagementView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isLayerPanelPresented) {
+            LayerPanelView(viewModel: viewModel)
         }
     }
 
@@ -162,15 +190,22 @@ struct TemplateStudioView: View {
                     }
                 }
 
+                Button {
+                    isLayerPanelPresented = true
+                } label: {
+                    Label("Layers", systemImage: "square.3.layers.3d")
+                }
+                .disabled(viewModel.selectedTemplateImage == nil)
+
                 Button(role: .destructive) {
-                    viewModel.clearDrawing()
+                    isClearStrokesConfirmationPresented = true
                 } label: {
                     Label("Clear Strokes", systemImage: "trash")
                 }
                 .disabled(viewModel.selectedTemplateImage == nil)
 
                 Button(role: .destructive) {
-                    viewModel.clearFills()
+                    isClearFillsConfirmationPresented = true
                 } label: {
                     Label("Clear Fills", systemImage: "drop.triangle")
                 }
@@ -474,99 +509,9 @@ struct TemplateStudioView: View {
                 }
             }
 
-            libraryToggle
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar(.hidden, for: .navigationBar)
-    }
-
-    private var libraryToggle: some View {
-        VStack {
-            HStack {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
-                    }
-                } label: {
-                    Image(systemName: "sidebar.leading")
-                        .font(.headline.weight(.semibold))
-                        .padding(10)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.white.opacity(0.26), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Toggle Library")
-                .contentShape(Rectangle())
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 12)
-                        .onEnded { value in
-                            guard columnVisibility == .all else {
-                                return
-                            }
-
-                            // Allow a simple, reliable swipe-left gesture on the toggle handle to close the library.
-                            // Keep it conservative so it doesn't interfere with normal drawing gestures.
-                            let isMostlyHorizontal = abs(value.translation.height) < 28
-                            let isClosingSwipe = value.translation.width < -44
-                            guard isMostlyHorizontal, isClosingSwipe else {
-                                return
-                            }
-
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                columnVisibility = .detailOnly
-                            }
-                        }
-                )
-
-                if viewModel.selectedTemplateImage != nil {
-                    Button {
-                        isLayerPanelPresented.toggle()
-                    } label: {
-                        Image(systemName: "square.3.layers.3d")
-                            .font(.headline.weight(.semibold))
-                            .padding(10)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(Color.white.opacity(0.26), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Toggle Layers")
-                    .popover(isPresented: $isLayerPanelPresented) {
-                        LayerPanelView(viewModel: viewModel)
-                    }
-
-                    Button {
-                        isBrushPanelPresented.toggle()
-                    } label: {
-                        Image(systemName: "paintbrush.pointed")
-                            .font(.headline.weight(.semibold))
-                            .padding(10)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(Color.white.opacity(0.26), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Toggle Brushes")
-                    .popover(isPresented: $isBrushPanelPresented) {
-                        BrushCustomizationView(viewModel: viewModel)
-                    }
-                }
-
-                Spacer()
-            }
-            .padding(.top, 10)
-            .padding(.leading, 10)
-
-            Spacer()
-        }
-        .allowsHitTesting(true)
     }
 
     private func templateCanvas(templateImage: UIImage) -> some View {
@@ -596,8 +541,14 @@ struct TemplateStudioView: View {
                 TemplatePaletteBarView(
                     isFillModeActive: $viewModel.isFillModeActive,
                     selectedColorID: $viewModel.selectedFillColorID,
+                    isLibraryVisible: columnVisibility != .detailOnly,
+                    onToggleLibrary: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
+                        }
+                    },
                     onClearFills: {
-                        viewModel.clearFills()
+                        isClearFillsConfirmationPresented = true
                     }
                 )
                 .padding(.bottom, 20)

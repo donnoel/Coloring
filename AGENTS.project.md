@@ -63,6 +63,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
+- Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
+- Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
 
 ## UX rules
 - iPad-first layout with clear template navigation.

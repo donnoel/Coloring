@@ -3,6 +3,8 @@ import SwiftUI
 struct TemplatePaletteBarView: View {
     @Binding var isFillModeActive: Bool
     @Binding var selectedColorID: String
+    var isLibraryVisible: Bool
+    var onToggleLibrary: () -> Void
     var onClearFills: () -> Void
 
     var body: some View {
@@ -33,6 +35,24 @@ struct TemplatePaletteBarView: View {
 
     private var fillToggle: some View {
         HStack(spacing: 8) {
+            Button {
+                onToggleLibrary()
+            } label: {
+                Image(systemName: "sidebar.leading")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isLibraryVisible ? .primary : .secondary)
+                    .padding(8)
+                    .background(
+                        isLibraryVisible ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Toggle Library")
+
+            Divider()
+                .frame(height: 20)
+
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     isFillModeActive = false
