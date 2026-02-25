@@ -122,7 +122,7 @@ struct ColoringWorkspaceView: View {
                     await viewModel.exportCurrentScene()
                 }
             } label: {
-                Label("Export PNG", systemImage: "square.and.arrow.up")
+                Label("Export", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)

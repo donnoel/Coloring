@@ -217,7 +217,7 @@ struct TemplateStudioView: View {
                         await viewModel.exportCurrentTemplate()
                     }
                 } label: {
-                    Label("Export PNG", systemImage: "square.and.arrow.up")
+                    Label("Export", systemImage: "square.and.arrow.up")
                 }
                 .disabled(viewModel.selectedTemplateImage == nil || viewModel.isExporting)
 
@@ -248,7 +248,12 @@ struct TemplateStudioView: View {
                 Button(role: .destructive) {
                     isClearFillsConfirmationPresented = true
                 } label: {
-                    Label("Clear Fills", systemImage: "drop.triangle")
+                    Label {
+                        Text("Clear Fills")
+                            .foregroundStyle(.red)
+                    } icon: {
+                        Image(systemName: "drop.triangle")
+                    }
                 }
                 .disabled(viewModel.currentFillImage == nil)
 
@@ -998,6 +1003,7 @@ private final class ProbeView: UIView {
 
     private weak var configuredScrollView: UIScrollView?
     private var contentOffsetObservation: NSKeyValueObservation?
+    private var hasCompletedInitialRestore = false
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -1022,6 +1028,9 @@ private final class ProbeView: UIView {
             if let scrollView = candidate as? UIScrollView {
                 applyConfiguration(to: scrollView)
                 observeContentOffset(of: scrollView)
+                if configuredScrollView !== scrollView {
+                    hasCompletedInitialRestore = false
+                }
                 configuredScrollView = scrollView
                 restoreOffsetIfNeeded()
                 return
@@ -1048,6 +1057,10 @@ private final class ProbeView: UIView {
     }
 
     private func restoreOffsetIfNeeded() {
+        guard !hasCompletedInitialRestore else {
+            return
+        }
+
         guard let scrollView = configuredScrollView else {
             return
         }
@@ -1061,10 +1074,12 @@ private final class ProbeView: UIView {
         let currentOffset = scrollView.contentOffset.y
         let shouldRestoreFromTop = currentOffset <= 1
         let offsetAlreadyMatches = abs(currentOffset - clampedOffset) <= 1
-        guard shouldRestoreFromTop, !offsetAlreadyMatches else {
+        if offsetAlreadyMatches || !shouldRestoreFromTop {
+            hasCompletedInitialRestore = true
             return
         }
 
         scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: clampedOffset), animated: false)
+        hasCompletedInitialRestore = true
     }
 }
