@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 struct TemplateStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -284,6 +285,7 @@ struct TemplateStudioView: View {
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
         .scrollContentBackground(.hidden)
+        .background(SidebarListBounceDisabler())
         .background(sidebarBackground)
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -842,6 +844,34 @@ struct TemplateStudioView: View {
                     viewModel.reportImportFailure("Could not import the selected file.")
                 }
             }
+        }
+    }
+}
+
+private struct SidebarListBounceDisabler: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        DispatchQueue.main.async {
+            configureEnclosingScrollView(from: view)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            configureEnclosingScrollView(from: uiView)
+        }
+    }
+
+    private func configureEnclosingScrollView(from view: UIView) {
+        var currentView: UIView? = view.superview
+        while let candidate = currentView {
+            if let scrollView = candidate as? UIScrollView {
+                scrollView.bounces = false
+                scrollView.alwaysBounceVertical = false
+                return
+            }
+            currentView = candidate.superview
         }
     }
 }

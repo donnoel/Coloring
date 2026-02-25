@@ -36,6 +36,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels. |
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
+| **Calm Sidebar Scrolling** | Sidebar list bounce is disabled to keep navigation steady and avoid pull-to-refresh behavior. |
 | **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
@@ -48,6 +49,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
+- **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
 - **Coloring**: Draw directly with PencilKit tools and Apple Pencil gestures.
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
 - **Fill**: Switch to fill mode in the bottom palette and tap enclosed regions to color them.
