@@ -47,6 +47,7 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var builtInCategories: [TemplateCategory] = []
     @Published private(set) var userCategories: [TemplateCategory] = []
     @Published private(set) var categoryAssignments: [String: String] = [:]
+    @Published private(set) var categoryOrder: [String] = []
 
     private struct FillHistory {
         var undo: [Data?] = []
@@ -181,6 +182,7 @@ final class TemplateStudioViewModel: ObservableObject {
             let loadedTemplates = try await templateLibrary.loadTemplates()
             templates = loadedTemplates
             builtInCategories = TemplateCategory.builtInCategories(from: loadedTemplates)
+            syncCategoryOrderWithAvailableCategories()
             let validTemplateIDs = Set(loadedTemplates.map(\.id))
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
@@ -449,7 +451,11 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Template Categories
 
     var allCategories: [TemplateCategory] {
-        [TemplateCategory.allCategory] + builtInCategories + [TemplateCategory.importedCategory] + userCategories
+        [TemplateCategory.allCategory] + orderedFolderCategories + [TemplateCategory.importedCategory]
+    }
+
+    var reorderableCategories: [TemplateCategory] {
+        orderedFolderCategories
     }
 
     var filteredTemplates: [ColoringTemplate] {
@@ -487,7 +493,9 @@ final class TemplateStudioViewModel: ObservableObject {
             isUserCreated: true
         )
         userCategories.append(category)
+        syncCategoryOrderWithAvailableCategories()
         persistUserCategories()
+        persistCategoryOrder()
     }
 
     func renameUserCategory(_ id: String, to name: String) {
@@ -500,6 +508,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
     func deleteUserCategory(_ id: String) {
         userCategories.removeAll { $0.id == id }
+        categoryOrder.removeAll { $0 == id }
         // Unassign templates from the deleted category
         for (templateID, catID) in categoryAssignments where catID == id {
             categoryAssignments.removeValue(forKey: templateID)
@@ -507,8 +516,10 @@ final class TemplateStudioViewModel: ObservableObject {
         if selectedCategoryFilter == id {
             selectedCategoryFilter = TemplateCategory.allCategory.id
         }
+        syncCategoryOrderWithAvailableCategories()
         persistUserCategories()
         persistCategoryAssignments()
+        persistCategoryOrder()
     }
 
     func assignTemplate(_ templateID: String, toCategoryID categoryID: String?) {
@@ -520,6 +531,27 @@ final class TemplateStudioViewModel: ObservableObject {
         persistCategoryAssignments()
     }
 
+    func moveCategories(from source: IndexSet, to destination: Int) {
+        guard !source.isEmpty else {
+            return
+        }
+
+        var updatedCategories = orderedFolderCategories
+        let sourceIndexes = source.sorted()
+        let movedCategories = sourceIndexes.map { updatedCategories[$0] }
+
+        for index in sourceIndexes.sorted(by: >) {
+            updatedCategories.remove(at: index)
+        }
+
+        let removalsBeforeDestination = sourceIndexes.filter { $0 < destination }.count
+        let adjustedDestination = max(0, min(updatedCategories.count, destination - removalsBeforeDestination))
+        updatedCategories.insert(contentsOf: movedCategories, at: adjustedDestination)
+
+        categoryOrder = updatedCategories.map(\.id)
+        persistCategoryOrder()
+    }
+
     func loadCategoriesIfNeeded() {
         Task { [categoryStore] in
             do {
@@ -527,11 +559,16 @@ final class TemplateStudioViewModel: ObservableObject {
                 self.userCategories = categories
                 let assignments = try await categoryStore.loadCategoryAssignments()
                 self.categoryAssignments = assignments
+                let storedOrder = try await categoryStore.loadCategoryOrder()
+                self.categoryOrder = storedOrder
+                self.syncCategoryOrderWithAvailableCategories()
             } catch {
                 // Silently ignore - starts with empty user categories
+                self.syncCategoryOrderWithAvailableCategories()
             }
         }
         builtInCategories = TemplateCategory.builtInCategories(from: templates)
+        syncCategoryOrderWithAvailableCategories()
     }
 
     private func persistUserCategories() {
@@ -545,6 +582,48 @@ final class TemplateStudioViewModel: ObservableObject {
         let assignments = categoryAssignments
         Task { [categoryStore, assignments] in
             try? await categoryStore.saveCategoryAssignments(assignments)
+        }
+    }
+
+    private func persistCategoryOrder() {
+        let categoryOrder = categoryOrder
+        Task { [categoryStore, categoryOrder] in
+            try? await categoryStore.saveCategoryOrder(categoryOrder)
+        }
+    }
+
+    private var orderedFolderCategories: [TemplateCategory] {
+        let availableCategories = builtInCategories + userCategories
+        guard !availableCategories.isEmpty else {
+            return []
+        }
+
+        let categoriesByID = Dictionary(uniqueKeysWithValues: availableCategories.map { ($0.id, $0) })
+        var ordered: [TemplateCategory] = []
+        var seenCategoryIDs = Set<String>()
+
+        for categoryID in categoryOrder {
+            guard let category = categoriesByID[categoryID] else {
+                continue
+            }
+
+            ordered.append(category)
+            seenCategoryIDs.insert(categoryID)
+        }
+
+        for category in availableCategories where !seenCategoryIDs.contains(category.id) {
+            ordered.append(category)
+        }
+
+        return ordered
+    }
+
+    private func syncCategoryOrderWithAvailableCategories() {
+        let availableCategoryIDs = Set((builtInCategories + userCategories).map(\.id))
+        categoryOrder = categoryOrder.filter { availableCategoryIDs.contains($0) }
+
+        for category in builtInCategories + userCategories where !categoryOrder.contains(category.id) {
+            categoryOrder.append(category.id)
         }
     }
 

@@ -11,51 +11,16 @@ struct CategoryManagementView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Built-in Categories") {
-                    ForEach(viewModel.builtInCategories) { category in
-                        Label(category.name, systemImage: "folder")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section("Custom Categories") {
-                    if viewModel.userCategories.isEmpty {
-                        Text("No custom categories yet.")
+                Section("Folders") {
+                    if viewModel.reorderableCategories.isEmpty {
+                        Text("No folders available.")
                             .foregroundStyle(.secondary)
                             .font(.subheadline)
                     } else {
-                        ForEach(viewModel.userCategories) { category in
-                            Label(category.name, systemImage: "folder.fill")
-                                .contextMenu {
-                                    Button {
-                                        editingCategory = category
-                                        editingName = category.name
-                                    } label: {
-                                        Label("Rename", systemImage: "pencil")
-                                    }
-
-                                    Button(role: .destructive) {
-                                        viewModel.deleteUserCategory(category.id)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        viewModel.deleteUserCategory(category.id)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-
-                                    Button {
-                                        editingCategory = category
-                                        editingName = category.name
-                                    } label: {
-                                        Label("Rename", systemImage: "pencil")
-                                    }
-                                    .tint(.blue)
-                                }
+                        ForEach(viewModel.reorderableCategories) { category in
+                            folderRow(category)
                         }
+                        .onMove(perform: viewModel.moveCategories)
                     }
                 }
             }
@@ -68,7 +33,9 @@ struct CategoryManagementView: View {
                     }
                 }
 
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    EditButton()
+
                     Button {
                         newCategoryName = ""
                         isAddCategoryAlertPresented = true
@@ -113,6 +80,58 @@ struct CategoryManagementView: View {
             } message: {
                 Text("Enter a new name for this category.")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func folderRow(_ category: TemplateCategory) -> some View {
+        let row = HStack(spacing: 10) {
+            Label(
+                category.name,
+                systemImage: category.isUserCreated ? "folder.fill" : "folder"
+            )
+
+            Spacer()
+
+            Text(category.isUserCreated ? "Custom" : "Built-in")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
+        if category.isUserCreated {
+            row
+                .contextMenu {
+                    Button {
+                        editingCategory = category
+                        editingName = category.name
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+
+                    Button(role: .destructive) {
+                        viewModel.deleteUserCategory(category.id)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        viewModel.deleteUserCategory(category.id)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+
+                    Button {
+                        editingCategory = category
+                        editingName = category.name
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    .tint(.blue)
+                }
+        } else {
+            row
+                .foregroundStyle(.secondary)
         }
     }
 

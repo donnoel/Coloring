@@ -242,6 +242,42 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testMoveCategoriesReordersFolderChips() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge"),
+            Self.makeTemplate(id: "builtin-cats", title: "Cats"),
+            Self.makeTemplate(id: "builtin-wheelie", title: "Wheelie")
+        ]
+        let library = StubTemplateLibrary(templates: templates)
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            let folderNames = viewModel.reorderableCategories.map(\.name)
+            guard let sourceIndex = folderNames.firstIndex(of: "Action & Motion") else {
+                XCTFail("Expected Action & Motion folder.")
+                return
+            }
+
+            viewModel.moveCategories(from: IndexSet(integer: sourceIndex), to: 0)
+
+            XCTAssertEqual(viewModel.reorderableCategories.first?.name, "Action & Motion")
+            XCTAssertEqual(viewModel.allCategories[1].name, "Action & Motion")
+        }
+    }
+
     func testTemplateRenameKeepsTemplateSelected() async {
         let importedTemplate = Self.makeTemplate(
             id: "imported-1",
@@ -946,6 +982,7 @@ private final class StubFloodFillService: FloodFillProviding {
 private actor StubCategoryStore: TemplateCategoryStoreProviding {
     private var categories: [TemplateCategory] = []
     private var assignments: [String: String] = [:]
+    private var categoryOrder: [String] = []
 
     func loadUserCategories() throws -> [TemplateCategory] {
         categories
@@ -961,6 +998,14 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
 
     func saveCategoryAssignments(_ assignments: [String: String]) throws {
         self.assignments = assignments
+    }
+
+    func loadCategoryOrder() throws -> [String] {
+        categoryOrder
+    }
+
+    func saveCategoryOrder(_ categoryOrder: [String]) throws {
+        self.categoryOrder = categoryOrder
     }
 }
 

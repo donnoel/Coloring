@@ -14,6 +14,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - PNG export + share flow
 - Apple Pencil Template Studio with orientation-aware built-in packs (22 landscape + 8 portrait)
 - Built-in folder filters include Landscape/Portrait plus five title-based folders with multi-folder membership support
+- Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
 
