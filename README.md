@@ -33,11 +33,14 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
+| **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels. |
+| **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
+| **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |
-| **Delete Confirmations** | Confirmation prompts for single imported delete and delete-all imported actions. |
+| **Destructive Action Confirmations** | Confirmation prompts for clear strokes, clear fills, and imported drawing deletions. |
 | **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
 ---
@@ -47,8 +50,11 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
 - **Coloring**: Draw directly with PencilKit tools and Apple Pencil gestures.
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
+- **Fill**: Switch to fill mode in the bottom palette and tap enclosed regions to color them.
+- **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.
 - **Manage Imported Templates**: Rename, delete one, or delete all imported templates (with confirmations).
+- **Clear Actions**: Clear strokes and clear fills are both confirmation-protected.
 - **Export**: Create a PNG and share from the system share sheet.
 
 ---
@@ -61,10 +67,11 @@ Coloring follows a predictable persistence and rendering pipeline:
 2. Load imported template metadata from local storage.
 3. Attempt imported template recovery from iCloud when local files are unavailable.
 4. Load selected template image into the studio.
-5. Persist drawing updates per template locally.
-6. Mirror drawing data and imported templates to iCloud when available.
-7. Restore drawing data for the selected template on reload/reinstall.
-8. Export template image + drawing strokes into a composited PNG.
+5. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
+6. Persist drawing, fill, and layer-stack updates per template locally.
+7. Mirror drawing/fill/imported-template data to iCloud when available.
+8. Restore drawing/fill/layer state for the selected template on reload/reinstall.
+9. Export template image + fills + layer composites + active strokes into a composited PNG.
 
 ---
 
@@ -85,6 +92,14 @@ Coloring follows a predictable persistence and rendering pipeline:
 ### **TemplateArtworkExportService (actor)**
 - Composites selected template bitmap + `PKDrawing` data.
 - Writes deterministic PNG output for share/export.
+
+### **FloodFillService**
+- Performs region flood-fill operations for fill mode.
+- Works with normalized tap mapping from the canvas bridge to maintain accurate fill placement.
+
+### **LayerCompositorService**
+- Composites visible layers into export-ready bitmaps.
+- Supports layered drawing workflows from the sidebar layer panel.
 
 ### **UI Layer (SwiftUI + PencilKit bridge)**
 - `TemplateStudioView` provides iPad-first library + studio shell.
