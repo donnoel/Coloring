@@ -36,6 +36,42 @@
     "orientation": "landscape"
   },
   {
+    "fileName": "landscape-07.png",
+    "title": "Bikes",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-08.png",
+    "title": "Elephant",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-09.png",
+    "title": "Friends",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-10.png",
+    "title": "Future Nature",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-11.png",
+    "title": "Lovely",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-12.png",
+    "title": "Standoff",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
     "fileName": "portrait-01.png",
     "title": "City Scape",
     "category": "Portrait",
@@ -56,6 +92,30 @@
   {
     "fileName": "portrait-04.png",
     "title": "Neon City Racing",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-05.png",
+    "title": "AI Girl",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-06.png",
+    "title": "Future Alien",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-07.png",
+    "title": "Ocean",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-08.png",
+    "title": "Wheelie",
     "category": "Portrait",
     "orientation": "portrait"
   }

@@ -29,7 +29,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 |--------|-------------|
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
-| **10 Built-In Orientation Packs** | Includes 6 landscape and 4 portrait built-in drawings. |
+| **20 Built-In Orientation Packs** | Includes 12 landscape and 8 portrait built-in drawings. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
@@ -39,7 +39,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Calm Sidebar Scrolling** | Sidebar vertical bounce is disabled to prevent top snap/jump behavior. |
 | **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
-| **Carousel Gallery** | Exported artwork appears in a snap-scrolling carousel tuned for both portrait and landscape iPad layouts. |
+| **Carousel Gallery** | Exported artwork appears in a polished page carousel with balanced preview sizing across portrait and landscape pieces. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |
