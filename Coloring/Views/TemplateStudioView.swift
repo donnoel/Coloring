@@ -1000,6 +1000,7 @@ private final class ProbeView: UIView {
     private weak var configuredScrollView: UIScrollView?
     private var contentOffsetObservation: NSKeyValueObservation?
     private var hasCompletedInitialRestore = false
+    private var hasAppliedConfiguration = false
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -1013,7 +1014,10 @@ private final class ProbeView: UIView {
 
     private func configureEnclosingScrollViewIfNeeded() {
         if let configuredScrollView, configuredScrollView.window != nil {
-            applyConfiguration(to: configuredScrollView)
+            if !hasAppliedConfiguration {
+                applyConfiguration(to: configuredScrollView)
+                hasAppliedConfiguration = true
+            }
             observeContentOffset(of: configuredScrollView)
             return
         }
@@ -1022,6 +1026,7 @@ private final class ProbeView: UIView {
         while let candidate = currentView {
             if let scrollView = candidate as? UIScrollView {
                 applyConfiguration(to: scrollView)
+                hasAppliedConfiguration = true
                 observeContentOffset(of: scrollView)
                 if configuredScrollView !== scrollView {
                     hasCompletedInitialRestore = false
@@ -1047,7 +1052,11 @@ private final class ProbeView: UIView {
 
         contentOffsetObservation?.invalidate()
         contentOffsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
-            self?.onScrollOffsetChanged?(scrollView.contentOffset.y)
+            let offset = scrollView.contentOffset.y
+            // Skip updates while in over-scroll bounce territory (negative offset)
+            // to prevent SwiftUI re-renders from interrupting the bounce-back animation
+            guard offset >= 0 else { return }
+            self?.onScrollOffsetChanged?(offset)
         }
     }
 
