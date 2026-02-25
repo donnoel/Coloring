@@ -65,6 +65,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
+- Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
+- The bottom palette should auto-hide during active stroke coloring and return after roughly one second of drawing inactivity.
 
 ## UX rules
 - iPad-first layout with clear template navigation.

@@ -19,6 +19,8 @@ struct TemplateStudioView: View {
     @State private var isClearFillsConfirmationPresented = false
     @State private var isLayerPanelPresented = false
     @State private var isCategoryManagementPresented = false
+    @State private var isPaletteVisible = true
+    @State private var paletteAutoShowTask: Task<Void, Never>?
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -48,6 +50,14 @@ struct TemplateStudioView: View {
 
             Task {
                 await importPhotoItem(newItem)
+            }
+        }
+        .onChange(of: viewModel.selectedTemplateID) { _, _ in
+            showPaletteImmediately()
+        }
+        .onChange(of: viewModel.isFillModeActive) { _, isFillModeActive in
+            if isFillModeActive {
+                showPaletteImmediately()
             }
         }
         .fileImporter(
@@ -131,10 +141,21 @@ struct TemplateStudioView: View {
         .sheet(isPresented: $isLayerPanelPresented) {
             LayerPanelView(viewModel: viewModel)
         }
+        .onDisappear {
+            paletteAutoShowTask?.cancel()
+            paletteAutoShowTask = nil
+        }
     }
 
     private var templateLibrary: some View {
         List {
+            Section {
+                libraryHeroCard
+                    .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
             Section("Import Drawings") {
                 importControls
                     .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12))
@@ -154,6 +175,9 @@ struct TemplateStudioView: View {
                 } else {
                     ForEach(sortedTemplates) { template in
                         templateRow(template)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
                 }
             } header: {
@@ -258,8 +282,9 @@ struct TemplateStudioView: View {
             .listRowSeparator(.hidden)
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(14)
         .scrollContentBackground(.hidden)
-        .background(.ultraThinMaterial)
+        .background(sidebarBackground)
         .toolbar(.hidden, for: .navigationBar)
     }
 
@@ -349,7 +374,9 @@ struct TemplateStudioView: View {
     }
 
     private func templateRow(_ template: ColoringTemplate) -> some View {
-        Button {
+        let isSelected = template.id == viewModel.selectedTemplateID
+
+        return Button {
             viewModel.selectTemplate(template.id)
             withAnimation(.easeInOut(duration: 0.2)) {
                 columnVisibility = .detailOnly
@@ -370,14 +397,27 @@ struct TemplateStudioView: View {
 
                 if template.isImported {
                     Image(systemName: "tray.and.arrow.down")
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
+                        .padding(6)
+                        .background(Color.white.opacity(0.58), in: Circle())
                 }
 
-                if template.id == viewModel.selectedTemplateID {
+                if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.accentColor)
                 }
+            }
+            .padding(.vertical, 11)
+            .padding(.horizontal, 12)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.68))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(isSelected ? Color.accentColor.opacity(0.55) : Color.white.opacity(0.55), lineWidth: 1)
+                    )
             }
             .contentShape(Rectangle())
         }
@@ -525,11 +565,14 @@ struct TemplateStudioView: View {
                 onDrawingChanged: { drawing in
                     viewModel.updateDrawing(drawing)
                 },
+                onStrokeInteractionChanged: { isActive in
+                    handleStrokeInteractionChanged(isActive)
+                },
                 fillMode: viewModel.isFillModeActive,
                 selectedFillColor: viewModel.selectedFillColor?.uiColor,
                 fillImage: viewModel.currentFillImage,
-                onFillTap: { imagePoint in
-                    viewModel.handleFillTap(at: imagePoint)
+                onFillTap: { normalizedPoint in
+                    viewModel.handleFillTap(at: normalizedPoint)
                 },
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
@@ -553,10 +596,129 @@ struct TemplateStudioView: View {
                 )
                 .padding(.bottom, 20)
                 .padding(.horizontal, 20)
+                .opacity((isPaletteVisible || viewModel.isFillModeActive) ? 1 : 0)
+                .offset(y: (isPaletteVisible || viewModel.isFillModeActive) ? 0 : 24)
+                .allowsHitTesting(isPaletteVisible || viewModel.isFillModeActive)
             }
+            .animation(.easeInOut(duration: 0.18), value: isPaletteVisible)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+    }
+
+    private var sidebarBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.93, green: 0.97, blue: 1.00),
+                Color(red: 0.95, green: 0.99, blue: 0.96),
+                Color(red: 0.98, green: 0.98, blue: 0.99)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var libraryHeroCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "paintpalette.fill")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.12, green: 0.62, blue: 0.97),
+                                Color(red: 0.18, green: 0.82, blue: 0.62)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Drawing Library")
+                        .font(.headline.weight(.semibold))
+                    Text("Organize, import, and color with one workspace.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 8) {
+                sidebarMetricPill(value: sortedTemplates.count, label: "Visible")
+                sidebarMetricPill(value: viewModel.templates.filter(\.isImported).count, label: "Imported")
+            }
+        }
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.55), lineWidth: 1)
+                )
+        }
+    }
+
+    private func sidebarMetricPill(value: Int, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(value)")
+                .font(.headline.weight(.semibold))
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func handleStrokeInteractionChanged(_ isActive: Bool) {
+        guard !viewModel.isFillModeActive else {
+            return
+        }
+
+        if isActive {
+            paletteAutoShowTask?.cancel()
+            paletteAutoShowTask = nil
+
+            if isPaletteVisible {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isPaletteVisible = false
+                }
+            }
+            return
+        }
+
+        paletteAutoShowTask?.cancel()
+        paletteAutoShowTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isPaletteVisible = true
+                }
+            }
+        }
+    }
+
+    private func showPaletteImmediately() {
+        paletteAutoShowTask?.cancel()
+        paletteAutoShowTask = nil
+
+        guard !isPaletteVisible else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isPaletteVisible = true
+        }
     }
 
     private var canSaveRename: Bool {

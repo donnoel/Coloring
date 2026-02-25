@@ -513,17 +513,33 @@ final class TemplateStudioViewModel: ObservableObject {
         selectedFillColorID = colorID
     }
 
-    func handleFillTap(at imagePoint: CGPoint) {
+    func handleFillTap(at normalizedPoint: CGPoint) {
         guard isFillModeActive,
               let templateImage = selectedTemplateImage,
-              let cgImage = templateImage.cgImage,
               let fillColor = selectedFillColor
         else {
             return
         }
 
+        let fillCanvasSize = normalizedFillCanvasSize(for: templateImage)
+        let renderedTemplate = renderTemplateForFill(templateImage, canvasSize: fillCanvasSize)
+        guard let templateCGImage = renderedTemplate.cgImage else {
+            return
+        }
+
+        let clampedPoint = CGPoint(
+            x: min(max(normalizedPoint.x, 0), 1),
+            y: min(max(normalizedPoint.y, 0), 1)
+        )
+        let imagePoint = CGPoint(
+            x: clampedPoint.x * CGFloat(max(templateCGImage.width - 1, 0)),
+            y: clampedPoint.y * CGFloat(max(templateCGImage.height - 1, 0))
+        )
+
         // Build the base image: template + existing fill composited.
-        let baseImage = compositeBaseImageForFill(templateCGImage: cgImage)
+        guard let baseImage = compositeBaseImageForFill(templateImage: renderedTemplate) else {
+            return
+        }
 
         guard let filledImage = floodFillService.floodFill(
             image: baseImage,
@@ -538,7 +554,7 @@ final class TemplateStudioViewModel: ObservableObject {
         // Extract just the fill overlay by diffing against the original template.
         let fillOverlay = extractFillOverlay(
             filledComposite: filledImage,
-            templateCGImage: cgImage,
+            templateCGImage: templateCGImage,
             existingFillImage: currentFillImage
         )
 
@@ -1055,18 +1071,39 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Private: Fill Compositing
 
-    private func compositeBaseImageForFill(templateCGImage: CGImage) -> CGImage {
-        let width = templateCGImage.width
-        let height = templateCGImage.height
-        let size = CGSize(width: width, height: height)
-        let renderer = UIGraphicsImageRenderer(size: size)
+    private func normalizedFillCanvasSize(for image: UIImage) -> CGSize {
+        let bestSize = bestExportSize(for: image)
+        return CGSize(
+            width: max(1, bestSize.width.rounded(.toNearestOrAwayFromZero)),
+            height: max(1, bestSize.height.rounded(.toNearestOrAwayFromZero))
+        )
+    }
+
+    private func renderTemplateForFill(_ templateImage: UIImage, canvasSize: CGSize) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
+        return renderer.image { _ in
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: canvasSize))
+            templateImage.draw(in: CGRect(origin: .zero, size: canvasSize))
+        }
+    }
+
+    private func compositeBaseImageForFill(templateImage: UIImage) -> CGImage? {
+        let size = templateImage.size
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let composited = renderer.image { _ in
-            UIImage(cgImage: templateCGImage).draw(in: CGRect(origin: .zero, size: size))
+            templateImage.draw(in: CGRect(origin: .zero, size: size))
             if let existingFill = currentFillImage {
                 existingFill.draw(in: CGRect(origin: .zero, size: size))
             }
         }
-        return composited.cgImage ?? templateCGImage
+        return composited.cgImage ?? templateImage.cgImage
     }
 
     private func extractFillOverlay(

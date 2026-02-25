@@ -7,9 +7,11 @@ struct PencilCanvasView: UIViewRepresentable {
     let templateID: String
     @Binding var drawing: PKDrawing
     var onDrawingChanged: ((PKDrawing) -> Void)?
+    var onStrokeInteractionChanged: ((Bool) -> Void)?
     var fillMode: Bool = false
     var selectedFillColor: UIColor?
     var fillImage: UIImage?
+    /// Normalized tap location in template space (0...1 for both axes).
     var onFillTap: ((CGPoint) -> Void)?
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
@@ -88,6 +90,7 @@ struct PencilCanvasView: UIViewRepresentable {
         var lastTemplateID: String?
         var lastTemplateImageIdentity: ObjectIdentifier?
         private var fillTapGesture: UITapGestureRecognizer?
+        private weak var drawingGestureRecognizer: UIGestureRecognizer?
         private var lastAppliedBrushTool: PKInkingTool?
         private let isRunningTests = NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
@@ -100,6 +103,7 @@ struct PencilCanvasView: UIViewRepresentable {
             self.canvasView = canvasView
             self.containerView = containerView
             canvasView.tool = lastInkTool
+            installDrawingInteractionTracking(on: canvasView)
 
             guard !isRunningTests else {
                 return
@@ -137,6 +141,10 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func disconnect(from canvasView: PKCanvasView) {
+            if let drawingGestureRecognizer {
+                drawingGestureRecognizer.removeTarget(self, action: #selector(handleDrawingGestureStateChange(_:)))
+            }
+
             if let toolPicker {
                 toolPicker.removeObserver(canvasView)
                 toolPicker.setVisible(false, forFirstResponder: canvasView)
@@ -148,8 +156,21 @@ struct PencilCanvasView: UIViewRepresentable {
 
             toolPicker = nil
             pencilInteraction = nil
+            drawingGestureRecognizer = nil
             self.canvasView = nil
             containerView = nil
+        }
+
+        private func installDrawingInteractionTracking(on canvasView: PKCanvasView) {
+            let gesture = canvasView.drawingGestureRecognizer
+
+            guard drawingGestureRecognizer !== gesture else {
+                return
+            }
+
+            drawingGestureRecognizer?.removeTarget(self, action: #selector(handleDrawingGestureStateChange(_:)))
+            drawingGestureRecognizer = gesture
+            gesture.addTarget(self, action: #selector(handleDrawingGestureStateChange(_:)))
         }
 
         func applyExternalDrawing(_ drawing: PKDrawing, to canvasView: PKCanvasView) {
@@ -205,16 +226,10 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            guard let imageSize = containerView.imageView.image?.size,
-                  imageSize.width > 0, imageSize.height > 0
-            else {
-                return
-            }
-
-            // Convert tap from content view coordinates to image pixel coordinates.
-            let scaleX = imageSize.width / contentSize.width
-            let scaleY = imageSize.height / contentSize.height
-            let imagePoint = CGPoint(x: location.x * scaleX, y: location.y * scaleY)
+            // Convert tap from content-view space to normalized template coordinates.
+            let normalizedX = min(max(location.x / contentSize.width, 0), 1)
+            let normalizedY = min(max(location.y / contentSize.height, 0), 1)
+            let imagePoint = CGPoint(x: normalizedX, y: normalizedY)
 
             parent.onFillTap?(imagePoint)
         }
@@ -226,6 +241,17 @@ struct PencilCanvasView: UIViewRepresentable {
 
             parent.drawing = canvasView.drawing
             parent.onDrawingChanged?(canvasView.drawing)
+        }
+
+        @objc private func handleDrawingGestureStateChange(_ gesture: UIGestureRecognizer) {
+            switch gesture.state {
+            case .began:
+                parent.onStrokeInteractionChanged?(true)
+            case .ended, .cancelled, .failed:
+                parent.onStrokeInteractionChanged?(false)
+            default:
+                break
+            }
         }
 
         func viewForZooming(in _: UIScrollView) -> UIView? {
