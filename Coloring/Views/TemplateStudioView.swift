@@ -611,15 +611,16 @@ struct TemplateStudioView: View {
                 TemplatePaletteBarView(
                     isFillModeActive: $viewModel.isFillModeActive,
                     selectedColorID: $viewModel.selectedFillColorID,
+                    canUndoFill: viewModel.canUndoFill,
+                    canRedoFill: viewModel.canRedoFill,
                     isLibraryVisible: columnVisibility != .detailOnly,
                     onToggleLibrary: {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
                         }
                     },
-                    onClearFills: {
-                        isClearFillsConfirmationPresented = true
-                    }
+                    onUndoFill: { viewModel.undoFillStep() },
+                    onRedoFill: { viewModel.redoFillStep() }
                 )
                 .padding(.bottom, 20)
                 .padding(.horizontal, 20)

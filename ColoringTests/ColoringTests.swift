@@ -374,6 +374,78 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    func testFillUndoRedoStepsApplyOneAtATime() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let firstFilledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let secondFilledImage = await MainActor.run {
+            solidColorTemplateImage(.blue, size: CGSize(width: 8, height: 8))
+        }
+
+        let library = StubTemplateLibrary(
+            templates: [template],
+            imageDataSequence: [templateImageData]
+        )
+        let floodFillService = StubFloodFillService(images: [firstFilledImage, secondFilledImage])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: floodFillService,
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            XCTAssertFalse(viewModel.canUndoFill)
+            XCTAssertFalse(viewModel.canRedoFill)
+
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+            let firstSignature = imageSignature(from: viewModel.currentFillImage)
+            XCTAssertNotNil(firstSignature)
+            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertFalse(viewModel.canRedoFill)
+
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+            let secondSignature = imageSignature(from: viewModel.currentFillImage)
+            XCTAssertNotNil(secondSignature)
+            XCTAssertNotEqual(firstSignature, secondSignature)
+            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertFalse(viewModel.canRedoFill)
+
+            viewModel.undoFillStep()
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), firstSignature)
+            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertTrue(viewModel.canRedoFill)
+
+            viewModel.undoFillStep()
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertFalse(viewModel.canUndoFill)
+            XCTAssertTrue(viewModel.canRedoFill)
+
+            viewModel.redoFillStep()
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), firstSignature)
+            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertTrue(viewModel.canRedoFill)
+
+            viewModel.redoFillStep()
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), secondSignature)
+            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertFalse(viewModel.canRedoFill)
+        }
+    }
+
     @MainActor
     private func makeViewModel(
         scenes: [ColoringScene],
@@ -425,12 +497,19 @@ final class ColoringTests: XCTestCase {
         _ color: UIColor,
         size imageSize: CGSize = CGSize(width: 2, height: 2)
     ) -> Data {
+        solidColorTemplateImage(color, size: imageSize).pngData() ?? sampleTemplateImageData
+    }
+
+    @MainActor
+    private func solidColorTemplateImage(
+        _ color: UIColor,
+        size imageSize: CGSize = CGSize(width: 2, height: 2)
+    ) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: imageSize)
-        let image = renderer.image { context in
+        return renderer.image { context in
             color.setFill()
             context.fill(CGRect(origin: .zero, size: imageSize))
         }
-        return image.pngData() ?? sampleTemplateImageData
     }
 
     @MainActor
@@ -763,6 +842,32 @@ private actor StubBrushPresetStore: BrushPresetStoreProviding {
 
     func saveUserPresets(_ presets: [BrushPreset]) throws {
         self.presets = presets
+    }
+}
+
+private final class StubFloodFillService: FloodFillProviding {
+    private let images: [CGImage]
+    private var index = 0
+
+    init(images: [UIImage]) {
+        self.images = images.compactMap(\.cgImage)
+    }
+
+    func floodFill(
+        image _: CGImage,
+        at _: CGPoint,
+        with _: UIColor,
+        tolerance _: Int
+    ) -> CGImage? {
+        guard !images.isEmpty else {
+            return nil
+        }
+
+        let currentImage = images[min(index, images.count - 1)]
+        if index < images.count - 1 {
+            index += 1
+        }
+        return currentImage
     }
 }
 

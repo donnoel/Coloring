@@ -60,6 +60,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
 - **Initial Fit Centering**: New templates open centered at fit scale, including portrait drawings on landscape iPad screens.
 - **Fill**: Switch to fill mode in the bottom palette and tap enclosed regions to color them.
+- **Fill Undo/Redo**: In fill mode, use toolbar arrows to step backward or forward one fill action at a time.
 - **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.
 - **Manage Imported Templates**: Rename, delete one, or use **Delete All Imported** (with confirmations).

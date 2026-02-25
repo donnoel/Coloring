@@ -3,9 +3,12 @@ import SwiftUI
 struct TemplatePaletteBarView: View {
     @Binding var isFillModeActive: Bool
     @Binding var selectedColorID: String
+    var canUndoFill: Bool
+    var canRedoFill: Bool
     var isLibraryVisible: Bool
     var onToggleLibrary: () -> Void
-    var onClearFills: () -> Void
+    var onUndoFill: () -> Void
+    var onRedoFill: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -89,15 +92,28 @@ struct TemplatePaletteBarView: View {
 
             if isFillModeActive {
                 Button {
-                    onClearFills()
+                    onUndoFill()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(canUndoFill ? .secondary : .tertiary)
                         .padding(6)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear Fills")
+                .disabled(!canUndoFill)
+                .accessibilityLabel("Undo Fill")
+
+                Button {
+                    onRedoFill()
+                } label: {
+                    Image(systemName: "arrow.uturn.forward")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(canRedoFill ? .secondary : .tertiary)
+                        .padding(6)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canRedoFill)
+                .accessibilityLabel("Redo Fill")
             }
         }
     }

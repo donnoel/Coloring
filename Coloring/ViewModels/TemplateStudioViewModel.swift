@@ -48,9 +48,15 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var userCategories: [TemplateCategory] = []
     @Published private(set) var categoryAssignments: [String: String] = [:]
 
+    private struct FillHistory {
+        var undo: [Data?] = []
+        var redo: [Data?] = []
+    }
+
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private var fillImagesByTemplateID: [String: Data] = [:]
+    private var fillHistoryByTemplateID: [String: FillHistory] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
     private let drawingStore: any TemplateDrawingStoreProviding
@@ -66,6 +72,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var cloudRestoreTask: Task<Void, Never>?
     private var debouncedPersistTask: Task<Void, Never>?
     private var pendingPersistTemplateIDs: Set<String> = []
+    private let maxFillHistorySteps = 100
 
     init(
         templateLibrary: any TemplateLibraryProviding,
@@ -124,6 +131,22 @@ final class TemplateStudioViewModel: ObservableObject {
         ColoringColor.palette.first { $0.id == selectedFillColorID }
     }
 
+    var canUndoFill: Bool {
+        guard !selectedTemplateID.isEmpty else {
+            return false
+        }
+
+        return !(fillHistoryByTemplateID[selectedTemplateID]?.undo.isEmpty ?? true)
+    }
+
+    var canRedoFill: Bool {
+        guard !selectedTemplateID.isEmpty else {
+            return false
+        }
+
+        return !(fillHistoryByTemplateID[selectedTemplateID]?.redo.isEmpty ?? true)
+    }
+
     // MARK: - Template Loading
 
     func loadTemplatesIfNeeded() async {
@@ -162,6 +185,7 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            fillHistoryByTemplateID = fillHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             importErrorMessage = nil
 
             if selectedTemplateID.isEmpty || !validTemplateIDs.contains(selectedTemplateID) {
@@ -575,17 +599,53 @@ final class TemplateStudioViewModel: ObservableObject {
             existingFillImage: currentFillImage
         )
 
-        currentFillImage = fillOverlay
-        fillImagesByTemplateID[selectedTemplateID] = fillOverlay.pngData()
-        persistFill(for: selectedTemplateID)
-        invalidateExport()
+        let currentFillData = fillImagesByTemplateID[selectedTemplateID]
+        guard let nextFillData = fillOverlay.pngData(), nextFillData != currentFillData else {
+            return
+        }
+
+        recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
+        applyFillData(nextFillData, for: selectedTemplateID)
     }
 
     func clearFills() {
-        currentFillImage = nil
-        fillImagesByTemplateID.removeValue(forKey: selectedTemplateID)
-        persistFill(for: selectedTemplateID)
-        invalidateExport()
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        let currentFillData = fillImagesByTemplateID[selectedTemplateID]
+        guard currentFillData != nil else {
+            return
+        }
+
+        recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
+        applyFillData(nil, for: selectedTemplateID)
+    }
+
+    func undoFillStep() {
+        guard !selectedTemplateID.isEmpty,
+              var history = fillHistoryByTemplateID[selectedTemplateID],
+              let previousFillData = history.undo.popLast()
+        else {
+            return
+        }
+
+        history.redo.append(fillImagesByTemplateID[selectedTemplateID])
+        fillHistoryByTemplateID[selectedTemplateID] = history
+        applyFillData(previousFillData, for: selectedTemplateID)
+    }
+
+    func redoFillStep() {
+        guard !selectedTemplateID.isEmpty,
+              var history = fillHistoryByTemplateID[selectedTemplateID],
+              let nextFillData = history.redo.popLast()
+        else {
+            return
+        }
+
+        history.undo.append(fillImagesByTemplateID[selectedTemplateID])
+        fillHistoryByTemplateID[selectedTemplateID] = history
+        applyFillData(nextFillData, for: selectedTemplateID)
     }
 
     // MARK: - Import / Rename / Delete
@@ -626,6 +686,10 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImagesByTemplateID[renamedTemplate.id] = fillData
             }
 
+            if let fillHistory = fillHistoryByTemplateID.removeValue(forKey: templateID) {
+                fillHistoryByTemplateID[renamedTemplate.id] = fillHistory
+            }
+
             await reloadTemplates()
             selectTemplate(renamedTemplate.id)
             importStatusMessage = "Drawing renamed."
@@ -646,6 +710,7 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID.removeValue(forKey: templateID)
             layerStacksByTemplateID.removeValue(forKey: templateID)
             fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillHistoryByTemplateID.removeValue(forKey: templateID)
 
             await reloadTemplates()
             invalidateExport()
@@ -671,6 +736,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 drawingsByTemplateID.removeValue(forKey: templateID)
                 layerStacksByTemplateID.removeValue(forKey: templateID)
                 fillImagesByTemplateID.removeValue(forKey: templateID)
+                fillHistoryByTemplateID.removeValue(forKey: templateID)
             }
 
             await reloadTemplates()
@@ -1026,6 +1092,39 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     // MARK: - Private: Fill Persistence
+
+    private func recordFillStateChange(previousFillData: Data?, for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        var history = fillHistoryByTemplateID[templateID] ?? FillHistory()
+        history.undo.append(previousFillData)
+        if history.undo.count > maxFillHistorySteps {
+            history.undo.removeFirst(history.undo.count - maxFillHistorySteps)
+        }
+        history.redo.removeAll(keepingCapacity: true)
+        fillHistoryByTemplateID[templateID] = history
+    }
+
+    private func applyFillData(_ fillData: Data?, for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        if let fillData {
+            fillImagesByTemplateID[templateID] = fillData
+        } else {
+            fillImagesByTemplateID.removeValue(forKey: templateID)
+        }
+
+        if selectedTemplateID == templateID {
+            currentFillImage = fillData.flatMap(UIImage.init(data:))
+        }
+
+        persistFill(for: templateID)
+        invalidateExport()
+    }
 
     private func persistCurrentFill() {
         guard !selectedTemplateID.isEmpty else {
