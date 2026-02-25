@@ -256,7 +256,12 @@ struct TemplateStudioView: View {
                 Button(role: .destructive) {
                     isDeleteAllImportedConfirmationPresented = true
                 } label: {
-                    Label("Delete All Imported", systemImage: "trash.slash")
+                    Label {
+                        Text("Delete All Imported")
+                            .foregroundStyle(.red)
+                    } icon: {
+                        Image(systemName: "trash.slash")
+                    }
                 }
                 .disabled(!viewModel.hasImportedTemplates)
             }
