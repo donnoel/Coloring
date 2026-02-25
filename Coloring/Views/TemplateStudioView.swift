@@ -249,7 +249,6 @@ struct TemplateStudioView: View {
                     isClearFillsConfirmationPresented = true
                 } label: {
                     Label("Clear Fills", systemImage: "drop.triangle")
-                        .foregroundStyle(.red)
                 }
                 .disabled(viewModel.currentFillImage == nil)
 
