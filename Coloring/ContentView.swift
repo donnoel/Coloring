@@ -8,24 +8,24 @@ struct ContentView: View {
 
     @StateObject private var templateViewModel = TemplateStudioViewModel()
     @StateObject private var galleryViewModel = GalleryViewModel()
-    @State private var selectedTab: RootTab = .gallery
+    @State private var selectedTab: RootTab = .studio
 
     var body: some View {
         ZStack {
             backgroundGradient
 
             TabView(selection: $selectedTab) {
-                GalleryView(viewModel: galleryViewModel)
-                    .tabItem {
-                        Label("Gallery", systemImage: "photo.on.rectangle.angled")
-                    }
-                    .tag(RootTab.gallery)
-
                 TemplateStudioView(viewModel: templateViewModel)
                     .tabItem {
                         Label("Studio", systemImage: "paintbrush.pointed")
                     }
                     .tag(RootTab.studio)
+
+                GalleryView(viewModel: galleryViewModel)
+                    .tabItem {
+                        Label("Gallery", systemImage: "photo.on.rectangle.angled")
+                    }
+                    .tag(RootTab.gallery)
             }
         }
     }
