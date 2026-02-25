@@ -34,8 +34,6 @@ struct TemplateStudioView: View {
     @SceneStorage("templateStudio.sidebarWidth") private var sidebarWidth: Double = Self.defaultSidebarWidth
     @SceneStorage("templateStudio.palettePlacement") private var palettePlacementRawValue: String = PalettePlacement.bottom.rawValue
     @State private var sidebarResizeStartWidth: Double?
-    @State private var sidebarStoredVerticalOffset: CGFloat = 0
-    @State private var sidebarRestoreRequestID: Int = 0
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -78,13 +76,6 @@ struct TemplateStudioView: View {
         .onChange(of: viewModel.isFillModeActive) { _, isFillModeActive in
             if isFillModeActive {
                 showPaletteImmediately()
-            }
-        }
-        .onChange(of: columnVisibility) { oldValue, newValue in
-            let wasSidebarHidden = oldValue == .detailOnly
-            let isSidebarVisible = newValue != .detailOnly
-            if wasSidebarHidden && isSidebarVisible {
-                requestSidebarScrollRestore()
             }
         }
         .fileImporter(
@@ -169,7 +160,6 @@ struct TemplateStudioView: View {
             LayerPanelView(viewModel: viewModel)
         }
         .onAppear {
-            requestSidebarScrollRestore()
             applyCanvasOrientationForSelectedTemplate(force: true)
         }
         .onDisappear {
@@ -324,12 +314,6 @@ struct TemplateStudioView: View {
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
-        .background(
-            SidebarScrollConfigurator(
-                storedVerticalOffset: $sidebarStoredVerticalOffset,
-                restoreRequestID: sidebarRestoreRequestID
-            )
-        )
         .scrollContentBackground(.hidden)
         .background(sidebarBackground)
         .overlay(alignment: .trailing) {
@@ -851,10 +835,6 @@ struct TemplateStudioView: View {
         }
     }
 
-    private func requestSidebarScrollRestore() {
-        sidebarRestoreRequestID &+= 1
-    }
-
     private func applyCanvasOrientationForSelectedTemplate(force: Bool = false) {
         let desiredOrientation = viewModel.selectedTemplate?.canvasOrientation ?? .any
         guard force || desiredOrientation != requestedCanvasOrientation else {
@@ -1012,147 +992,5 @@ private extension ColoringTemplate.CanvasOrientation {
         case .portrait:
             return .portrait
         }
-    }
-}
-
-private struct SidebarScrollConfigurator: UIViewRepresentable {
-    @Binding var storedVerticalOffset: CGFloat
-    let restoreRequestID: Int
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(storedVerticalOffset: $storedVerticalOffset)
-    }
-
-    func makeUIView(context: Context) -> ProbeView {
-        let probeView = ProbeView()
-        probeView.restoreRequestID = restoreRequestID
-        probeView.onScrollOffsetChanged = { [weak coordinator = context.coordinator] offset, isUserInteracting in
-            coordinator?.updateStoredOffset(offset, isUserInteracting: isUserInteracting)
-        }
-        return probeView
-    }
-
-    func updateUIView(_ uiView: ProbeView, context: Context) {
-        uiView.storedVerticalOffset = storedVerticalOffset
-        uiView.restoreRequestID = restoreRequestID
-    }
-
-    final class Coordinator {
-        private var storedVerticalOffset: Binding<CGFloat>
-
-        init(storedVerticalOffset: Binding<CGFloat>) {
-            self.storedVerticalOffset = storedVerticalOffset
-        }
-
-        func updateStoredOffset(_ offset: CGFloat, isUserInteracting: Bool) {
-            let normalizedOffset = max(0, offset)
-            // Avoid erasing a meaningful stored position when a drag briefly hits the top edge.
-            if isUserInteracting, normalizedOffset <= 1, storedVerticalOffset.wrappedValue > 1 {
-                return
-            }
-
-            guard abs(storedVerticalOffset.wrappedValue - normalizedOffset) > 0.5 else {
-                return
-            }
-
-            storedVerticalOffset.wrappedValue = normalizedOffset
-        }
-    }
-}
-
-private final class ProbeView: UIView {
-    var storedVerticalOffset: CGFloat = 0
-    var restoreRequestID: Int = 0 {
-        didSet {
-            guard restoreRequestID != oldValue else {
-                return
-            }
-
-            pendingRestoreRequestID = restoreRequestID
-            restoreOffsetIfRequested()
-        }
-    }
-
-    var onScrollOffsetChanged: ((CGFloat, Bool) -> Void)?
-
-    private weak var configuredScrollView: UIScrollView?
-    private var contentOffsetObservation: NSKeyValueObservation?
-    private var pendingRestoreRequestID: Int?
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        configureEnclosingScrollViewIfNeeded()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        configureEnclosingScrollViewIfNeeded()
-    }
-
-    private func configureEnclosingScrollViewIfNeeded() {
-        if let configuredScrollView, configuredScrollView.window != nil {
-            applyConfiguration(to: configuredScrollView)
-            observeContentOffset(of: configuredScrollView)
-            restoreOffsetIfRequested()
-            return
-        }
-
-        var currentView: UIView? = superview
-        while let candidate = currentView {
-            if let scrollView = candidate as? UIScrollView {
-                applyConfiguration(to: scrollView)
-                observeContentOffset(of: scrollView)
-                configuredScrollView = scrollView
-                restoreOffsetIfRequested()
-                return
-            }
-            currentView = candidate.superview
-        }
-    }
-
-    private func applyConfiguration(to scrollView: UIScrollView) {
-        scrollView.bounces = false
-        scrollView.alwaysBounceVertical = false
-        scrollView.refreshControl = nil
-    }
-
-    private func observeContentOffset(of scrollView: UIScrollView) {
-        if configuredScrollView === scrollView, contentOffsetObservation != nil {
-            return
-        }
-
-        contentOffsetObservation?.invalidate()
-        contentOffsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
-            self?.applyConfiguration(to: scrollView)
-            let normalizedOffset = max(0, scrollView.contentOffset.y)
-            let isUserInteracting = scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
-            self?.onScrollOffsetChanged?(normalizedOffset, isUserInteracting)
-            self?.restoreOffsetIfRequested()
-        }
-    }
-
-    private func restoreOffsetIfRequested() {
-        guard pendingRestoreRequestID != nil else {
-            return
-        }
-
-        guard let scrollView = configuredScrollView else {
-            return
-        }
-
-        guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else {
-            return
-        }
-
-        let maxOffset = max(0, scrollView.contentSize.height - scrollView.bounds.height)
-        let clampedOffset = min(max(storedVerticalOffset, 0), maxOffset)
-        let currentOffset = scrollView.contentOffset.y
-        let shouldRestoreFromTop = currentOffset <= 1
-        let offsetAlreadyMatches = abs(currentOffset - clampedOffset) <= 1
-        if shouldRestoreFromTop, !offsetAlreadyMatches {
-            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: clampedOffset), animated: false)
-        }
-
-        self.pendingRestoreRequestID = nil
     }
 }
