@@ -328,6 +328,52 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(didRestoreDrawing, "Expected persisted drawing strokes to restore after reload.")
     }
 
+    func testTemplateExportUsesTemplateSizedCanvas() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.black, size: CGSize(width: 1536, height: 1024))
+        }
+        let library = StubTemplateLibrary(
+            templates: [template],
+            imageDataSequence: [templateImageData, templateImageData]
+        )
+        let exportService = CapturingTemplateExportService()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: exportService,
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let selectedTemplateSize = await MainActor.run {
+            viewModel.selectedTemplateImage?.size
+        }
+        await viewModel.exportCurrentTemplate()
+
+        let exportedCanvasSize = await exportService.lastCanvasSize
+        let expectedCanvasSize = normalizedCanvasSize(for: selectedTemplateSize)
+        XCTAssertNotNil(selectedTemplateSize)
+        XCTAssertNotNil(exportedCanvasSize)
+        XCTAssertNotNil(expectedCanvasSize)
+        XCTAssertEqual(
+            exportedCanvasSize?.width ?? 0,
+            expectedCanvasSize?.width ?? 0,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            exportedCanvasSize?.height ?? 0,
+            expectedCanvasSize?.height ?? 0,
+            accuracy: 0.01
+        )
+    }
+
     @MainActor
     private func makeViewModel(
         scenes: [ColoringScene],
@@ -375,8 +421,10 @@ final class ColoringTests: XCTestCase {
     }
 
     @MainActor
-    private func solidColorTemplateImageData(_ color: UIColor) -> Data {
-        let imageSize = CGSize(width: 2, height: 2)
+    private func solidColorTemplateImageData(
+        _ color: UIColor,
+        size imageSize: CGSize = CGSize(width: 2, height: 2)
+    ) -> Data {
         let renderer = UIGraphicsImageRenderer(size: imageSize)
         let image = renderer.image { context in
             color.setFill()
@@ -473,6 +521,25 @@ final class ColoringTests: XCTestCase {
         return await condition()
     }
 
+    private func normalizedCanvasSize(
+        for size: CGSize?,
+        maxLongEdge: CGFloat = 2048
+    ) -> CGSize? {
+        guard let size,
+              size.width > 0,
+              size.height > 0
+        else {
+            return nil
+        }
+
+        let longEdge = max(size.width, size.height)
+        guard longEdge > maxLongEdge else {
+            return size
+        }
+
+        let scale = maxLongEdge / longEdge
+        return CGSize(width: size.width * scale, height: size.height * scale)
+    }
 }
 
 private struct StubSceneCatalog: SceneCatalogProviding {
@@ -671,6 +738,22 @@ private struct StubTemplateExportService: TemplateArtworkExporting {
     }
 }
 
+private actor CapturingTemplateExportService: TemplateArtworkExporting {
+    private(set) var lastCanvasSize: CGSize?
+
+    func exportPNG(
+        templateData _: Data,
+        drawingData _: Data,
+        fillLayerData _: Data?,
+        compositedLayersImageData _: Data?,
+        canvasSize: CGSize,
+        templateID _: String
+    ) async throws -> URL {
+        lastCanvasSize = canvasSize
+        return URL(fileURLWithPath: "/tmp/template-export-capture.png")
+    }
+}
+
 private actor StubBrushPresetStore: BrushPresetStoreProviding {
     private var presets: [BrushPreset] = []
 
@@ -704,7 +787,8 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
     }
 }
 
-private actor StubGalleryStore: GalleryStoreProviding {
+@MainActor
+private final class StubGalleryStore: GalleryStoreProviding {
     private var entries: [ArtworkEntry] = []
 
     func loadEntries() throws -> [ArtworkEntry] {

@@ -60,6 +60,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Imported templates are mirrored to iCloud when available and restored locally if missing.
 - Template stroke progress is saved per drawing and restored from iCloud after reinstall.
 - Apple Pencil strokes can be exported composited with the selected template.
+- Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 

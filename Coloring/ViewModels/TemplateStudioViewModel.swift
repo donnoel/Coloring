@@ -854,11 +854,13 @@ final class TemplateStudioViewModel: ObservableObject {
             return CGSize(width: 2048, height: 1536)
         }
 
-        if size.width >= size.height {
-            return CGSize(width: 2048, height: max(1536, (2048 / (size.width / size.height)).rounded()))
+        let longEdge = max(size.width, size.height)
+        guard longEdge > 2048 else {
+            return size
         }
 
-        return CGSize(width: max(1536, (2048 * (size.width / size.height)).rounded()), height: 2048)
+        let scale = 2048 / longEdge
+        return CGSize(width: size.width * scale, height: size.height * scale)
     }
 
     private func invalidateExport() {
