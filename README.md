@@ -41,7 +41,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Template Orientation Enforcement** | Landscape templates request landscape mode; portrait templates request portrait mode when opened. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Scrolling** | Sidebar vertical bounce is disabled and the last scroll position is restored after collapsing/reopening the library. |
-| **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
+| **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
@@ -63,7 +63,8 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Coloring**: Draw directly with PencilKit tools and Apple Pencil gestures.
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
 - **Initial Fit Centering**: New templates open centered at fit scale, including portrait drawings on landscape iPad screens.
-- **Fill**: Switch to fill mode in the bottom palette and tap enclosed regions to color them.
+- **Fill**: Switch to fill mode from the floating palette and tap enclosed regions to color them.
+- **Palette Position**: Use the arrow button in the palette to move it between top and bottom.
 - **Fill Undo/Redo**: In fill mode, use toolbar arrows to step backward or forward one fill action at a time.
 - **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.

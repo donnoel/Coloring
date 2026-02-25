@@ -7,6 +7,10 @@ struct TemplateStudioView: View {
     private static let defaultSidebarWidth: Double = 390
     private static let sidebarMinWidth: CGFloat = 300
     private static let sidebarMaxWidth: CGFloat = 560
+    private enum PalettePlacement: String {
+        case bottom
+        case top
+    }
 
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var viewModel: TemplateStudioViewModel
@@ -28,6 +32,7 @@ struct TemplateStudioView: View {
     @State private var paletteAutoShowTask: Task<Void, Never>?
     @State private var requestedCanvasOrientation: ColoringTemplate.CanvasOrientation = .any
     @SceneStorage("templateStudio.sidebarWidth") private var sidebarWidth: Double = Self.defaultSidebarWidth
+    @SceneStorage("templateStudio.palettePlacement") private var palettePlacementRawValue: String = PalettePlacement.bottom.rawValue
     @State private var sidebarResizeStartWidth: Double?
     @State private var sidebarStoredVerticalOffset: CGFloat = 0
     @State private var sidebarRestoreRequestID: Int = 0
@@ -629,32 +634,48 @@ struct TemplateStudioView: View {
                 brushTool: viewModel.currentBrushTool
             )
 
-            VStack {
-                Spacer()
-                TemplatePaletteBarView(
-                    isFillModeActive: $viewModel.isFillModeActive,
-                    selectedColorID: $viewModel.selectedFillColorID,
-                    canUndoFill: viewModel.canUndoFill,
-                    canRedoFill: viewModel.canRedoFill,
-                    isLibraryVisible: columnVisibility != .detailOnly,
-                    onToggleLibrary: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
-                        }
-                    },
-                    onUndoFill: { viewModel.undoFillStep() },
-                    onRedoFill: { viewModel.redoFillStep() }
-                )
-                .padding(.bottom, 20)
-                .padding(.horizontal, 20)
-                .opacity((isPaletteVisible || viewModel.isFillModeActive) ? 1 : 0)
-                .offset(y: (isPaletteVisible || viewModel.isFillModeActive) ? 0 : 24)
-                .allowsHitTesting(isPaletteVisible || viewModel.isFillModeActive)
+            VStack(spacing: 0) {
+                if isPaletteAtTop {
+                    paletteBar
+                        .padding(.top, 20)
+                }
+
+                Spacer(minLength: 0)
+
+                if !isPaletteAtTop {
+                    paletteBar
+                        .padding(.bottom, 20)
+                }
             }
             .animation(.easeInOut(duration: 0.18), value: isPaletteVisible)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+    }
+
+    private var paletteBar: some View {
+        TemplatePaletteBarView(
+            isFillModeActive: $viewModel.isFillModeActive,
+            selectedColorID: $viewModel.selectedFillColorID,
+            canUndoFill: viewModel.canUndoFill,
+            canRedoFill: viewModel.canRedoFill,
+            isPaletteAtTop: isPaletteAtTop,
+            isLibraryVisible: columnVisibility != .detailOnly,
+            onToggleLibrary: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
+                }
+            },
+            onTogglePalettePlacement: {
+                togglePalettePlacement()
+            },
+            onUndoFill: { viewModel.undoFillStep() },
+            onRedoFill: { viewModel.redoFillStep() }
+        )
+        .padding(.horizontal, 20)
+        .opacity((isPaletteVisible || viewModel.isFillModeActive) ? 1 : 0)
+        .offset(y: (isPaletteVisible || viewModel.isFillModeActive) ? 0 : paletteHiddenOffset)
+        .allowsHitTesting(isPaletteVisible || viewModel.isFillModeActive)
     }
 
     private var sidebarBackground: some View {
@@ -805,6 +826,27 @@ struct TemplateStudioView: View {
         }
 
         withAnimation(.easeInOut(duration: 0.2)) {
+            isPaletteVisible = true
+        }
+    }
+
+    private var palettePlacement: PalettePlacement {
+        PalettePlacement(rawValue: palettePlacementRawValue) ?? .bottom
+    }
+
+    private var isPaletteAtTop: Bool {
+        palettePlacement == .top
+    }
+
+    private var paletteHiddenOffset: CGFloat {
+        isPaletteAtTop ? -24 : 24
+    }
+
+    private func togglePalettePlacement() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            palettePlacementRawValue = isPaletteAtTop
+                ? PalettePlacement.bottom.rawValue
+                : PalettePlacement.top.rawValue
             isPaletteVisible = true
         }
     }

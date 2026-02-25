@@ -5,8 +5,10 @@ struct TemplatePaletteBarView: View {
     @Binding var selectedColorID: String
     var canUndoFill: Bool
     var canRedoFill: Bool
+    var isPaletteAtTop: Bool
     var isLibraryVisible: Bool
     var onToggleLibrary: () -> Void
+    var onTogglePalettePlacement: () -> Void
     var onUndoFill: () -> Void
     var onRedoFill: () -> Void
 
@@ -52,6 +54,21 @@ struct TemplatePaletteBarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Toggle Library")
+
+            Button {
+                onTogglePalettePlacement()
+            } label: {
+                Image(systemName: isPaletteAtTop ? "arrow.down.circle" : "arrow.up.circle")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(8)
+                    .background(
+                        AnyShapeStyle(.regularMaterial),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPaletteAtTop ? "Move Toolbar to Bottom" : "Move Toolbar to Top")
 
             Divider()
                 .frame(height: 20)
