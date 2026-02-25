@@ -60,6 +60,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let categoryStore: any TemplateCategoryStoreProviding
     private let galleryStore: any GalleryStoreProviding
     private var hasLoadedTemplates = false
+    private var loadedTemplateImageID: String?
     private var templateImageLoadTask: Task<Void, Never>?
     private var drawingRestoreTask: Task<Void, Never>?
     private var cloudRestoreTask: Task<Void, Never>?
@@ -136,12 +137,18 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func refreshTemplatesFromStorage() async {
+        guard hasLoadedTemplates else {
+            return
+        }
+
         hasLoadedTemplates = await reloadTemplates()
         scheduleDeferredCloudRestoreIfNeeded()
     }
 
     @discardableResult
     func reloadTemplates() async -> Bool {
+        let previousTemplateID = selectedTemplateID
+
         templateImageLoadTask?.cancel()
         templateImageLoadTask = nil
         drawingRestoreTask?.cancel()
@@ -170,8 +177,13 @@ final class TemplateStudioViewModel: ObservableObject {
 
             restoreDrawingForSelectedTemplate()
             restoreFillForSelectedTemplate()
-            // Prevent showing a stale image while the new selection loads.
-            selectedTemplateImage = nil
+
+            if selectedTemplateID != previousTemplateID {
+                // Only clear when selection changed; preserving same-template image avoids launch flicker.
+                selectedTemplateImage = nil
+                loadedTemplateImageID = nil
+            }
+
             await loadSelectedTemplateImage(for: selectedTemplateID)
             return true
         } catch {
@@ -187,12 +199,17 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        guard selectedTemplateID != templateID else {
+            return
+        }
+
         persistCurrentDrawing()
         persistCurrentFill()
         selectedTemplateID = templateID
         persistLastSelectedTemplateID(templateID)
         // Clear immediately so the canvas never shows a mismatched image/drawing pair.
         selectedTemplateImage = nil
+        loadedTemplateImageID = nil
         restoreDrawingForSelectedTemplate()
         restoreFillForSelectedTemplate()
 
@@ -777,7 +794,12 @@ final class TemplateStudioViewModel: ObservableObject {
         guard let template = templates.first(where: { $0.id == templateID }) else {
             if selectedTemplateID == templateID {
                 selectedTemplateImage = nil
+                loadedTemplateImageID = nil
             }
+            return
+        }
+
+        if loadedTemplateImageID == templateID, selectedTemplateImage != nil {
             return
         }
 
@@ -792,6 +814,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             selectedTemplateImage = UIImage(data: templateData)
+            loadedTemplateImageID = templateID
         } catch {
             guard !Task.isCancelled else {
                 return
@@ -802,6 +825,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             selectedTemplateImage = nil
+            loadedTemplateImageID = nil
             importErrorMessage = "Could not load selected template image."
         }
     }
