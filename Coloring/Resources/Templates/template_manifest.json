@@ -1,102 +1,62 @@
 [
   {
-    "fileName": "01-scenery.png",
-    "title": "Sunrise Mountain Valley",
-    "category": "Scenery"
+    "fileName": "landscape-01.png",
+    "title": "Settlement",
+    "category": "Landscape",
+    "orientation": "landscape"
   },
   {
-    "fileName": "02-scenery.png",
-    "title": "Lakeside Cabin Picnic",
-    "category": "Scenery"
+    "fileName": "landscape-02.png",
+    "title": "Neighborhood",
+    "category": "Landscape",
+    "orientation": "landscape"
   },
   {
-    "fileName": "03-scenery.png",
-    "title": "Waterfall Jungle Path",
-    "category": "Scenery"
+    "fileName": "landscape-03.png",
+    "title": "Beach",
+    "category": "Landscape",
+    "orientation": "landscape"
   },
   {
-    "fileName": "04-scenery.png",
-    "title": "Winter Village Park",
-    "category": "Scenery"
+    "fileName": "landscape-04.png",
+    "title": "Cats",
+    "category": "Landscape",
+    "orientation": "landscape"
   },
   {
-    "fileName": "05-scenery.png",
-    "title": "Desert Canyon Road",
-    "category": "Scenery"
+    "fileName": "landscape-05.png",
+    "title": "Dogs",
+    "category": "Landscape",
+    "orientation": "landscape"
   },
   {
-    "fileName": "06-scenery.png",
-    "title": "Island Beach Day",
-    "category": "Scenery"
+    "fileName": "landscape-06.png",
+    "title": "Home",
+    "category": "Landscape",
+    "orientation": "landscape"
   },
   {
-    "fileName": "07-scenery.png",
-    "title": "Forest Camping Night",
-    "category": "Scenery"
+    "fileName": "portrait-01.png",
+    "title": "City Scape",
+    "category": "Portrait",
+    "orientation": "portrait"
   },
   {
-    "fileName": "08-scenery.png",
-    "title": "Countryside Windmill Farm",
-    "category": "Scenery"
+    "fileName": "portrait-02.png",
+    "title": "Sad Girl",
+    "category": "Portrait",
+    "orientation": "portrait"
   },
   {
-    "fileName": "09-scenery.png",
-    "title": "Rainy City Garden",
-    "category": "Scenery"
+    "fileName": "portrait-03.png",
+    "title": "Futuristic Lunar Base",
+    "category": "Portrait",
+    "orientation": "portrait"
   },
   {
-    "fileName": "10-scenery.png",
-    "title": "Hot Air Balloon Meadow",
-    "category": "Scenery"
-  },
-  {
-    "fileName": "11-racing.png",
-    "title": "Formula Track Sprint",
-    "category": "Racing"
-  },
-  {
-    "fileName": "12-racing.png",
-    "title": "Rally Dirt Drift",
-    "category": "Racing"
-  },
-  {
-    "fileName": "13-racing.png",
-    "title": "Motorcycle Speedway",
-    "category": "Racing"
-  },
-  {
-    "fileName": "14-racing.png",
-    "title": "Go Kart Championship",
-    "category": "Racing"
-  },
-  {
-    "fileName": "15-racing.png",
-    "title": "Carnival Day",
-    "category": "Fun"
-  },
-  {
-    "fileName": "16-racing.png",
-    "title": "City Skate Park",
-    "category": "Fun"
-  },
-  {
-    "fileName": "17-racing.png",
-    "title": "Music Band Stage",
-    "category": "Fun"
-  },
-  {
-    "fileName": "18-racing.png",
-    "title": "Space Classroom",
-    "category": "Fun"
-  },
-  {
-    "fileName": "19-racing.png",
-    "title": "Construction Zone",
-    "category": "Fun"
-  },
-  {
-    "fileName": "20-racing.png",
-    "title": "Bakery Street",
-    "category": "Fun"
+    "fileName": "portrait-04.png",
+    "title": "Neon City Racing",
+    "category": "Portrait",
+    "orientation": "portrait"
   }
 ]

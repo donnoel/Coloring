@@ -29,15 +29,6 @@ struct GalleryView: View {
             }
             .navigationTitle("Gallery")
             .toolbar(.hidden, for: .navigationBar)
-            .overlay(alignment: .top) {
-                HStack {
-                    Text("Gallery")
-                        .font(.largeTitle.weight(.bold))
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-            }
             .task {
                 await viewModel.loadEntries()
             }

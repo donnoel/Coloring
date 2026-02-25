@@ -22,6 +22,7 @@ struct TemplateStudioView: View {
     @State private var isCategoryManagementPresented = false
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
+    @State private var requestedCanvasOrientation: ColoringTemplate.CanvasOrientation = .any
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -34,6 +35,7 @@ struct TemplateStudioView: View {
             await viewModel.loadTemplatesIfNeeded()
             viewModel.loadBrushPresetsIfNeeded()
             viewModel.loadCategoriesIfNeeded()
+            applyCanvasOrientationForSelectedTemplate(force: true)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
@@ -42,6 +44,9 @@ struct TemplateStudioView: View {
 
             Task {
                 await viewModel.refreshTemplatesFromStorage()
+                await MainActor.run {
+                    applyCanvasOrientationForSelectedTemplate(force: true)
+                }
             }
         }
         .onChange(of: selectedPhotoItem) { _, newItem in
@@ -55,6 +60,7 @@ struct TemplateStudioView: View {
         }
         .onChange(of: viewModel.selectedTemplateID) { _, _ in
             showPaletteImmediately()
+            applyCanvasOrientationForSelectedTemplate()
         }
         .onChange(of: viewModel.isFillModeActive) { _, isFillModeActive in
             if isFillModeActive {
@@ -124,7 +130,7 @@ struct TemplateStudioView: View {
             Text("This removes all fill colors for the selected drawing.")
         }
         .confirmationDialog(
-            "Delete All Imported Drawings",
+            "Delete All Imported",
             isPresented: $isDeleteAllImportedConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -141,6 +147,9 @@ struct TemplateStudioView: View {
         }
         .sheet(isPresented: $isLayerPanelPresented) {
             LayerPanelView(viewModel: viewModel)
+        }
+        .onAppear {
+            applyCanvasOrientationForSelectedTemplate(force: true)
         }
         .onDisappear {
             paletteAutoShowTask?.cancel()
@@ -239,12 +248,12 @@ struct TemplateStudioView: View {
                 Button(role: .destructive) {
                     isDeleteAllImportedConfirmationPresented = true
                 } label: {
-                    Label("Delete All Imported Drawings", systemImage: "trash.slash")
+                    Label("Delete All Imported", systemImage: "trash.slash")
                 }
                 .disabled(!viewModel.hasImportedTemplates)
             }
 
-            Section("Status") {
+            Section {
                 if let importStatusMessage = viewModel.importStatusMessage {
                     Text(importStatusMessage)
                         .font(.footnote)
@@ -285,7 +294,6 @@ struct TemplateStudioView: View {
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
         .scrollContentBackground(.hidden)
-        .background(SidebarListBounceDisabler())
         .background(sidebarBackground)
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -723,6 +731,28 @@ struct TemplateStudioView: View {
         }
     }
 
+    private func applyCanvasOrientationForSelectedTemplate(force: Bool = false) {
+        let desiredOrientation = viewModel.selectedTemplate?.canvasOrientation ?? .any
+        guard force || desiredOrientation != requestedCanvasOrientation else {
+            return
+        }
+
+        requestedCanvasOrientation = desiredOrientation
+
+        AppOrientationLock.setMask(desiredOrientation.interfaceOrientationMask)
+
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+        else {
+            return
+        }
+
+        windowScene.requestGeometryUpdate(
+            .iOS(interfaceOrientations: desiredOrientation.interfaceOrientationMask)
+        )
+    }
+
     private var canSaveRename: Bool {
         !renameDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -848,30 +878,15 @@ struct TemplateStudioView: View {
     }
 }
 
-private struct SidebarListBounceDisabler: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        DispatchQueue.main.async {
-            configureEnclosingScrollView(from: view)
-        }
-        return view
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        DispatchQueue.main.async {
-            configureEnclosingScrollView(from: uiView)
-        }
-    }
-
-    private func configureEnclosingScrollView(from view: UIView) {
-        var currentView: UIView? = view.superview
-        while let candidate = currentView {
-            if let scrollView = candidate as? UIScrollView {
-                scrollView.bounces = false
-                scrollView.alwaysBounceVertical = false
-                return
-            }
-            currentView = candidate.superview
+private extension ColoringTemplate.CanvasOrientation {
+    var interfaceOrientationMask: UIInterfaceOrientationMask {
+        switch self {
+        case .any:
+            return .all
+        case .landscape:
+            return .landscape
+        case .portrait:
+            return .portrait
         }
     }
 }

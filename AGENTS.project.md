@@ -12,7 +12,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Single full-screen Apple Pencil studio (no Scene/Templates tab split)
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
-- Apple Pencil Template Studio with 20 built-in 4:3 line-art templates
+- Apple Pencil Template Studio with orientation-aware built-in packs (6 landscape + 4 portrait)
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
 
@@ -62,6 +62,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
+- Built-in landscape templates request landscape orientation, and built-in portrait templates request portrait orientation.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.

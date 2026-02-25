@@ -463,6 +463,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let fileName: String
         let title: String
         let category: String
+        let orientation: ColoringTemplate.CanvasOrientation?
     }
 
     private let bundle: Bundle
@@ -602,7 +603,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let data = try Data(contentsOf: manifestURL)
         let entries = try JSONDecoder().decode([ManifestEntry].self, from: data)
 
-        return entries.compactMap { entry in
+        return entries.compactMap { entry -> ColoringTemplate? in
             guard let fileURL = builtInTemplateResourceURL(fileName: entry.fileName) else {
                 logger.error("Missing built-in template file \(entry.fileName, privacy: .public)")
                 return nil
@@ -613,7 +614,8 @@ actor TemplateLibraryService: TemplateLibraryProviding {
                 title: entry.title,
                 category: entry.category,
                 source: .builtIn,
-                filePath: fileURL.path
+                filePath: fileURL.path,
+                canvasOrientation: entry.orientation ?? .any
             )
         }
     }
