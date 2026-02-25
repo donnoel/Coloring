@@ -1026,8 +1026,8 @@ private struct SidebarScrollConfigurator: UIViewRepresentable {
     func makeUIView(context: Context) -> ProbeView {
         let probeView = ProbeView()
         probeView.restoreRequestID = restoreRequestID
-        probeView.onScrollOffsetChanged = { [weak coordinator = context.coordinator] offset in
-            coordinator?.updateStoredOffset(offset)
+        probeView.onScrollOffsetChanged = { [weak coordinator = context.coordinator] offset, isUserInteracting in
+            coordinator?.updateStoredOffset(offset, isUserInteracting: isUserInteracting)
         }
         return probeView
     }
@@ -1044,8 +1044,13 @@ private struct SidebarScrollConfigurator: UIViewRepresentable {
             self.storedVerticalOffset = storedVerticalOffset
         }
 
-        func updateStoredOffset(_ offset: CGFloat) {
+        func updateStoredOffset(_ offset: CGFloat, isUserInteracting: Bool) {
             let normalizedOffset = max(0, offset)
+            // Avoid erasing a meaningful stored position when a drag briefly hits the top edge.
+            if isUserInteracting, normalizedOffset <= 1, storedVerticalOffset.wrappedValue > 1 {
+                return
+            }
+
             guard abs(storedVerticalOffset.wrappedValue - normalizedOffset) > 0.5 else {
                 return
             }
@@ -1068,7 +1073,7 @@ private final class ProbeView: UIView {
         }
     }
 
-    var onScrollOffsetChanged: ((CGFloat) -> Void)?
+    var onScrollOffsetChanged: ((CGFloat, Bool) -> Void)?
 
     private weak var configuredScrollView: UIScrollView?
     private var contentOffsetObservation: NSKeyValueObservation?
@@ -1120,7 +1125,8 @@ private final class ProbeView: UIView {
         contentOffsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
             self?.applyConfiguration(to: scrollView)
             let normalizedOffset = max(0, scrollView.contentOffset.y)
-            self?.onScrollOffsetChanged?(normalizedOffset)
+            let isUserInteracting = scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
+            self?.onScrollOffsetChanged?(normalizedOffset, isUserInteracting)
             self?.restoreOffsetIfRequested()
         }
     }
