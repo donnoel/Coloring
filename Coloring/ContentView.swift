@@ -1,23 +1,31 @@
 import SwiftUI
 
 struct ContentView: View {
+    private enum RootTab {
+        case studio
+        case gallery
+    }
+
     @StateObject private var templateViewModel = TemplateStudioViewModel()
     @StateObject private var galleryViewModel = GalleryViewModel()
+    @State private var selectedTab: RootTab = .gallery
 
     var body: some View {
         ZStack {
             backgroundGradient
 
-            TabView {
+            TabView(selection: $selectedTab) {
                 TemplateStudioView(viewModel: templateViewModel)
                     .tabItem {
                         Label("Studio", systemImage: "paintbrush.pointed")
                     }
+                    .tag(RootTab.studio)
 
                 GalleryView(viewModel: galleryViewModel)
                     .tabItem {
                         Label("Gallery", systemImage: "photo.on.rectangle.angled")
                     }
+                    .tag(RootTab.gallery)
             }
         }
     }

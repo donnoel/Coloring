@@ -40,7 +40,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Scrolling** | Sidebar vertical bounce is disabled and the last scroll position is restored after collapsing/reopening the library. |
 | **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
-| **Carousel Gallery** | Exported artwork appears in a polished page carousel with balanced preview sizing across portrait and landscape pieces. |
+| **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |

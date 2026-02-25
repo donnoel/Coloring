@@ -4,6 +4,7 @@ struct GalleryView: View {
     @ObservedObject var viewModel: GalleryViewModel
     @State private var selectedEntry: ArtworkEntry?
     @State private var carouselIndex = 0
+    private let cardCornerRadius: CGFloat = 30
 
     var body: some View {
         NavigationStack {
@@ -11,31 +12,26 @@ struct GalleryView: View {
                 ZStack {
                     galleryBackground
 
-                    if viewModel.entries.isEmpty && !viewModel.isLoading {
-                        ContentUnavailableView(
-                            "No Artwork Yet",
-                            systemImage: "photo.on.rectangle.angled",
-                            description: Text("Export drawings from the Studio to see them here.")
-                        )
-                        .padding(.top, 60)
-                    } else {
-                        VStack(spacing: 14) {
-                            TabView(selection: $carouselIndex) {
-                                ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
-                                    artworkCard(entry: entry, in: geometry.size)
-                                        .tag(index)
-                                        .padding(.horizontal, horizontalInset(for: geometry.size))
-                                }
-                            }
-                            .tabViewStyle(.page(indexDisplayMode: .never))
-                            .frame(height: carouselHeight(for: geometry.size))
-
-                            carouselMeta
-
-                            thumbnailRail
+                    if viewModel.entries.isEmpty {
+                        if viewModel.isLoading {
+                            ProgressView("Loading Artwork…")
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 12)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.52), lineWidth: 1)
+                                )
+                        } else {
+                            ContentUnavailableView(
+                                "No Artwork Yet",
+                                systemImage: "photo.on.rectangle.angled",
+                                description: Text("Export drawings from the Studio to see them here.")
+                            )
+                            .padding(.top, 60)
                         }
-                        .padding(.top, 16)
-                        .padding(.bottom, 14)
+                    } else {
+                        galleryContent(in: geometry.size)
                     }
                 }
                 .ignoresSafeArea()
@@ -61,13 +57,36 @@ struct GalleryView: View {
         }
     }
 
+    private func galleryContent(in size: CGSize) -> some View {
+        VStack(spacing: 16) {
+            galleryHeader
+
+            TabView(selection: $carouselIndex) {
+                ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
+                    artworkCard(entry: entry, in: size)
+                        .tag(index)
+                        .padding(.horizontal, horizontalInset(for: size))
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: carouselHeight(for: size))
+
+            carouselMeta
+
+            thumbnailRail
+        }
+        .padding(.horizontal, horizontalContentPadding(for: size))
+        .padding(.top, 18)
+        .padding(.bottom, 20)
+    }
+
     private var galleryBackground: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.80, green: 0.88, blue: 0.96),
-                    Color(red: 0.76, green: 0.84, blue: 0.93),
-                    Color(red: 0.85, green: 0.78, blue: 0.84)
+                    Color(red: 0.94, green: 0.97, blue: 1.00),
+                    Color(red: 0.93, green: 0.96, blue: 0.99),
+                    Color(red: 0.95, green: 0.97, blue: 0.95)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -75,104 +94,151 @@ struct GalleryView: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.37, green: 0.56, blue: 0.84).opacity(0.32),
+                    Color(red: 0.56, green: 0.74, blue: 0.97).opacity(0.20),
                     .clear
                 ],
-                center: .bottomLeading,
+                center: .topTrailing,
                 startRadius: 10,
-                endRadius: 500
+                endRadius: 620
             )
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.98, green: 0.57, blue: 0.66).opacity(0.24),
+                    Color(red: 0.67, green: 0.90, blue: 0.85).opacity(0.22),
                     .clear
                 ],
-                center: .topTrailing,
-                startRadius: 30,
-                endRadius: 380
+                center: .bottomLeading,
+                startRadius: 24,
+                endRadius: 560
             )
         }
     }
 
-    private var carouselMeta: some View {
-        VStack(spacing: 10) {
-            if !viewModel.entries.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "photo.stack")
-                    Text("\(carouselIndex + 1) of \(viewModel.entries.count)")
-                }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.black.opacity(0.70))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.44), in: Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.65), lineWidth: 1)
-                )
+    private var galleryHeader: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Artwork Gallery")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.black.opacity(0.82))
+
+                Text(activeEntry?.sourceTemplateName ?? "Browse your exported drawings")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.black.opacity(0.58))
+                    .lineLimit(1)
             }
 
+            Spacer()
+
+            HStack(spacing: 6) {
+                Image(systemName: "photo.stack")
+                Text("\(carouselIndex + 1) / \(viewModel.entries.count)")
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color.black.opacity(0.72))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.66), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.66), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 8)
+    }
+
+    private var carouselMeta: some View {
+        HStack(spacing: 12) {
             HStack(spacing: 6) {
                 ForEach(viewModel.entries.indices, id: \.self) { index in
                     Capsule(style: .continuous)
                         .fill(
                             index == carouselIndex
-                                ? Color.white.opacity(0.94)
-                                : Color.white.opacity(0.44)
+                                ? Color.white.opacity(0.96)
+                                : Color.white.opacity(0.50)
                         )
-                        .frame(width: index == carouselIndex ? 24 : 8, height: 8)
+                        .frame(width: index == carouselIndex ? 26 : 9, height: 9)
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: carouselIndex)
+
+            Spacer(minLength: 0)
+
+            if let activeEntry {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.caption2.weight(.semibold))
+                    Text(activeEntry.createdAt, style: .date)
+                        .font(.footnote)
+                }
+                .foregroundStyle(Color.black.opacity(0.64))
+            }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.62), lineWidth: 1)
+        )
     }
 
     private var thumbnailRail: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             carouselIndex = index
                         }
                     } label: {
-                        thumbnailButton(entry: entry)
+                        thumbnailButton(entry: entry, isSelected: index == carouselIndex)
                     }
                     .buttonStyle(.plain)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(
-                                index == carouselIndex
-                                    ? Color.white.opacity(0.95)
-                                    : Color.white.opacity(0.44),
-                                lineWidth: index == carouselIndex ? 2 : 1
-                            )
-                    )
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
         }
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.64), lineWidth: 1)
+        )
     }
 
-    private func thumbnailButton(entry: ArtworkEntry) -> some View {
+    private func thumbnailButton(entry: ArtworkEntry, isSelected: Bool) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.30))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.58) : Color.white.opacity(0.34))
 
             if let thumbnail = viewModel.thumbnailImage(for: entry) {
                 Image(uiImage: thumbnail)
                     .resizable()
                     .scaledToFit()
-                    .padding(6)
+                    .padding(7)
             } else {
                 Image(systemName: "photo")
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
             }
         }
-        .frame(width: 72, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .frame(width: 94, height: 68)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    isSelected ? Color.white.opacity(0.96) : Color.white.opacity(0.50),
+                    lineWidth: isSelected ? 2 : 1
+                )
+        )
+        .shadow(color: Color.black.opacity(isSelected ? 0.12 : 0.05), radius: 10, x: 0, y: 6)
     }
 
     private func artworkCard(entry: ArtworkEntry, in size: CGSize) -> some View {
@@ -182,17 +248,28 @@ struct GalleryView: View {
             selectedEntry = entry
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                ZStack(alignment: .bottomLeading) {
+                    RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.white.opacity(0.90),
-                                    Color(red: 0.94, green: 0.96, blue: 1.00)
+                                    Color.white.opacity(0.88),
+                                    Color(red: 0.97, green: 0.99, blue: 1.00).opacity(0.92)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
+                        )
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.40),
+                                    .clear
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .center
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous))
                         )
 
                     if let thumbnail = viewModel.thumbnailImage(for: entry) {
@@ -200,51 +277,51 @@ struct GalleryView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(14)
+                            .padding(22)
                     } else {
                         Image(systemName: "photo")
                             .font(.title2)
                             .foregroundStyle(.tertiary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(.systemGray5))
                     }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entry.sourceTemplateName)
+                            .font(.headline.weight(.semibold))
+                            .lineLimit(2)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(entry.createdAt, style: .date)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.66), lineWidth: 1)
+                    )
+                    .padding(18)
                 }
                 .frame(height: previewHeight)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.70), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous)
+                        .stroke(Color.white.opacity(0.74), lineWidth: 1)
                 )
-                .padding(10)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.sourceTemplateName)
-                        .font(.headline.weight(.semibold))
-                        .lineLimit(2)
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        Text(entry.createdAt, style: .date)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 14)
+                .padding(12)
             }
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.66), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.11), radius: 18, x: 0, y: 10)
+            .shadow(color: Color.black.opacity(0.10), radius: 20, x: 0, y: 12)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -258,21 +335,27 @@ struct GalleryView: View {
 
     private func cardWidth(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let widthFactor: CGFloat = isLandscape ? 0.60 : 0.88
-        return max(320, min(860, size.width * widthFactor))
+        let widthFactor: CGFloat = isLandscape ? 0.90 : 0.94
+        return max(360, min(1160, size.width * widthFactor))
     }
 
     private func previewHeight(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        return isLandscape ? 300 : 380
+        let heightFactor: CGFloat = isLandscape ? 0.60 : 0.54
+        return max(360, min(800, size.height * heightFactor))
     }
 
     private func carouselHeight(for size: CGSize) -> CGFloat {
-        previewHeight(for: size) + 98
+        previewHeight(for: size) + 36
+    }
+
+    private func horizontalContentPadding(for size: CGSize) -> CGFloat {
+        size.width > size.height ? 20 : 14
     }
 
     private func horizontalInset(for size: CGSize) -> CGFloat {
-        max((size.width - cardWidth(for: size)) * 0.5, 16)
+        let usableWidth = size.width - (horizontalContentPadding(for: size) * 2)
+        return max((usableWidth - cardWidth(for: size)) * 0.5, 6)
     }
 
     private func syncCarouselIndex() {
@@ -284,5 +367,12 @@ struct GalleryView: View {
         if carouselIndex >= viewModel.entries.count {
             carouselIndex = viewModel.entries.count - 1
         }
+    }
+
+    private var activeEntry: ArtworkEntry? {
+        guard viewModel.entries.indices.contains(carouselIndex) else {
+            return nil
+        }
+        return viewModel.entries[carouselIndex]
     }
 }
