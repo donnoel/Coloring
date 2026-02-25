@@ -242,6 +242,7 @@ struct TemplateStudioView: View {
                     isClearFillsConfirmationPresented = true
                 } label: {
                     Label("Clear Fills", systemImage: "drop.triangle")
+                        .foregroundStyle(.red)
                 }
                 .disabled(viewModel.currentFillImage == nil)
 
@@ -293,6 +294,7 @@ struct TemplateStudioView: View {
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
+        .background(SidebarScrollConfigurator())
         .scrollContentBackground(.hidden)
         .background(sidebarBackground)
         .toolbar(.hidden, for: .navigationBar)
@@ -887,6 +889,46 @@ private extension ColoringTemplate.CanvasOrientation {
             return .landscape
         case .portrait:
             return .portrait
+        }
+    }
+}
+
+private struct SidebarScrollConfigurator: UIViewRepresentable {
+    func makeUIView(context: Context) -> ProbeView {
+        ProbeView()
+    }
+
+    func updateUIView(_ uiView: ProbeView, context: Context) {}
+}
+
+private final class ProbeView: UIView {
+    private weak var configuredScrollView: UIScrollView?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        configureEnclosingScrollViewIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        configureEnclosingScrollViewIfNeeded()
+    }
+
+    private func configureEnclosingScrollViewIfNeeded() {
+        if let configuredScrollView, configuredScrollView.window != nil {
+            return
+        }
+
+        var currentView: UIView? = superview
+        while let candidate = currentView {
+            if let scrollView = candidate as? UIScrollView {
+                scrollView.bounces = false
+                scrollView.alwaysBounceVertical = false
+                scrollView.refreshControl = nil
+                configuredScrollView = scrollView
+                return
+            }
+            currentView = candidate.superview
         }
     }
 }

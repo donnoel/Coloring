@@ -37,8 +37,9 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Template Orientation Enforcement** | Landscape templates request landscape mode; portrait templates request portrait mode when opened. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
-| **Calm Sidebar Scrolling** | Sidebar uses native smooth list physics without manual pull-to-refresh actions. |
+| **Calm Sidebar Scrolling** | Sidebar vertical bounce is disabled to prevent top snap/jump behavior. |
 | **Adaptive Bottom Palette** | Bottom palette hides during active stroke interaction and returns shortly after drawing stops. |
+| **Carousel Gallery** | Exported artwork appears in a snap-scrolling carousel tuned for both portrait and landscape iPad layouts. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |
