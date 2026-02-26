@@ -324,7 +324,9 @@ struct TemplateStudioView: View {
             ideal: CGFloat(sidebarWidth),
             max: Self.sidebarMaxWidth
         )
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 
     private var importControls: some View {
