@@ -248,7 +248,7 @@ struct GalleryView: View {
             selectedEntry = entry
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .bottomLeading) {
+                ZStack {
                     RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous)
                         .fill(
                             LinearGradient(
@@ -285,28 +285,6 @@ struct GalleryView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(entry.sourceTemplateName)
-                            .font(.headline.weight(.semibold))
-                            .lineLimit(2)
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Text(entry.createdAt, style: .date)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.66), lineWidth: 1)
-                    )
-                    .padding(18)
                 }
                 .frame(height: previewHeight)
                 .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous))
