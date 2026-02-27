@@ -50,11 +50,15 @@ struct PencilCanvasView: UIViewRepresentable {
         canvasView.drawingPolicy = prefersPencilOnly ? .pencilOnly : .anyInput
         uiView.scrollView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
 
-        if canvasView.drawing != drawing {
+        let shouldResetZoom = context.coordinator.lastTemplateID != templateID
+        if shouldResetZoom {
+            context.coordinator.resetLocalDrawingSyncTracking()
+        }
+
+        if context.coordinator.shouldApplyExternalDrawing(drawing, currentCanvasDrawing: canvasView.drawing) {
             context.coordinator.applyExternalDrawing(drawing, to: canvasView)
         }
 
-        let shouldResetZoom = context.coordinator.lastTemplateID != templateID
         let templateImageIdentity = ObjectIdentifier(templateImage)
         let didTemplateImageChange = context.coordinator.lastTemplateImageIdentity != templateImageIdentity
         let shouldUpdateTemplateImage = shouldResetZoom
@@ -92,6 +96,9 @@ struct PencilCanvasView: UIViewRepresentable {
         private var fillTapGesture: UITapGestureRecognizer?
         private weak var drawingGestureRecognizer: UIGestureRecognizer?
         private var lastAppliedBrushTool: PKInkingTool?
+        private var latestLocalDrawingData: Data?
+        private var hasPendingLocalDrawingSync = false
+        private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
         private let isRunningTests = NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
 
@@ -157,6 +164,8 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker = nil
             pencilInteraction = nil
             drawingGestureRecognizer = nil
+            pendingLocalSyncResetWorkItem?.cancel()
+            pendingLocalSyncResetWorkItem = nil
             self.canvasView = nil
             containerView = nil
         }
@@ -173,10 +182,47 @@ struct PencilCanvasView: UIViewRepresentable {
             gesture.addTarget(self, action: #selector(handleDrawingGestureStateChange(_:)))
         }
 
+        func resetLocalDrawingSyncTracking() {
+            pendingLocalSyncResetWorkItem?.cancel()
+            pendingLocalSyncResetWorkItem = nil
+            latestLocalDrawingData = nil
+            hasPendingLocalDrawingSync = false
+        }
+
+        func shouldApplyExternalDrawing(_ externalDrawing: PKDrawing, currentCanvasDrawing: PKDrawing) -> Bool {
+            guard currentCanvasDrawing != externalDrawing else {
+                return false
+            }
+
+            let externalData = externalDrawing.dataRepresentation()
+            if let latestLocalDrawingData, latestLocalDrawingData == externalData {
+                hasPendingLocalDrawingSync = false
+                return false
+            }
+
+            if hasPendingLocalDrawingSync {
+                return false
+            }
+
+            return true
+        }
+
         func applyExternalDrawing(_ drawing: PKDrawing, to canvasView: PKCanvasView) {
             isApplyingExternalDrawing = true
             canvasView.drawing = drawing
             isApplyingExternalDrawing = false
+        }
+
+        private func markLocalDrawingChanged(_ drawing: PKDrawing) {
+            latestLocalDrawingData = drawing.dataRepresentation()
+            hasPendingLocalDrawingSync = true
+
+            pendingLocalSyncResetWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.hasPendingLocalDrawingSync = false
+            }
+            pendingLocalSyncResetWorkItem = workItem
+            DispatchQueue.main.async(execute: workItem)
         }
 
         func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
@@ -239,6 +285,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            markLocalDrawingChanged(canvasView.drawing)
             parent.drawing = canvasView.drawing
             parent.onDrawingChanged?(canvasView.drawing)
         }

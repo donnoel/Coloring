@@ -554,6 +554,48 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorPreventsStaleDrawingReapplyDuringLocalSync() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let initialDrawing = PKDrawing()
+            let localDrawing = makeSampleTemplateDrawing()
+
+            drawingState.drawing = initialDrawing
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+            canvasView.drawing = localDrawing
+
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            XCTAssertEqual(drawingState.drawing, localDrawing)
+            XCTAssertFalse(
+                coordinator.shouldApplyExternalDrawing(
+                    initialDrawing,
+                    currentCanvasDrawing: canvasView.drawing
+                )
+            )
+
+            coordinator.resetLocalDrawingSyncTracking()
+
+            XCTAssertTrue(
+                coordinator.shouldApplyExternalDrawing(
+                    initialDrawing,
+                    currentCanvasDrawing: canvasView.drawing
+                )
+            )
+        }
+    }
+
     @MainActor
     private func makeViewModel(
         scenes: [ColoringScene],
@@ -727,6 +769,11 @@ final class ColoringTests: XCTestCase {
         let scale = maxLongEdge / longEdge
         return CGSize(width: size.width * scale, height: size.height * scale)
     }
+}
+
+@MainActor
+private final class DrawingStateBox {
+    var drawing = PKDrawing()
 }
 
 private struct StubSceneCatalog: SceneCatalogProviding {
