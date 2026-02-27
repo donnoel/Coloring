@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(xcodebuild build:*)",
-      "Bash(xcodebuild test:*)",
-      "Bash(xcodebuild -scheme Coloring -destination 'platform=iOS Simulator,name=iPad Pro 13-inch \\(M4\\)' build)"
-    ]
-  }
-}

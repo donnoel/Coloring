@@ -1,0 +1,191 @@
+{
+  "" : {
+    "const-values" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary.swiftconstvalues",
+    "dependencies" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary.d",
+    "diagnostics" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary.dia",
+    "emit-module-dependencies" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary-emit-module.dia",
+    "pch" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/Coloring-primary.swiftdeps"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/AppOrientationLock.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/AppOrientationLock.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/AppOrientationLock.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/AppOrientationLock.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/ColoringApp.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringApp.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringApp.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringApp.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/ColoringAppIntents.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringAppIntents.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringAppIntents.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringAppIntents.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/ContentView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/ArtworkEntry.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkEntry.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkEntry.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkEntry.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/BrushPreset.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushPreset.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushPreset.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushPreset.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/ColoringColor.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringColor.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringColor.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringColor.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/ColoringScene.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringScene.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringScene.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringScene.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/ColoringTemplate.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringTemplate.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringTemplate.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringTemplate.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/DrawingLayer.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/DrawingLayer.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/DrawingLayer.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/DrawingLayer.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/SceneGeometry.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneGeometry.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneGeometry.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneGeometry.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Models/TemplateCategory.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateCategory.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateCategory.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateCategory.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/ArtworkExportService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkExportService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkExportService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkExportService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/BrushPresetStoreService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushPresetStoreService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushPresetStoreService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushPresetStoreService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/FloodFillService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/FloodFillService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/FloodFillService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/FloodFillService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/GalleryStoreService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryStoreService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryStoreService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryStoreService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/LayerCompositorService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/LayerCompositorService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/LayerCompositorService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/LayerCompositorService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/SceneCatalogService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneCatalogService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneCatalogService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneCatalogService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/TemplateArtworkExportService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateArtworkExportService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateArtworkExportService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateArtworkExportService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/TemplateCategoryStoreService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateCategoryStoreService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateCategoryStoreService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateCategoryStoreService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Services/TemplateLibraryService.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateLibraryService.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateLibraryService.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateLibraryService.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/ViewModels/ColoringBookViewModel.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringBookViewModel.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringBookViewModel.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringBookViewModel.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/ViewModels/GalleryViewModel.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryViewModel.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryViewModel.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryViewModel.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/ViewModels/TemplateStudioViewModel.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateStudioViewModel.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateStudioViewModel.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateStudioViewModel.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/ArtworkDetailView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkDetailView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkDetailView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ArtworkDetailView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/BrushCustomizationView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushCustomizationView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushCustomizationView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/BrushCustomizationView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/CategoryManagementView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/CategoryManagementView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/CategoryManagementView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/CategoryManagementView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/ColoringCanvasView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringCanvasView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringCanvasView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringCanvasView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/ColoringWorkspaceView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringWorkspaceView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringWorkspaceView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/ColoringWorkspaceView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/GalleryView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GalleryView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/LayerPanelView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/LayerPanelView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/LayerPanelView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/LayerPanelView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/PencilCanvasView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/PencilCanvasView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/PencilCanvasView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/PencilCanvasView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/SceneLibraryView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneLibraryView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneLibraryView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/SceneLibraryView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/TemplatePaletteBarView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplatePaletteBarView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplatePaletteBarView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplatePaletteBarView.o"
+  },
+  "/Users/donnoel/Development/Coloring/Coloring/Views/TemplateStudioView.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateStudioView.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateStudioView.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/TemplateStudioView.o"
+  },
+  "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/donnoel/Development/Coloring/build/Coloring.build/Release/Coloring.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

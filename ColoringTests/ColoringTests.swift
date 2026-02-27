@@ -436,6 +436,63 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(didRestoreDrawing, "Expected persisted drawing strokes to restore after reload.")
     }
 
+    func testTemplateDrawingStorePersistsDrawingDataLocally() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let store = makeRealTemplateDrawingStore(documentsURL: documentsURL)
+        let templateID = "builtin-drawing"
+        let drawingData = Data("drawing-data".utf8)
+
+        try await store.saveDrawingData(drawingData, for: templateID)
+
+        let loadedData = try await store.loadDrawingData(for: templateID)
+
+        XCTAssertEqual(loadedData, drawingData)
+
+        let fileURL = documentsURL
+            .appendingPathComponent("TemplateDrawings", isDirectory: true)
+            .appendingPathComponent("builtin-drawing.drawing")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    func testTemplateDrawingStoreRenamesAndDeletesFillDataLocally() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let store = makeRealTemplateDrawingStore(documentsURL: documentsURL)
+        let originalTemplateID = "imported-old"
+        let renamedTemplateID = "imported-new"
+        let fillData = Data("fill-data".utf8)
+
+        try await store.saveFillData(fillData, for: originalTemplateID)
+        try await store.renameFillData(from: originalTemplateID, to: renamedTemplateID)
+
+        let renamedData = try await store.loadFillData(for: renamedTemplateID)
+        let oldData = try await store.loadFillData(for: originalTemplateID)
+
+        XCTAssertEqual(renamedData, fillData)
+        XCTAssertNil(oldData)
+
+        try await store.deleteFillData(for: renamedTemplateID)
+
+        let deletedData = try await store.loadFillData(for: renamedTemplateID)
+        XCTAssertNil(deletedData)
+    }
+
+    func testTemplateDrawingStorePersistsAndRenamesLayerStackDataLocally() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let store = makeRealTemplateDrawingStore(documentsURL: documentsURL)
+        let originalTemplateID = "layer-template"
+        let renamedTemplateID = "layer-template-renamed"
+        let layerData = Data("layer-stack-data".utf8)
+
+        try await store.saveLayerStackData(layerData, for: originalTemplateID)
+        try await store.renameLayerStackData(from: originalTemplateID, to: renamedTemplateID)
+
+        let renamedData = try await store.loadLayerStackData(for: renamedTemplateID)
+        let originalData = try await store.loadLayerStackData(for: originalTemplateID)
+
+        XCTAssertEqual(renamedData, layerData)
+        XCTAssertNil(originalData)
+    }
+
     func testTemplateExportUsesTemplateSizedCanvas() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let templateImageData = await MainActor.run {
@@ -768,6 +825,24 @@ final class ColoringTests: XCTestCase {
 
         let scale = maxLongEdge / longEdge
         return CGSize(width: size.width * scale, height: size.height * scale)
+    }
+
+    private func makeTemporaryDocumentsDirectory() throws -> URL {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        return directoryURL
+    }
+
+    private func makeRealTemplateDrawingStore(documentsURL: URL) -> TemplateDrawingStoreService {
+        TemplateDrawingStoreService(
+            cloudContainerIdentifier: nil,
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
     }
 }
 
