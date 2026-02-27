@@ -278,6 +278,162 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testAddLayerCreatesNewActiveLayerAndPreservesExistingDrawing() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            let originalLayerID = viewModel.currentLayerStack.activeLayerID
+
+            viewModel.addLayer()
+
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 2)
+            XCTAssertNotEqual(viewModel.currentLayerStack.activeLayerID, originalLayerID)
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.selectActiveLayer(originalLayerID)
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, sampleDrawing.strokes.count)
+        }
+    }
+
+    func testDeleteActiveLayerRestoresPreviousLayerDrawing() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let firstDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        let secondDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(firstDrawing)
+            let originalLayerID = viewModel.currentLayerStack.activeLayerID
+
+            viewModel.addLayer()
+            let activeLayerID = viewModel.currentLayerStack.activeLayerID
+            viewModel.updateDrawing(secondDrawing)
+
+            viewModel.deleteLayer(activeLayerID)
+
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 1)
+            XCTAssertEqual(viewModel.currentLayerStack.activeLayerID, originalLayerID)
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, firstDrawing.strokes.count)
+        }
+    }
+
+    func testDeleteUserCategoryClearsAssignmentAndResetsFilter() async {
+        let template = Self.makeTemplate(
+            id: "imported-1",
+            title: "Imported One",
+            source: .imported
+        )
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template], importedCount: 1),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.createUserCategory(name: "Favorites")
+            guard let categoryID = viewModel.userCategories.first?.id else {
+                XCTFail("Expected created category.")
+                return
+            }
+
+            viewModel.assignTemplate(template.id, toCategoryID: categoryID)
+            viewModel.selectedCategoryFilter = categoryID
+
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [template.id])
+
+            viewModel.deleteUserCategory(categoryID)
+
+            XCTAssertEqual(viewModel.selectedCategoryFilter, TemplateCategory.allCategory.id)
+            XCTAssertTrue(viewModel.userCategories.isEmpty)
+            XCTAssertNil(viewModel.categoryAssignments[template.id])
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [template.id])
+        }
+    }
+
+    func testLoadCategoriesRestoresPersistedUserCategoriesAssignmentsAndOrder() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge"),
+            Self.makeTemplate(id: "imported-1", title: "Imported One", source: .imported)
+        ]
+        let categoryStore = StubCategoryStore()
+        let userCategory = TemplateCategory(id: "user-favorites", name: "Favorites", isUserCreated: true)
+
+        try await categoryStore.saveUserCategories([userCategory])
+        try await categoryStore.saveCategoryAssignments(["imported-1": userCategory.id])
+        try await categoryStore.saveCategoryOrder([userCategory.id])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: templates, importedCount: 1),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: categoryStore,
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.loadCategoriesIfNeeded()
+        }
+
+        let categoriesLoaded = await waitForCondition {
+            await MainActor.run {
+                viewModel.userCategories.contains(where: { $0.id == userCategory.id })
+                    && viewModel.categoryAssignments["imported-1"] == userCategory.id
+                    && viewModel.reorderableCategories.first?.id == userCategory.id
+            }
+        }
+
+        XCTAssertTrue(categoriesLoaded)
+
+        await MainActor.run {
+            viewModel.selectedCategoryFilter = userCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), ["imported-1"])
+        }
+    }
+
     func testTemplateRenameKeepsTemplateSelected() async {
         let importedTemplate = Self.makeTemplate(
             id: "imported-1",
