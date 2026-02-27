@@ -10,68 +10,89 @@ protocol TemplateCategoryStoreProviding {
 }
 
 actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
-    private let fileManager = FileManager.default
+    nonisolated private let documentsDirectoryURLProvider: @Sendable () throws -> URL
 
-    private var storeDirectory: URL {
-        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+    init(
+        documentsDirectoryURLProvider: @escaping @Sendable () throws -> URL = {
+            guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            return documentsURL
+        }
+    ) {
+        self.documentsDirectoryURLProvider = documentsDirectoryURLProvider
+    }
+
+    private func storeDirectory() throws -> URL {
+        let fileManager = FileManager.default
+        let documents = try documentsDirectoryURLProvider()
         let directory = documents.appendingPathComponent("TemplateCategories", isDirectory: true)
         if !fileManager.fileExists(atPath: directory.path) {
-            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         return directory
     }
 
-    private var categoriesFileURL: URL {
-        storeDirectory.appendingPathComponent("user_categories.json")
+    private func categoriesFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("user_categories.json")
     }
 
-    private var assignmentsFileURL: URL {
-        storeDirectory.appendingPathComponent("category_assignments.json")
+    private func assignmentsFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("category_assignments.json")
     }
 
-    private var categoryOrderFileURL: URL {
-        storeDirectory.appendingPathComponent("category_order.json")
+    private func categoryOrderFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("category_order.json")
     }
 
     func loadUserCategories() throws -> [TemplateCategory] {
-        guard fileManager.fileExists(atPath: categoriesFileURL.path) else {
+        let fileManager = FileManager.default
+        let fileURL = try categoriesFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
             return []
         }
 
-        let data = try Data(contentsOf: categoriesFileURL)
+        let data = try Data(contentsOf: fileURL)
         return try JSONDecoder().decode([TemplateCategory].self, from: data)
     }
 
     func saveUserCategories(_ categories: [TemplateCategory]) throws {
+        let fileURL = try categoriesFileURL()
         let data = try JSONEncoder().encode(categories)
-        try data.write(to: categoriesFileURL, options: .atomic)
+        try data.write(to: fileURL, options: .atomic)
     }
 
     func loadCategoryAssignments() throws -> [String: String] {
-        guard fileManager.fileExists(atPath: assignmentsFileURL.path) else {
+        let fileManager = FileManager.default
+        let fileURL = try assignmentsFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
             return [:]
         }
 
-        let data = try Data(contentsOf: assignmentsFileURL)
+        let data = try Data(contentsOf: fileURL)
         return try JSONDecoder().decode([String: String].self, from: data)
     }
 
     func saveCategoryAssignments(_ assignments: [String: String]) throws {
+        let fileURL = try assignmentsFileURL()
         let data = try JSONEncoder().encode(assignments)
-        try data.write(to: assignmentsFileURL, options: .atomic)
+        try data.write(to: fileURL, options: .atomic)
     }
 
     func loadCategoryOrder() throws -> [String] {
-        guard fileManager.fileExists(atPath: categoryOrderFileURL.path) else {
+        let fileManager = FileManager.default
+        let fileURL = try categoryOrderFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
             return []
         }
 
-        let data = try Data(contentsOf: categoryOrderFileURL)
+        let data = try Data(contentsOf: fileURL)
         return try JSONDecoder().decode([String].self, from: data)
     }
 
     func saveCategoryOrder(_ categoryOrder: [String]) throws {
+        let fileURL = try categoryOrderFileURL()
         let data = try JSONEncoder().encode(categoryOrder)
-        try data.write(to: categoryOrderFileURL, options: .atomic)
+        try data.write(to: fileURL, options: .atomic)
     }
 }

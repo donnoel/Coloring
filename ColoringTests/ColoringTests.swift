@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import PencilKit
+import SwiftUI
 import UIKit
 import XCTest
 
@@ -388,7 +389,7 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    func testLoadCategoriesRestoresPersistedUserCategoriesAssignmentsAndOrder() async {
+    func testLoadCategoriesRestoresPersistedUserCategoriesAssignmentsAndOrder() async throws {
         let templates = [
             Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge"),
             Self.makeTemplate(id: "imported-1", title: "Imported One", source: .imported)
@@ -649,6 +650,136 @@ final class ColoringTests: XCTestCase {
         XCTAssertNil(originalData)
     }
 
+    func testTemplateLibraryServiceImportsRenamesAndDeletesTemplateLocally() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let service = TemplateLibraryService(
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+
+        let importedTemplate = try await service.importTemplate(
+            imageData: sampleTemplateImageData,
+            preferredName: "Aurora Sketch"
+        )
+
+        XCTAssertEqual(importedTemplate.source, .imported)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedTemplate.filePath))
+
+        let renamedTemplate = try await service.renameImportedTemplate(
+            id: importedTemplate.id,
+            newTitle: "Golden Hour"
+        )
+
+        XCTAssertNotEqual(renamedTemplate.id, importedTemplate.id)
+        XCTAssertEqual(renamedTemplate.title, "Golden Hour")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: renamedTemplate.filePath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: importedTemplate.filePath))
+
+        try await service.deleteImportedTemplate(id: renamedTemplate.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: renamedTemplate.filePath))
+    }
+
+    func testTemplateLibraryServiceRejectsInvalidImageData() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let service = TemplateLibraryService(
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+
+        do {
+            _ = try await service.importTemplate(
+                imageData: Data("not-an-image".utf8),
+                preferredName: "Broken"
+            )
+            XCTFail("Expected invalid image data error.")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                TemplateLibraryService.LibraryError.invalidImageData.localizedDescription
+            )
+        }
+    }
+
+    func testBrushPresetStoreServicePersistsPresetsAcrossInstances() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let firstStore = makeRealBrushPresetStore(documentsURL: documentsURL)
+        let secondStore = makeRealBrushPresetStore(documentsURL: documentsURL)
+        let presets = [
+            BrushPreset(
+                id: "custom-1",
+                name: "Studio Ink",
+                inkType: .pen,
+                width: 6.5,
+                opacity: 0.8,
+                isBuiltIn: false
+            )
+        ]
+
+        try await firstStore.saveUserPresets(presets)
+
+        let loadedPresets = try await secondStore.loadUserPresets()
+
+        XCTAssertEqual(loadedPresets, presets)
+    }
+
+    func testTemplateCategoryStoreServicePersistsCategoriesAssignmentsAndOrder() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let firstStore = makeRealCategoryStore(documentsURL: documentsURL)
+        let secondStore = makeRealCategoryStore(documentsURL: documentsURL)
+        let categories = [
+            TemplateCategory(id: "user-1", name: "Favorites", isUserCreated: true),
+            TemplateCategory(id: "user-2", name: "Portrait Ideas", isUserCreated: true)
+        ]
+        let assignments = [
+            "imported-1": "user-1",
+            "imported-2": "user-2"
+        ]
+        let categoryOrder = ["user-2", "user-1"]
+
+        try await firstStore.saveUserCategories(categories)
+        try await firstStore.saveCategoryAssignments(assignments)
+        try await firstStore.saveCategoryOrder(categoryOrder)
+
+        let loadedCategories = try await secondStore.loadUserCategories()
+        let loadedAssignments = try await secondStore.loadCategoryAssignments()
+        let loadedOrder = try await secondStore.loadCategoryOrder()
+
+        XCTAssertEqual(loadedCategories, categories)
+        XCTAssertEqual(loadedAssignments, assignments)
+        XCTAssertEqual(loadedOrder, categoryOrder)
+    }
+
+    func testGalleryStoreServiceSavesLoadsAndDeletesArtworkLocally() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
+        let store = makeRealGalleryStore(galleryURL: galleryURL)
+        let imageData = await MainActor.run {
+            solidColorTemplateImageData(.orange, size: CGSize(width: 32, height: 20))
+        }
+
+        let entry = try await store.saveArtwork(
+            imageData: imageData,
+            sourceTemplateID: "builtin-1",
+            sourceTemplateName: "Template One"
+        )
+
+        let entriesAfterSave = try await store.loadEntries()
+        let fullImageURL = galleryURL.appendingPathComponent(entry.fullImageFilename)
+        let thumbnailURL = galleryURL.appendingPathComponent(entry.thumbnailFilename)
+
+        XCTAssertEqual(entriesAfterSave.count, 1)
+        XCTAssertEqual(entriesAfterSave.first?.id, entry.id)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fullImageURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: thumbnailURL.path))
+
+        try await store.deleteEntry(entry.id)
+
+        let entriesAfterDelete = try await store.loadEntries()
+        XCTAssertTrue(entriesAfterDelete.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fullImageURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: thumbnailURL.path))
+    }
+
     func testTemplateExportUsesTemplateSizedCanvas() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let templateImageData = await MainActor.run {
@@ -767,6 +898,196 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testHandleFillTapDoesNothingWhenFillModeIsDisabled() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let floodFillService = StubFloodFillService(images: [await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: floodFillService,
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertFalse(viewModel.canUndoFill)
+        }
+    }
+
+    func testLoadBrushPresetsIfNeededLoadsUserPresets() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let brushStore = StubBrushPresetStore()
+        let customPreset = BrushPreset(
+            id: "custom-loaded",
+            name: "Loaded Brush",
+            inkType: .pen,
+            width: 7,
+            opacity: 0.7,
+            isBuiltIn: false
+        )
+        try? await brushStore.saveUserPresets([customPreset])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: brushStore,
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await MainActor.run {
+            viewModel.loadBrushPresetsIfNeeded()
+        }
+
+        let didLoadPresets = await waitForCondition {
+            await MainActor.run {
+                viewModel.userBrushPresets.contains(where: { $0.id == customPreset.id })
+            }
+        }
+
+        XCTAssertTrue(didLoadPresets)
+    }
+
+    func testDeleteCustomPresetFallsBackToDefaultBuiltInPreset() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await MainActor.run {
+            viewModel.saveCurrentAsPreset(name: "Artist Brush")
+            guard let customPreset = viewModel.userBrushPresets.first else {
+                XCTFail("Expected saved custom preset.")
+                return
+            }
+
+            viewModel.selectBrushPreset(customPreset)
+            viewModel.deleteCustomPreset(customPreset.id)
+
+            XCTAssertTrue(viewModel.userBrushPresets.isEmpty)
+            XCTAssertEqual(viewModel.activeBrushPreset.id, BrushPreset.builtInPresets[0].id)
+        }
+    }
+
+    func testExportCurrentTemplateSavesArtworkToGallery() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 16, height: 16))
+        }
+        let exportedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).png")
+        let exportService = CapturingFileWritingTemplateExportService(resultURL: exportedURL)
+        let galleryStore = await MainActor.run { StubGalleryStore() }
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData, templateImageData]
+                ),
+                exportService: exportService,
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: galleryStore
+            )
+        }
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: exportedURL)
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await viewModel.exportCurrentTemplate()
+
+        let saveRequest = await MainActor.run { galleryStore.lastSaveRequest }
+        XCTAssertNotNil(saveRequest)
+        XCTAssertEqual(saveRequest?.sourceTemplateID, template.id)
+        XCTAssertEqual(saveRequest?.sourceTemplateName, template.title)
+        XCTAssertTrue((saveRequest?.imageData.isEmpty ?? true) == false)
+    }
+
+    func testTemplateArtworkExportServiceRejectsInvalidTemplateData() async {
+        let service = TemplateArtworkExportService()
+
+        do {
+            _ = try await service.exportPNG(
+                templateData: Data("invalid".utf8),
+                drawingData: Data(),
+                fillLayerData: nil,
+                compositedLayersImageData: nil,
+                canvasSize: CGSize(width: 16, height: 16),
+                templateID: "invalid"
+            )
+            XCTFail("Expected invalid template error.")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                TemplateArtworkExportService.ExportError.invalidTemplate.localizedDescription
+            )
+        }
+    }
+
+    func testTemplateArtworkExportServiceWritesPNGFile() async throws {
+        let service = TemplateArtworkExportService()
+        let templateData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 10, height: 10))
+        }
+        let fillData = await MainActor.run {
+            solidColorTemplateImageData(.red, size: CGSize(width: 10, height: 10))
+        }
+
+        let exportedURL = try await service.exportPNG(
+            templateData: templateData,
+            drawingData: Data(),
+            fillLayerData: fillData,
+            compositedLayersImageData: nil,
+            canvasSize: CGSize(width: 10, height: 10),
+            templateID: "export-test"
+        )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: exportedURL)
+        }
+
+        let exportedData = try Data(contentsOf: exportedURL)
+        XCTAssertFalse(exportedData.isEmpty)
+
+        let signature = Array(exportedData.prefix(8))
+        XCTAssertEqual(signature, [137, 80, 78, 71, 13, 10, 26, 10])
+    }
+
     func testPencilCanvasCoordinatorPreventsStaleDrawingReapplyDuringLocalSync() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
@@ -814,7 +1135,6 @@ final class ColoringTests: XCTestCase {
             let drawingState = DrawingStateBox()
             let initialDrawing = PKDrawing()
             let localDrawing = makeSampleTemplateDrawing()
-            let replacementDrawing = makeSampleTemplateDrawing()
 
             drawingState.drawing = initialDrawing
 
@@ -849,7 +1169,7 @@ final class ColoringTests: XCTestCase {
 
             XCTAssertTrue(
                 coordinator.shouldApplyExternalDrawing(
-                    replacementDrawing,
+                    initialDrawing,
                     currentCanvasDrawing: canvasView.drawing
                 )
             )
@@ -1085,6 +1405,24 @@ final class ColoringTests: XCTestCase {
             ubiquityContainerURLProvider: { _ in nil }
         )
     }
+
+    private func makeRealBrushPresetStore(documentsURL: URL) -> BrushPresetStoreService {
+        BrushPresetStoreService(
+            documentsDirectoryURLProvider: { documentsURL }
+        )
+    }
+
+    private func makeRealCategoryStore(documentsURL: URL) -> TemplateCategoryStoreService {
+        TemplateCategoryStoreService(
+            documentsDirectoryURLProvider: { documentsURL }
+        )
+    }
+
+    private func makeRealGalleryStore(galleryURL: URL) -> GalleryStoreService {
+        GalleryStoreService(
+            galleryDirectoryURLProvider: { galleryURL }
+        )
+    }
 }
 
 @MainActor
@@ -1311,6 +1649,29 @@ private actor CapturingTemplateExportService: TemplateArtworkExporting {
     }
 }
 
+private actor CapturingFileWritingTemplateExportService: TemplateArtworkExporting {
+    let resultURL: URL
+
+    init(resultURL: URL) {
+        self.resultURL = resultURL
+    }
+
+    func exportPNG(
+        templateData _: Data,
+        drawingData _: Data,
+        fillLayerData _: Data?,
+        compositedLayersImageData _: Data?,
+        canvasSize _: CGSize,
+        templateID _: String
+    ) async throws -> URL {
+        let data = Data(
+            base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBgGd9mKsAAAAASUVORK5CYII="
+        )!
+        try data.write(to: resultURL, options: .atomic)
+        return resultURL
+    }
+}
+
 private actor StubBrushPresetStore: BrushPresetStoreProviding {
     private var presets: [BrushPreset] = []
 
@@ -1381,13 +1742,25 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
 
 @MainActor
 private final class StubGalleryStore: GalleryStoreProviding {
+    struct SaveRequest {
+        let imageData: Data
+        let sourceTemplateID: String
+        let sourceTemplateName: String
+    }
+
     private var entries: [ArtworkEntry] = []
+    private(set) var lastSaveRequest: SaveRequest?
 
     func loadEntries() throws -> [ArtworkEntry] {
         entries
     }
 
     func saveArtwork(imageData: Data, sourceTemplateID: String, sourceTemplateName: String) throws -> ArtworkEntry {
+        lastSaveRequest = SaveRequest(
+            imageData: imageData,
+            sourceTemplateID: sourceTemplateID,
+            sourceTemplateName: sourceTemplateName
+        )
         let entry = ArtworkEntry(
             id: UUID().uuidString,
             sourceTemplateID: sourceTemplateID,

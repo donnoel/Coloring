@@ -190,13 +190,13 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func shouldApplyExternalDrawing(_ externalDrawing: PKDrawing, currentCanvasDrawing: PKDrawing) -> Bool {
-            guard currentCanvasDrawing != externalDrawing else {
-                return false
-            }
-
             let externalData = externalDrawing.dataRepresentation()
             if let latestLocalDrawingData, latestLocalDrawingData == externalData {
                 hasPendingLocalDrawingSync = false
+                if currentCanvasDrawing == externalDrawing {
+                    return false
+                }
+            } else if currentCanvasDrawing == externalDrawing {
                 return false
             }
 

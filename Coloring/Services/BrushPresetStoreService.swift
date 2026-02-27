@@ -6,14 +6,26 @@ protocol BrushPresetStoreProviding {
 }
 
 actor BrushPresetStoreService: BrushPresetStoreProviding {
-    private let fileManager = FileManager.default
+    nonisolated private let documentsDirectoryURLProvider: @Sendable () throws -> URL
     private var cachedPresets: [BrushPreset]?
 
-    private var presetsFileURL: URL {
-        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+    init(
+        documentsDirectoryURLProvider: @escaping @Sendable () throws -> URL = {
+            guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            return documentsURL
+        }
+    ) {
+        self.documentsDirectoryURLProvider = documentsDirectoryURLProvider
+    }
+
+    private func presetsFileURL() throws -> URL {
+        let fileManager = FileManager.default
+        let documents = try documentsDirectoryURLProvider()
         let directory = documents.appendingPathComponent("BrushPresets", isDirectory: true)
         if !fileManager.fileExists(atPath: directory.path) {
-            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         return directory.appendingPathComponent("user_presets.json")
     }
@@ -23,20 +35,23 @@ actor BrushPresetStoreService: BrushPresetStoreProviding {
             return cached
         }
 
-        guard fileManager.fileExists(atPath: presetsFileURL.path) else {
+        let fileManager = FileManager.default
+        let fileURL = try presetsFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
             cachedPresets = []
             return []
         }
 
-        let data = try Data(contentsOf: presetsFileURL)
+        let data = try Data(contentsOf: fileURL)
         let presets = try JSONDecoder().decode([BrushPreset].self, from: data)
         cachedPresets = presets
         return presets
     }
 
     func saveUserPresets(_ presets: [BrushPreset]) throws {
+        let fileURL = try presetsFileURL()
         let data = try JSONEncoder().encode(presets)
-        try data.write(to: presetsFileURL, options: .atomic)
+        try data.write(to: fileURL, options: .atomic)
         cachedPresets = presets
     }
 }

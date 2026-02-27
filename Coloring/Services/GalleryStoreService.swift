@@ -8,7 +8,7 @@ protocol GalleryStoreProviding {
 }
 
 actor GalleryStoreService: GalleryStoreProviding {
-    private let fileManager = FileManager.default
+    nonisolated private let galleryDirectoryURLProvider: @Sendable () throws -> URL
     private var cachedEntries: [ArtworkEntry]?
 
     nonisolated static let galleryDirectoryURL: URL = {
@@ -16,18 +16,34 @@ actor GalleryStoreService: GalleryStoreProviding {
         return documents.appendingPathComponent("Gallery", isDirectory: true)
     }()
 
-    private var manifestURL: URL {
-        Self.galleryDirectoryURL.appendingPathComponent("manifest.json")
+    init(
+        galleryDirectoryURLProvider: (@Sendable () throws -> URL)? = nil
+    ) {
+        self.galleryDirectoryURLProvider = galleryDirectoryURLProvider ?? {
+            GalleryStoreService.galleryDirectoryURL
+        }
     }
 
-    private func ensureDirectoryExists() {
-        if !fileManager.fileExists(atPath: Self.galleryDirectoryURL.path) {
-            try? fileManager.createDirectory(at: Self.galleryDirectoryURL, withIntermediateDirectories: true)
+    private func galleryDirectoryURL() throws -> URL {
+        try galleryDirectoryURLProvider()
+    }
+
+    private func manifestURL() throws -> URL {
+        try galleryDirectoryURL().appendingPathComponent("manifest.json")
+    }
+
+    private func ensureDirectoryExists() throws {
+        let fileManager = FileManager.default
+        let directoryURL = try galleryDirectoryURL()
+        if !fileManager.fileExists(atPath: directoryURL.path) {
+            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         }
     }
 
     func loadEntries() throws -> [ArtworkEntry] {
-        ensureDirectoryExists()
+        let fileManager = FileManager.default
+        try ensureDirectoryExists()
+        let manifestURL = try manifestURL()
 
         guard fileManager.fileExists(atPath: manifestURL.path) else {
             cachedEntries = []
@@ -45,20 +61,21 @@ actor GalleryStoreService: GalleryStoreProviding {
         sourceTemplateID: String,
         sourceTemplateName: String
     ) throws -> ArtworkEntry {
-        ensureDirectoryExists()
+        try ensureDirectoryExists()
+        let directoryURL = try galleryDirectoryURL()
 
         let entryID = UUID().uuidString
         let fullImageFilename = "\(entryID).png"
         let thumbnailFilename = "\(entryID)_thumb.png"
 
         // Save full image
-        let fullImageURL = Self.galleryDirectoryURL.appendingPathComponent(fullImageFilename)
+        let fullImageURL = directoryURL.appendingPathComponent(fullImageFilename)
         try imageData.write(to: fullImageURL, options: .atomic)
 
         // Generate and save thumbnail
         if let fullImage = UIImage(data: imageData) {
             let thumbnailData = generateThumbnail(from: fullImage, maxSize: 300)
-            let thumbnailURL = Self.galleryDirectoryURL.appendingPathComponent(thumbnailFilename)
+            let thumbnailURL = directoryURL.appendingPathComponent(thumbnailFilename)
             try? thumbnailData?.write(to: thumbnailURL, options: .atomic)
         }
 
@@ -80,6 +97,8 @@ actor GalleryStoreService: GalleryStoreProviding {
     }
 
     func deleteEntry(_ id: String) throws {
+        let fileManager = FileManager.default
+        let directoryURL = try galleryDirectoryURL()
         var entries = (try? loadEntries()) ?? []
         guard let index = entries.firstIndex(where: { $0.id == id }) else {
             return
@@ -91,13 +110,14 @@ actor GalleryStoreService: GalleryStoreProviding {
         try persistManifest(entries)
 
         // Clean up files
-        let fullImageURL = Self.galleryDirectoryURL.appendingPathComponent(entry.fullImageFilename)
-        let thumbnailURL = Self.galleryDirectoryURL.appendingPathComponent(entry.thumbnailFilename)
+        let fullImageURL = directoryURL.appendingPathComponent(entry.fullImageFilename)
+        let thumbnailURL = directoryURL.appendingPathComponent(entry.thumbnailFilename)
         try? fileManager.removeItem(at: fullImageURL)
         try? fileManager.removeItem(at: thumbnailURL)
     }
 
     private func persistManifest(_ entries: [ArtworkEntry]) throws {
+        let manifestURL = try manifestURL()
         let data = try JSONEncoder().encode(entries)
         try data.write(to: manifestURL, options: .atomic)
     }
