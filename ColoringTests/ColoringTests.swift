@@ -809,6 +809,91 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorClearsPendingSyncWhenBindingCatchesUp() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let initialDrawing = PKDrawing()
+            let localDrawing = makeSampleTemplateDrawing()
+            let replacementDrawing = makeSampleTemplateDrawing()
+
+            drawingState.drawing = initialDrawing
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+            canvasView.drawing = localDrawing
+
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            XCTAssertFalse(
+                coordinator.shouldApplyExternalDrawing(
+                    initialDrawing,
+                    currentCanvasDrawing: canvasView.drawing
+                )
+            )
+
+            XCTAssertFalse(
+                coordinator.shouldApplyExternalDrawing(
+                    localDrawing,
+                    currentCanvasDrawing: canvasView.drawing
+                )
+            )
+
+            XCTAssertTrue(
+                coordinator.shouldApplyExternalDrawing(
+                    replacementDrawing,
+                    currentCanvasDrawing: canvasView.drawing
+                )
+            )
+        }
+    }
+
+    func testRefreshTemplatesFromStoragePreservesSelectionAcrossReload() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let thirdTemplate = Self.makeTemplate(id: "imported-1", title: "Imported One", source: .imported)
+        let library = StubTemplateLibrary(templates: [firstTemplate, secondTemplate])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.selectTemplate(secondTemplate.id)
+        }
+
+        await library.replaceTemplates(
+            [firstTemplate, secondTemplate, thirdTemplate],
+            importedCount: 1
+        )
+
+        await viewModel.refreshTemplatesFromStorage()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.selectedTemplateID, secondTemplate.id)
+            XCTAssertEqual(viewModel.selectedTemplate?.title, secondTemplate.title)
+            XCTAssertTrue(viewModel.templates.contains(where: { $0.id == thirdTemplate.id }))
+        }
+    }
+
     @MainActor
     private func makeViewModel(
         scenes: [ColoringScene],
@@ -1107,6 +1192,13 @@ private actor StubTemplateLibrary: TemplateLibraryProviding {
 
     func deleteAllImportedTemplates() throws {
         importedTemplates.removeAll()
+    }
+
+    func replaceTemplates(_ templates: [ColoringTemplate], importedCount: Int = 0) {
+        let clampedImportedCount = max(0, min(importedCount, templates.count))
+        let builtInCount = templates.count - clampedImportedCount
+        builtInTemplates = Array(templates.prefix(builtInCount))
+        importedTemplates = Array(templates.suffix(clampedImportedCount))
     }
 }
 
