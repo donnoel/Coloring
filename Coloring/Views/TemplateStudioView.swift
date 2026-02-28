@@ -535,8 +535,29 @@ struct TemplateStudioView: View {
                             viewModel.selectedCategoryFilter = category.id
                         }
                     } label: {
-                        Text(category.name)
-                            .font(.caption.weight(.medium))
+                        HStack(spacing: 6) {
+                            Text(category.name)
+                                .font(.caption.weight(.medium))
+
+                            if category.id == TemplateCategory.inProgressCategory.id {
+                                Text("\(viewModel.inProgressTemplateIDs.count)")
+                                    .font(.caption2.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(
+                                        viewModel.selectedCategoryFilter == category.id
+                                            ? Color.accentColor
+                                            : Color.secondary
+                                    )
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        viewModel.selectedCategoryFilter == category.id
+                                            ? Color.white.opacity(0.72)
+                                            : Color(.systemBackground).opacity(0.9),
+                                        in: Capsule()
+                                    )
+                            }
+                        }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(

@@ -275,7 +275,165 @@ final class ColoringTests: XCTestCase {
             viewModel.moveCategories(from: IndexSet(integer: sourceIndex), to: 0)
 
             XCTAssertEqual(viewModel.reorderableCategories.first?.name, "Action & Motion")
-            XCTAssertEqual(viewModel.allCategories[1].name, "Action & Motion")
+            XCTAssertEqual(viewModel.allCategories[1], TemplateCategory.inProgressCategory)
+            XCTAssertEqual(viewModel.allCategories[2].name, "Action & Motion")
+        }
+    }
+
+    func testInProgressCategoryLoadsPersistedColoringForUnselectedTemplate() async throws {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let drawingStore = StubTemplateDrawingStore()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        let layerStack = LayerStack.singleLayer(drawingData: sampleDrawing.dataRepresentation())
+        let layerStackData = try JSONEncoder().encode(layerStack)
+        try await drawingStore.saveLayerStackData(layerStackData, for: secondTemplate.id)
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.selectedTemplateID, firstTemplate.id)
+            XCTAssertEqual(viewModel.allCategories[1], TemplateCategory.inProgressCategory)
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([secondTemplate.id]))
+
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [secondTemplate.id])
+        }
+    }
+
+    func testInProgressCategoryIgnoresSerializedEmptyDrawingData() async throws {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let drawingStore = StubTemplateDrawingStore()
+        let emptyDrawingData = await MainActor.run { PKDrawing().dataRepresentation() }
+        let layerStack = LayerStack.singleLayer(drawingData: emptyDrawingData)
+        let layerStackData = try JSONEncoder().encode(layerStack)
+        try await drawingStore.saveLayerStackData(layerStackData, for: secondTemplate.id)
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            XCTAssertTrue(viewModel.inProgressTemplateIDs.isEmpty)
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertTrue(viewModel.filteredTemplates.isEmpty)
+        }
+    }
+
+    func testInProgressCategoryTracksBothStrokesAndFills() async throws {
+        let strokeTemplate = Self.makeTemplate(id: "builtin-strokes", title: "Template One")
+        let fillTemplate = Self.makeTemplate(id: "builtin-fills", title: "Template Two")
+        let drawingStore = StubTemplateDrawingStore()
+        try await drawingStore.saveFillData(sampleTemplateImageData, for: fillTemplate.id)
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [strokeTemplate, fillTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.createUserCategory(name: "Favorites")
+            guard let categoryID = viewModel.userCategories.first?.id else {
+                XCTFail("Expected created category.")
+                return
+            }
+            viewModel.assignTemplate(fillTemplate.id, toCategoryID: categoryID)
+        }
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([strokeTemplate.id, fillTemplate.id]))
+
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertEqual(
+                Set(viewModel.filteredTemplates.map(\.id)),
+                Set([strokeTemplate.id, fillTemplate.id])
+            )
+        }
+    }
+
+    func testClearingLastStrokeAndFillRemovesTemplateFromInProgress() async throws {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let drawingStore = StubTemplateDrawingStore()
+        try await drawingStore.saveFillData(sampleTemplateImageData, for: template.id)
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        let didRestoreFill = await waitForCondition {
+            await MainActor.run {
+                viewModel.currentFillImage != nil
+            }
+        }
+        XCTAssertTrue(didRestoreFill, "Expected saved fill to restore for the selected template.")
+
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        await MainActor.run {
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
+
+            viewModel.updateDrawing(sampleDrawing)
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
+
+            viewModel.clearDrawing()
+            XCTAssertEqual(
+                viewModel.inProgressTemplateIDs,
+                Set([template.id]),
+                "Saved fill should keep the template in progress after strokes are cleared."
+            )
+
+            viewModel.clearFills()
+            XCTAssertTrue(viewModel.inProgressTemplateIDs.isEmpty)
+
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertTrue(viewModel.filteredTemplates.isEmpty)
         }
     }
 

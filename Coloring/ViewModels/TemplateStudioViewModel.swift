@@ -48,6 +48,7 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var userCategories: [TemplateCategory] = []
     @Published private(set) var categoryAssignments: [String: String] = [:]
     @Published private(set) var categoryOrder: [String] = []
+    @Published private(set) var inProgressTemplateIDs: Set<String> = []
 
     private struct FillHistory {
         var undo: [Data?] = []
@@ -201,6 +202,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
             persistLastSelectedTemplateID(selectedTemplateID)
 
+            await restoreInProgressTemplateIDs(for: loadedTemplates.map(\.id))
             restoreDrawingForSelectedTemplate()
             restoreFillForSelectedTemplate()
 
@@ -252,8 +254,9 @@ final class TemplateStudioViewModel: ObservableObject {
     func updateDrawing(_ drawing: PKDrawing) {
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
-        currentLayerStack.updateDrawingData(drawing.dataRepresentation(), for: currentLayerStack.activeLayerID)
+        currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        refreshInProgressState(for: selectedTemplateID)
         debouncedPersistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
@@ -263,6 +266,7 @@ final class TemplateStudioViewModel: ObservableObject {
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         currentLayerStack.updateDrawingData(Data(), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
@@ -275,6 +279,7 @@ final class TemplateStudioViewModel: ObservableObject {
         currentDrawing = PKDrawing()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         _ = newLayer
@@ -294,6 +299,7 @@ final class TemplateStudioViewModel: ObservableObject {
             restoreActiveLayerDrawing()
         }
 
+        refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         invalidateExport()
@@ -352,13 +358,14 @@ final class TemplateStudioViewModel: ObservableObject {
         currentLayerStack.removeLayer(id)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         restoreActiveLayerDrawing()
+        refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         invalidateExport()
     }
 
     private func syncActiveLayerDrawingToStack() {
-        let drawingData = currentDrawing.dataRepresentation()
+        let drawingData = serializedDrawingData(for: currentDrawing)
         currentLayerStack.updateDrawingData(drawingData, for: currentLayerStack.activeLayerID)
     }
 
@@ -451,7 +458,7 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Template Categories
 
     var allCategories: [TemplateCategory] {
-        [TemplateCategory.allCategory] + orderedFolderCategories + [TemplateCategory.importedCategory]
+        [TemplateCategory.allCategory, TemplateCategory.inProgressCategory] + orderedFolderCategories + [TemplateCategory.importedCategory]
     }
 
     var reorderableCategories: [TemplateCategory] {
@@ -462,6 +469,10 @@ final class TemplateStudioViewModel: ObservableObject {
         let filterID = selectedCategoryFilter
         guard filterID != TemplateCategory.allCategory.id else {
             return templates
+        }
+
+        if filterID == TemplateCategory.inProgressCategory.id {
+            return templates.filter { inProgressTemplateIDs.contains($0.id) }
         }
 
         if filterID == TemplateCategory.importedCategory.id {
@@ -981,6 +992,104 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Private: Drawing Persistence
 
+    private func restoreInProgressTemplateIDs(for templateIDs: [String]) async {
+        var restoredTemplateIDs = Set<String>()
+
+        for templateID in templateIDs {
+            if hasColoring(for: templateID) {
+                restoredTemplateIDs.insert(templateID)
+                continue
+            }
+
+            if await hasPersistedColoring(for: templateID) {
+                restoredTemplateIDs.insert(templateID)
+            }
+        }
+
+        inProgressTemplateIDs = restoredTemplateIDs
+    }
+
+    private func refreshInProgressState(for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        if hasColoring(for: templateID) {
+            inProgressTemplateIDs.insert(templateID)
+        } else {
+            inProgressTemplateIDs.remove(templateID)
+        }
+    }
+
+    private func hasColoring(for templateID: String) -> Bool {
+        hasStrokeColoring(for: templateID) || hasFillColoring(for: templateID)
+    }
+
+    private func hasStrokeColoring(for templateID: String) -> Bool {
+        if let layerStack = layerStacksByTemplateID[templateID] {
+            return layerStack.layers.contains { drawingDataContainsVisibleStrokes($0.drawingData) }
+        }
+
+        if let drawing = drawingsByTemplateID[templateID] {
+            return !drawing.strokes.isEmpty
+        }
+
+        return false
+    }
+
+    private func hasFillColoring(for templateID: String) -> Bool {
+        guard let fillData = fillImagesByTemplateID[templateID] else {
+            return false
+        }
+
+        return !fillData.isEmpty
+    }
+
+    private func hasPersistedColoring(for templateID: String) async -> Bool {
+        do {
+            if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID),
+               let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData),
+               layerStack.layers.contains(where: { drawingDataContainsVisibleStrokes($0.drawingData) })
+            {
+                return true
+            }
+
+            if let drawingData = try await drawingStore.loadDrawingData(for: templateID),
+               drawingDataContainsVisibleStrokes(drawingData)
+            {
+                return true
+            }
+
+            if let fillData = try await drawingStore.loadFillData(for: templateID) {
+                return !fillData.isEmpty
+            }
+        } catch {
+            return false
+        }
+
+        return false
+    }
+
+    private func serializedDrawingData(for drawing: PKDrawing) -> Data {
+        guard !drawing.strokes.isEmpty else {
+            return Data()
+        }
+
+        return drawing.dataRepresentation()
+    }
+
+    private func drawingDataContainsVisibleStrokes(_ drawingData: Data) -> Bool {
+        guard !drawingData.isEmpty else {
+            return false
+        }
+
+        guard let drawing = try? PKDrawing(data: drawingData) else {
+            return true
+        }
+
+        return !drawing.strokes.isEmpty
+    }
+
     private func persistCurrentDrawing() {
         guard !selectedTemplateID.isEmpty else {
             return
@@ -1124,6 +1233,7 @@ final class TemplateStudioViewModel: ObservableObject {
                     restoreActiveLayerDrawing()
                     recompositeLayerOverlays()
                 }
+                refreshInProgressState(for: templateID)
                 return
             }
         } catch {
@@ -1167,6 +1277,8 @@ final class TemplateStudioViewModel: ObservableObject {
                 aboveLayerImage = nil
             }
 
+            refreshInProgressState(for: templateID)
+
             // Persist the migrated layer stack.
             persistLayerStack(for: templateID)
         } catch {
@@ -1205,6 +1317,7 @@ final class TemplateStudioViewModel: ObservableObject {
             currentFillImage = fillData.flatMap(UIImage.init(data:))
         }
 
+        refreshInProgressState(for: templateID)
         persistFill(for: templateID)
         invalidateExport()
     }
@@ -1270,6 +1383,7 @@ final class TemplateStudioViewModel: ObservableObject {
             if selectedTemplateID == templateID {
                 currentFillImage = UIImage(data: fillData)
             }
+            refreshInProgressState(for: templateID)
         } catch {
             // Keep existing fill state if persistence read fails.
         }

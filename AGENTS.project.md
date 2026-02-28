@@ -13,7 +13,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
 - Apple Pencil Template Studio with orientation-aware built-in packs (22 landscape + 18 portrait)
-- Built-in folder filters include Landscape/Portrait plus five title-based folders with multi-folder membership support
+- Built-in folder filters include In Progress with a live count badge, Landscape/Portrait, plus five title-based folders with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
@@ -61,6 +61,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Imported templates are saved locally with atomic writes.
 - Imported templates are mirrored to iCloud when available and restored locally if missing.
 - Template stroke progress is saved per drawing and restored from iCloud after reinstall.
+- The In Progress folder automatically includes drawings that have saved strokes or fills, and removes them when both are cleared.
+- The In Progress chip displays the current number of drawings with saved strokes or fills.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
