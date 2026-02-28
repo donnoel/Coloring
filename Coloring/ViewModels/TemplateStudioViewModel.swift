@@ -65,6 +65,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private var fillImagesByTemplateID: [String: Data] = [:]
     private var fillImageCacheByTemplateID: [String: UIImage] = [:]
+    private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var fillHistoryByTemplateID: [String: FillHistory] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
@@ -189,7 +190,22 @@ final class TemplateStudioViewModel: ObservableObject {
         do {
             let loadedTemplates = try await templateLibrary.loadTemplates()
             templates = loadedTemplates
-            builtInCategories = TemplateCategory.builtInCategories(from: loadedTemplates)
+            builtInCategoryNamesByTemplateID = Dictionary(
+                uniqueKeysWithValues: loadedTemplates.map { template in
+                    (template.id, TemplateCategory.builtInCategoryNames(for: template))
+                }
+            )
+            builtInCategories = Set(
+                builtInCategoryNamesByTemplateID.values.flatMap(\.self)
+            )
+            .sorted()
+            .map { name in
+                TemplateCategory(
+                    id: TemplateCategory.builtInCategoryID(for: name),
+                    name: name,
+                    isUserCreated: false
+                )
+            }
             syncCategoryOrderWithAvailableCategories()
             let validTemplateIDs = Set(loadedTemplates.map(\.id))
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
@@ -496,9 +512,7 @@ final class TemplateStudioViewModel: ObservableObject {
         // Built-in category: match by category name
         if let builtInCat = builtInCategories.first(where: { $0.id == filterID }) {
             return templates.filter { template in
-                TemplateCategory
-                    .builtInCategoryNames(for: template)
-                    .contains(builtInCat.name)
+                builtInCategoryNamesByTemplateID[template.id]?.contains(builtInCat.name) ?? false
             }
         }
 

@@ -87,7 +87,7 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
         }
     }
 
-    private static func builtInCategoryID(for name: String) -> String {
+    static func builtInCategoryID(for name: String) -> String {
         let slug = name
             .lowercased()
             .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
