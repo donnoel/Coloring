@@ -4,7 +4,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift">
   <img src="https://img.shields.io/badge/Platform-iPadOS-blue">
-  <img src="https://img.shields.io/badge/Templates-40%20Built--In-purple">
+  <img src="https://img.shields.io/badge/Templates-39%20Built--In-purple">
   <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud">
 </p>
 
@@ -30,13 +30,15 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
-| **40 Built-In Orientation Packs** | Includes 22 landscape and 18 portrait built-in drawings. |
+| **39 Built-In Orientation Packs** | Includes 22 landscape and 17 portrait built-in drawings. |
+| **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills and shows a live count badge. |
 | **Expanded Built-In Folders** | Adds five title-based folders (Cities & Landmarks, Nature & Outdoors, People & Portraits, Animals & Wildlife, Action & Motion); drawings can appear in multiple folders. |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
 | **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels. |
+| **Fill Erasing in Coloring Mode** | The PencilKit eraser can remove touched fill regions after you switch back from fill mode. |
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Template Orientation Enforcement** | Landscape templates request landscape mode; portrait templates request portrait mode when opened. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
@@ -45,7 +47,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
-| **Per-Template Stroke Recovery** | Drawing data is persisted per template and mirrored to iCloud for reinstall recovery. |
+| **Per-Template Progress Recovery** | Pencil strokes, fills, and layer state are restored per template so work reappears when you return. |
 | **Destructive Action Confirmations** | Confirmation prompts for clear strokes, clear fills, and imported drawing deletions. |
 | **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
@@ -54,7 +56,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
-- **Category Folders**: Keep existing built-in folders and filter by five additional title-based folders; the same drawing may appear in more than one folder.
+- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), plus the five title-based folders; the same drawing may appear in more than one built-in folder.
 - **Folder Ordering**: Open **Manage Categories** and drag folders to set the order shown in category chips.
 - **Orientation by Template**: Built-in landscape drawings open in landscape mode; built-in portrait drawings open in portrait mode.
 - **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
@@ -66,6 +68,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Fill**: Switch to fill mode from the floating palette and tap enclosed regions to color them.
 - **Palette Position**: Use the arrow button in the palette to move it between top and bottom.
 - **Fill Undo/Redo**: In fill mode, use toolbar arrows to step backward or forward one fill action at a time.
+- **Fill Erasing**: After filling, switch back to coloring mode and use the PencilKit eraser to remove the touched fill region.
 - **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.
 - **Manage Imported Templates**: Rename, delete one, or use **Delete All Imported** (with confirmations).
@@ -193,8 +196,8 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=i
 
 ## Roadmap
 
-- [ ] Template category filtering and favorites.
-- [ ] Undo/redo workflow improvements.
+- [ ] Favorites.
+- [ ] Broader undo/redo coverage for non-fill actions.
 - [ ] Additional automated test coverage and reduced simulator flakiness.
 
 ---
