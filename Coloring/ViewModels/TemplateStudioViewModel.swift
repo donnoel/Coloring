@@ -49,6 +49,12 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var categoryAssignments: [String: String] = [:]
     @Published private(set) var categoryOrder: [String] = []
     @Published private(set) var inProgressTemplateIDs: Set<String> = []
+    @Published private(set) var allCategories: [TemplateCategory] = [
+        TemplateCategory.allCategory,
+        TemplateCategory.inProgressCategory,
+        TemplateCategory.importedCategory
+    ]
+    @Published private(set) var reorderableCategories: [TemplateCategory] = []
 
     private struct FillHistory {
         var undo: [Data?] = []
@@ -481,14 +487,6 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Template Categories
 
-    var allCategories: [TemplateCategory] {
-        [TemplateCategory.allCategory, TemplateCategory.inProgressCategory] + orderedFolderCategories + [TemplateCategory.importedCategory]
-    }
-
-    var reorderableCategories: [TemplateCategory] {
-        orderedFolderCategories
-    }
-
     var filteredTemplates: [ColoringTemplate] {
         let filterID = selectedCategoryFilter
         guard filterID != TemplateCategory.allCategory.id else {
@@ -536,6 +534,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
         userCategories[index].name = name
+        rebuildCategoryLists()
         persistUserCategories()
     }
 
@@ -569,7 +568,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        var updatedCategories = orderedFolderCategories
+        var updatedCategories = reorderableCategories
         let sourceIndexes = source.sorted()
         let movedCategories = sourceIndexes.map { updatedCategories[$0] }
 
@@ -582,6 +581,7 @@ final class TemplateStudioViewModel: ObservableObject {
         updatedCategories.insert(contentsOf: movedCategories, at: adjustedDestination)
 
         categoryOrder = updatedCategories.map(\.id)
+        rebuildCategoryLists()
         persistCategoryOrder()
     }
 
@@ -625,10 +625,16 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
-    private var orderedFolderCategories: [TemplateCategory] {
+    private func rebuildCategoryLists() {
         let availableCategories = builtInCategories + userCategories
         guard !availableCategories.isEmpty else {
-            return []
+            reorderableCategories = []
+            allCategories = [
+                TemplateCategory.allCategory,
+                TemplateCategory.inProgressCategory,
+                TemplateCategory.importedCategory
+            ]
+            return
         }
 
         let categoriesByID = Dictionary(uniqueKeysWithValues: availableCategories.map { ($0.id, $0) })
@@ -648,7 +654,11 @@ final class TemplateStudioViewModel: ObservableObject {
             ordered.append(category)
         }
 
-        return ordered
+        reorderableCategories = ordered
+        allCategories = [
+            TemplateCategory.allCategory,
+            TemplateCategory.inProgressCategory
+        ] + ordered + [TemplateCategory.importedCategory]
     }
 
     private func syncCategoryOrderWithAvailableCategories() {
@@ -658,6 +668,8 @@ final class TemplateStudioViewModel: ObservableObject {
         for category in builtInCategories + userCategories where !categoryOrder.contains(category.id) {
             categoryOrder.append(category.id)
         }
+
+        rebuildCategoryLists()
     }
 
     // MARK: - Fill Mode
