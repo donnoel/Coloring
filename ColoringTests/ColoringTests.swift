@@ -276,7 +276,92 @@ final class ColoringTests: XCTestCase {
 
             XCTAssertEqual(viewModel.reorderableCategories.first?.name, "Action & Motion")
             XCTAssertEqual(viewModel.allCategories[1], TemplateCategory.inProgressCategory)
-            XCTAssertEqual(viewModel.allCategories[2].name, "Action & Motion")
+            XCTAssertEqual(viewModel.allCategories[2], TemplateCategory.favoritesCategory)
+            XCTAssertEqual(viewModel.allCategories[3], TemplateCategory.recentCategory)
+            XCTAssertEqual(viewModel.allCategories[4], TemplateCategory.completedCategory)
+            XCTAssertEqual(viewModel.allCategories[5].name, "Action & Motion")
+        }
+    }
+
+    func testFavoritesCompletedAndRecentCategoriesFilterTemplates() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let thirdTemplate = Self.makeTemplate(id: "builtin-3", title: "Template Three")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate, thirdTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.selectTemplate(secondTemplate.id)
+            viewModel.selectTemplate(thirdTemplate.id)
+            viewModel.toggleFavorite(for: secondTemplate.id)
+            viewModel.toggleCompleted(for: thirdTemplate.id)
+
+            viewModel.selectedCategoryFilter = TemplateCategory.favoritesCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [secondTemplate.id])
+
+            viewModel.selectedCategoryFilter = TemplateCategory.completedCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [thirdTemplate.id])
+
+            viewModel.selectedCategoryFilter = TemplateCategory.recentCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [thirdTemplate.id, secondTemplate.id])
+        }
+    }
+
+    func testUndoRedoRestoresStrokeAndFillChanges() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            XCTAssertTrue(viewModel.canUndoEdit)
+
+            viewModel.clearDrawing()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.undoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, sampleDrawing.strokes.count)
+
+            viewModel.redoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+            XCTAssertNotNil(viewModel.currentFillImage)
+
+            viewModel.clearFills()
+            XCTAssertNil(viewModel.currentFillImage)
+
+            viewModel.undoLastEdit()
+            XCTAssertNotNil(viewModel.currentFillImage)
         }
     }
 
@@ -307,6 +392,7 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             XCTAssertEqual(viewModel.selectedTemplateID, firstTemplate.id)
             XCTAssertEqual(viewModel.allCategories[1], TemplateCategory.inProgressCategory)
+            XCTAssertEqual(viewModel.allCategories[2], TemplateCategory.favoritesCategory)
             XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([secondTemplate.id]))
 
             viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
@@ -1018,41 +1104,41 @@ final class ColoringTests: XCTestCase {
 
         await MainActor.run {
             viewModel.isFillModeActive = true
-            XCTAssertFalse(viewModel.canUndoFill)
-            XCTAssertFalse(viewModel.canRedoFill)
+            XCTAssertFalse(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canRedoEdit)
 
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
             let firstSignature = imageSignature(from: viewModel.currentFillImage)
             XCTAssertNotNil(firstSignature)
-            XCTAssertTrue(viewModel.canUndoFill)
-            XCTAssertFalse(viewModel.canRedoFill)
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canRedoEdit)
 
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
             let secondSignature = imageSignature(from: viewModel.currentFillImage)
             XCTAssertNotNil(secondSignature)
             XCTAssertNotEqual(firstSignature, secondSignature)
-            XCTAssertTrue(viewModel.canUndoFill)
-            XCTAssertFalse(viewModel.canRedoFill)
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canRedoEdit)
 
             viewModel.undoFillStep()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), firstSignature)
-            XCTAssertTrue(viewModel.canUndoFill)
-            XCTAssertTrue(viewModel.canRedoFill)
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.canRedoEdit)
 
             viewModel.undoFillStep()
             XCTAssertNil(viewModel.currentFillImage)
-            XCTAssertFalse(viewModel.canUndoFill)
-            XCTAssertTrue(viewModel.canRedoFill)
+            XCTAssertFalse(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.canRedoEdit)
 
             viewModel.redoFillStep()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), firstSignature)
-            XCTAssertTrue(viewModel.canUndoFill)
-            XCTAssertTrue(viewModel.canRedoFill)
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.canRedoEdit)
 
             viewModel.redoFillStep()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), secondSignature)
-            XCTAssertTrue(viewModel.canUndoFill)
-            XCTAssertFalse(viewModel.canRedoFill)
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canRedoEdit)
         }
     }
 
@@ -1085,7 +1171,7 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
             XCTAssertNil(viewModel.currentFillImage)
-            XCTAssertFalse(viewModel.canUndoFill)
+            XCTAssertFalse(viewModel.canUndoEdit)
         }
     }
 
@@ -1124,7 +1210,7 @@ final class ColoringTests: XCTestCase {
             viewModel.handleFillErase(at: CGPoint(x: 0.5, y: 0.5))
 
             XCTAssertNil(viewModel.currentFillImage)
-            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertTrue(viewModel.inProgressTemplateIDs.isEmpty)
 
             viewModel.undoFillStep()
@@ -1958,6 +2044,9 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
     private var categories: [TemplateCategory] = []
     private var assignments: [String: String] = [:]
     private var categoryOrder: [String] = []
+    private var favorites: Set<String> = []
+    private var completed: Set<String> = []
+    private var recent: [String] = []
 
     func loadUserCategories() throws -> [TemplateCategory] {
         categories
@@ -1981,6 +2070,30 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
 
     func saveCategoryOrder(_ categoryOrder: [String]) throws {
         self.categoryOrder = categoryOrder
+    }
+
+    func loadFavoriteTemplateIDs() throws -> Set<String> {
+        favorites
+    }
+
+    func saveFavoriteTemplateIDs(_ templateIDs: Set<String>) throws {
+        favorites = templateIDs
+    }
+
+    func loadCompletedTemplateIDs() throws -> Set<String> {
+        completed
+    }
+
+    func saveCompletedTemplateIDs(_ templateIDs: Set<String>) throws {
+        completed = templateIDs
+    }
+
+    func loadRecentTemplateIDs() throws -> [String] {
+        recent
+    }
+
+    func saveRecentTemplateIDs(_ templateIDs: [String]) throws {
+        recent = templateIDs
     }
 }
 

@@ -13,7 +13,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
 - Apple Pencil Template Studio with orientation-aware built-in packs (22 landscape + 17 portrait)
-- Built-in folder filters include In Progress with a live count badge, Landscape/Portrait, plus five title-based folders with multi-folder membership support
+- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Landscape/Portrait, plus five title-based folders with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
@@ -63,6 +63,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Template stroke progress is saved per drawing and restored from iCloud after reinstall.
 - The In Progress folder automatically includes drawings that have saved strokes or fills, and removes them when both are cleared.
 - The In Progress chip displays the current number of drawings with saved strokes or fills.
+- Favorites and Completed folder membership persist locally per drawing, and Recent reflects the most recently opened drawings first.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
@@ -72,6 +73,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
 - Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
 - The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.
+- Undo and redo should preserve the combined per-template edit history for strokes, fills, fill erasing, clears, and layer operations.
 - The floating palette should support top/bottom placement, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
 
 ## UX rules
@@ -92,8 +94,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
   - `xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/platform=iOS Simulator' clean build`
 
 ## Near-term priorities
-- Add template category filtering and favorites.
-- Add undo/redo for coloring actions.
+- Add title search for templates.
+- Add custom color palette management.
 - Add broader automated test coverage and reduce simulator test flakiness.
 
 ## Output expectations per patch

@@ -7,6 +7,12 @@ protocol TemplateCategoryStoreProviding {
     func saveCategoryAssignments(_ assignments: [String: String]) async throws
     func loadCategoryOrder() async throws -> [String]
     func saveCategoryOrder(_ categoryOrder: [String]) async throws
+    func loadFavoriteTemplateIDs() async throws -> Set<String>
+    func saveFavoriteTemplateIDs(_ templateIDs: Set<String>) async throws
+    func loadCompletedTemplateIDs() async throws -> Set<String>
+    func saveCompletedTemplateIDs(_ templateIDs: Set<String>) async throws
+    func loadRecentTemplateIDs() async throws -> [String]
+    func saveRecentTemplateIDs(_ templateIDs: [String]) async throws
 }
 
 actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
@@ -43,6 +49,18 @@ actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
 
     private func categoryOrderFileURL() throws -> URL {
         try storeDirectory().appendingPathComponent("category_order.json")
+    }
+
+    private func favoritesFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("favorite_template_ids.json")
+    }
+
+    private func completedFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("completed_template_ids.json")
+    }
+
+    private func recentFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("recent_template_ids.json")
     }
 
     func loadUserCategories() throws -> [TemplateCategory] {
@@ -93,6 +111,57 @@ actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
     func saveCategoryOrder(_ categoryOrder: [String]) throws {
         let fileURL = try categoryOrderFileURL()
         let data = try JSONEncoder().encode(categoryOrder)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    func loadFavoriteTemplateIDs() throws -> Set<String> {
+        let fileManager = FileManager.default
+        let fileURL = try favoritesFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            return []
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        return try JSONDecoder().decode(Set<String>.self, from: data)
+    }
+
+    func saveFavoriteTemplateIDs(_ templateIDs: Set<String>) throws {
+        let fileURL = try favoritesFileURL()
+        let data = try JSONEncoder().encode(templateIDs)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    func loadCompletedTemplateIDs() throws -> Set<String> {
+        let fileManager = FileManager.default
+        let fileURL = try completedFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            return []
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        return try JSONDecoder().decode(Set<String>.self, from: data)
+    }
+
+    func saveCompletedTemplateIDs(_ templateIDs: Set<String>) throws {
+        let fileURL = try completedFileURL()
+        let data = try JSONEncoder().encode(templateIDs)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    func loadRecentTemplateIDs() throws -> [String] {
+        let fileManager = FileManager.default
+        let fileURL = try recentFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            return []
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        return try JSONDecoder().decode([String].self, from: data)
+    }
+
+    func saveRecentTemplateIDs(_ templateIDs: [String]) throws {
+        let fileURL = try recentFileURL()
+        let data = try JSONEncoder().encode(templateIDs)
         try data.write(to: fileURL, options: .atomic)
     }
 }

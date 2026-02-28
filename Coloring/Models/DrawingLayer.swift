@@ -1,7 +1,7 @@
 import SwiftUI
 import Foundation
 
-struct DrawingLayer: Identifiable, Codable, Sendable {
+struct DrawingLayer: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
     var name: String
     var isVisible: Bool
@@ -17,7 +17,7 @@ struct DrawingLayer: Identifiable, Codable, Sendable {
     }
 }
 
-struct LayerStack: Codable, Sendable {
+struct LayerStack: Codable, Sendable, Equatable {
     var layers: [DrawingLayer]
     var activeLayerID: UUID
 

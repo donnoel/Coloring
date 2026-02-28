@@ -3,14 +3,14 @@ import SwiftUI
 struct TemplatePaletteBarView: View {
     @Binding var isFillModeActive: Bool
     @Binding var selectedColorID: String
-    var canUndoFill: Bool
-    var canRedoFill: Bool
+    var canUndo: Bool
+    var canRedo: Bool
     var isPaletteAtTop: Bool
     var isLibraryVisible: Bool
     var onToggleLibrary: () -> Void
     var onTogglePalettePlacement: () -> Void
-    var onUndoFill: () -> Void
-    var onRedoFill: () -> Void
+    var onUndo: () -> Void
+    var onRedo: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -107,31 +107,29 @@ struct TemplatePaletteBarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Fill Mode")
 
-            if isFillModeActive {
-                Button {
-                    onUndoFill()
-                } label: {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(canUndoFill ? .secondary : .tertiary)
-                        .padding(6)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canUndoFill)
-                .accessibilityLabel("Undo Fill")
-
-                Button {
-                    onRedoFill()
-                } label: {
-                    Image(systemName: "arrow.uturn.forward")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(canRedoFill ? .secondary : .tertiary)
-                        .padding(6)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canRedoFill)
-                .accessibilityLabel("Redo Fill")
+            Button {
+                onUndo()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(canUndo ? .secondary : .tertiary)
+                    .padding(6)
             }
+            .buttonStyle(.plain)
+            .disabled(!canUndo)
+            .accessibilityLabel("Undo")
+
+            Button {
+                onRedo()
+            } label: {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(canRedo ? .secondary : .tertiary)
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRedo)
+            .accessibilityLabel("Redo")
         }
     }
 

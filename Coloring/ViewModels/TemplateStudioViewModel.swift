@@ -49,9 +49,14 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var categoryAssignments: [String: String] = [:]
     @Published private(set) var categoryOrder: [String] = []
     @Published private(set) var inProgressTemplateIDs: Set<String> = []
+    @Published private(set) var favoriteTemplateIDs: Set<String> = []
+    @Published private(set) var completedTemplateIDs: Set<String> = []
     @Published private(set) var allCategories: [TemplateCategory] = [
         TemplateCategory.allCategory,
         TemplateCategory.inProgressCategory,
+        TemplateCategory.favoritesCategory,
+        TemplateCategory.recentCategory,
+        TemplateCategory.completedCategory,
         TemplateCategory.importedCategory
     ]
     @Published private(set) var reorderableCategories: [TemplateCategory] = []
@@ -67,12 +72,24 @@ final class TemplateStudioViewModel: ObservableObject {
         let fillImage: UIImage?
     }
 
+    private struct TemplateEditSnapshot: Equatable {
+        let layerStack: LayerStack
+        let fillData: Data?
+    }
+
+    private struct TemplateEditHistory {
+        var undo: [TemplateEditSnapshot] = []
+        var redo: [TemplateEditSnapshot] = []
+    }
+
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private var fillImagesByTemplateID: [String: Data] = [:]
     private var fillImageCacheByTemplateID: [String: UIImage] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var fillHistoryByTemplateID: [String: FillHistory] = [:]
+    private var editHistoryByTemplateID: [String: TemplateEditHistory] = [:]
+    private var recentTemplateIDs: [String] = []
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
     private let drawingStore: any TemplateDrawingStoreProviding
@@ -89,6 +106,8 @@ final class TemplateStudioViewModel: ObservableObject {
     private var debouncedPersistTask: Task<Void, Never>?
     private var pendingPersistTemplateIDs: Set<String> = []
     private let maxFillHistorySteps = 100
+    private let maxEditHistorySteps = 100
+    private let maxRecentTemplates = 20
 
     init(
         templateLibrary: any TemplateLibraryProviding,
@@ -147,20 +166,20 @@ final class TemplateStudioViewModel: ObservableObject {
         ColoringColor.palette.first { $0.id == selectedFillColorID }
     }
 
-    var canUndoFill: Bool {
+    var canUndoEdit: Bool {
         guard !selectedTemplateID.isEmpty else {
             return false
         }
 
-        return !(fillHistoryByTemplateID[selectedTemplateID]?.undo.isEmpty ?? true)
+        return !(editHistoryByTemplateID[selectedTemplateID]?.undo.isEmpty ?? true)
     }
 
-    var canRedoFill: Bool {
+    var canRedoEdit: Bool {
         guard !selectedTemplateID.isEmpty else {
             return false
         }
 
-        return !(fillHistoryByTemplateID[selectedTemplateID]?.redo.isEmpty ?? true)
+        return !(editHistoryByTemplateID[selectedTemplateID]?.redo.isEmpty ?? true)
     }
 
     // MARK: - Template Loading
@@ -219,6 +238,10 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillHistoryByTemplateID = fillHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            editHistoryByTemplateID = editHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
+            completedTemplateIDs = completedTemplateIDs.intersection(validTemplateIDs)
+            recentTemplateIDs.removeAll { !validTemplateIDs.contains($0) }
             importErrorMessage = nil
 
             if selectedTemplateID.isEmpty || !validTemplateIDs.contains(selectedTemplateID) {
@@ -265,6 +288,7 @@ final class TemplateStudioViewModel: ObservableObject {
         persistCurrentFill()
         selectedTemplateID = templateID
         persistLastSelectedTemplateID(templateID)
+        markTemplateAsRecent(templateID)
         // Clear immediately so the canvas never shows a mismatched image/drawing pair.
         selectedTemplateImage = nil
         loadedTemplateImageID = nil
@@ -282,20 +306,24 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Drawing
 
     func updateDrawing(_ drawing: PKDrawing) {
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
         debouncedPersistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
 
     func clearDrawing() {
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = PKDrawing()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         currentLayerStack.updateDrawingData(Data(), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         invalidateExport()
@@ -304,11 +332,13 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Layers
 
     func addLayer() {
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         let newLayer = currentLayerStack.addLayer(name: "Layer \(currentLayerStack.layers.count)")
         currentDrawing = PKDrawing()
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
@@ -320,6 +350,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         let wasActive = currentLayerStack.activeLayerID == id
         currentLayerStack.removeLayer(id)
@@ -329,6 +360,7 @@ final class TemplateStudioViewModel: ObservableObject {
             restoreActiveLayerDrawing()
         }
 
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
@@ -348,8 +380,10 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func toggleLayerVisibility(_ id: UUID) {
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         currentLayerStack.toggleVisibility(id)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         invalidateExport()
@@ -362,14 +396,17 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func moveLayer(from source: IndexSet, to destination: Int) {
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         currentLayerStack.moveLayer(from: source, to: destination)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         invalidateExport()
     }
 
     func mergeDown(_ id: UUID) {
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         guard let pair = currentLayerStack.mergeDown(id) else {
             return
@@ -388,6 +425,7 @@ final class TemplateStudioViewModel: ObservableObject {
         currentLayerStack.removeLayer(id)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         restoreActiveLayerDrawing()
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
@@ -497,6 +535,19 @@ final class TemplateStudioViewModel: ObservableObject {
             return templates.filter { inProgressTemplateIDs.contains($0.id) }
         }
 
+        if filterID == TemplateCategory.favoritesCategory.id {
+            return templates.filter { favoriteTemplateIDs.contains($0.id) }
+        }
+
+        if filterID == TemplateCategory.recentCategory.id {
+            let templatesByID = Dictionary(uniqueKeysWithValues: templates.map { ($0.id, $0) })
+            return recentTemplateIDs.compactMap { templatesByID[$0] }
+        }
+
+        if filterID == TemplateCategory.completedCategory.id {
+            return templates.filter { completedTemplateIDs.contains($0.id) }
+        }
+
         if filterID == TemplateCategory.importedCategory.id {
             return templates.filter { $0.source == .imported && categoryAssignments[$0.id] == nil }
         }
@@ -585,6 +636,42 @@ final class TemplateStudioViewModel: ObservableObject {
         persistCategoryOrder()
     }
 
+    func toggleFavorite(for templateID: String) {
+        guard templates.contains(where: { $0.id == templateID }) else {
+            return
+        }
+
+        if favoriteTemplateIDs.contains(templateID) {
+            favoriteTemplateIDs.remove(templateID)
+        } else {
+            favoriteTemplateIDs.insert(templateID)
+        }
+
+        persistFavoriteTemplateIDs()
+    }
+
+    func toggleCompleted(for templateID: String) {
+        guard templates.contains(where: { $0.id == templateID }) else {
+            return
+        }
+
+        if completedTemplateIDs.contains(templateID) {
+            completedTemplateIDs.remove(templateID)
+        } else {
+            completedTemplateIDs.insert(templateID)
+        }
+
+        persistCompletedTemplateIDs()
+    }
+
+    func isFavorite(_ templateID: String) -> Bool {
+        favoriteTemplateIDs.contains(templateID)
+    }
+
+    func isCompleted(_ templateID: String) -> Bool {
+        completedTemplateIDs.contains(templateID)
+    }
+
     func loadCategoriesIfNeeded() {
         Task { [categoryStore] in
             do {
@@ -594,10 +681,16 @@ final class TemplateStudioViewModel: ObservableObject {
                 self.categoryAssignments = assignments
                 let storedOrder = try await categoryStore.loadCategoryOrder()
                 self.categoryOrder = storedOrder
+                self.favoriteTemplateIDs = try await categoryStore.loadFavoriteTemplateIDs()
+                self.completedTemplateIDs = try await categoryStore.loadCompletedTemplateIDs()
+                self.recentTemplateIDs = try await categoryStore.loadRecentTemplateIDs()
+                self.filterStoredTemplateStateToAvailableTemplates()
                 self.syncCategoryOrderWithAvailableCategories()
+                self.markTemplateAsRecent(self.selectedTemplateID)
             } catch {
                 // Silently ignore - starts with empty user categories
                 self.syncCategoryOrderWithAvailableCategories()
+                self.markTemplateAsRecent(self.selectedTemplateID)
             }
         }
         builtInCategories = TemplateCategory.builtInCategories(from: templates)
@@ -625,6 +718,49 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
+    private func persistFavoriteTemplateIDs() {
+        let templateIDs = favoriteTemplateIDs
+        Task { [categoryStore, templateIDs] in
+            try? await categoryStore.saveFavoriteTemplateIDs(templateIDs)
+        }
+    }
+
+    private func persistCompletedTemplateIDs() {
+        let templateIDs = completedTemplateIDs
+        Task { [categoryStore, templateIDs] in
+            try? await categoryStore.saveCompletedTemplateIDs(templateIDs)
+        }
+    }
+
+    private func persistRecentTemplateIDs() {
+        let templateIDs = recentTemplateIDs
+        Task { [categoryStore, templateIDs] in
+            try? await categoryStore.saveRecentTemplateIDs(templateIDs)
+        }
+    }
+
+    private func markTemplateAsRecent(_ templateID: String) {
+        guard !templateID.isEmpty,
+              templates.contains(where: { $0.id == templateID })
+        else {
+            return
+        }
+
+        recentTemplateIDs.removeAll { $0 == templateID }
+        recentTemplateIDs.insert(templateID, at: 0)
+        if recentTemplateIDs.count > maxRecentTemplates {
+            recentTemplateIDs.removeLast(recentTemplateIDs.count - maxRecentTemplates)
+        }
+        persistRecentTemplateIDs()
+    }
+
+    private func filterStoredTemplateStateToAvailableTemplates() {
+        let validTemplateIDs = Set(templates.map(\.id))
+        favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
+        completedTemplateIDs = completedTemplateIDs.intersection(validTemplateIDs)
+        recentTemplateIDs.removeAll { !validTemplateIDs.contains($0) }
+    }
+
     private func rebuildCategoryLists() {
         let availableCategories = builtInCategories + userCategories
         guard !availableCategories.isEmpty else {
@@ -632,6 +768,9 @@ final class TemplateStudioViewModel: ObservableObject {
             allCategories = [
                 TemplateCategory.allCategory,
                 TemplateCategory.inProgressCategory,
+                TemplateCategory.favoritesCategory,
+                TemplateCategory.recentCategory,
+                TemplateCategory.completedCategory,
                 TemplateCategory.importedCategory
             ]
             return
@@ -657,7 +796,10 @@ final class TemplateStudioViewModel: ObservableObject {
         reorderableCategories = ordered
         allCategories = [
             TemplateCategory.allCategory,
-            TemplateCategory.inProgressCategory
+            TemplateCategory.inProgressCategory,
+            TemplateCategory.favoritesCategory,
+            TemplateCategory.recentCategory,
+            TemplateCategory.completedCategory
         ] + ordered + [TemplateCategory.importedCategory]
     }
 
@@ -732,8 +874,9 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         applyFillData(nextFillData, for: selectedTemplateID, cachedImage: fillOverlay)
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
     }
 
     func handleFillErase(at normalizedPoint: CGPoint) {
@@ -748,9 +891,9 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        let currentFillData = fillImagesByTemplateID[selectedTemplateID] ?? currentFillImage.pngData()
-        recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         applyFillData(eraseResult.fillData, for: selectedTemplateID, cachedImage: eraseResult.fillImage)
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
     }
 
     func clearFills() {
@@ -763,34 +906,45 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
+        let previousSnapshot = snapshot(for: selectedTemplateID)
         applyFillData(nil, for: selectedTemplateID)
+        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
     }
 
     func undoFillStep() {
-        guard !selectedTemplateID.isEmpty,
-              var history = fillHistoryByTemplateID[selectedTemplateID],
-              let previousFillData = history.undo.popLast()
-        else {
-            return
-        }
-
-        history.redo.append(fillImagesByTemplateID[selectedTemplateID])
-        fillHistoryByTemplateID[selectedTemplateID] = history
-        applyFillData(previousFillData, for: selectedTemplateID)
+        undoLastEdit()
     }
 
     func redoFillStep() {
+        redoLastEdit()
+    }
+
+    func undoLastEdit() {
         guard !selectedTemplateID.isEmpty,
-              var history = fillHistoryByTemplateID[selectedTemplateID],
-              let nextFillData = history.redo.popLast()
+              var history = editHistoryByTemplateID[selectedTemplateID],
+              let previousSnapshot = history.undo.popLast(),
+              let currentSnapshot = snapshot(for: selectedTemplateID)
         else {
             return
         }
 
-        history.undo.append(fillImagesByTemplateID[selectedTemplateID])
-        fillHistoryByTemplateID[selectedTemplateID] = history
-        applyFillData(nextFillData, for: selectedTemplateID)
+        history.redo.append(currentSnapshot)
+        editHistoryByTemplateID[selectedTemplateID] = history
+        applyEditSnapshot(previousSnapshot, for: selectedTemplateID)
+    }
+
+    func redoLastEdit() {
+        guard !selectedTemplateID.isEmpty,
+              var history = editHistoryByTemplateID[selectedTemplateID],
+              let nextSnapshot = history.redo.popLast(),
+              let currentSnapshot = snapshot(for: selectedTemplateID)
+        else {
+            return
+        }
+
+        history.undo.append(currentSnapshot)
+        editHistoryByTemplateID[selectedTemplateID] = history
+        applyEditSnapshot(nextSnapshot, for: selectedTemplateID)
     }
 
     // MARK: - Import / Rename / Delete
@@ -839,6 +993,25 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillHistoryByTemplateID[renamedTemplate.id] = fillHistory
             }
 
+            if let editHistory = editHistoryByTemplateID.removeValue(forKey: templateID) {
+                editHistoryByTemplateID[renamedTemplate.id] = editHistory
+            }
+
+            if favoriteTemplateIDs.remove(templateID) != nil {
+                favoriteTemplateIDs.insert(renamedTemplate.id)
+                persistFavoriteTemplateIDs()
+            }
+
+            if completedTemplateIDs.remove(templateID) != nil {
+                completedTemplateIDs.insert(renamedTemplate.id)
+                persistCompletedTemplateIDs()
+            }
+
+            if let recentIndex = recentTemplateIDs.firstIndex(of: templateID) {
+                recentTemplateIDs[recentIndex] = renamedTemplate.id
+                persistRecentTemplateIDs()
+            }
+
             await reloadTemplates()
             selectTemplate(renamedTemplate.id)
             importStatusMessage = "Drawing renamed."
@@ -861,9 +1034,16 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImagesByTemplateID.removeValue(forKey: templateID)
             fillImageCacheByTemplateID.removeValue(forKey: templateID)
             fillHistoryByTemplateID.removeValue(forKey: templateID)
+            editHistoryByTemplateID.removeValue(forKey: templateID)
+            favoriteTemplateIDs.remove(templateID)
+            completedTemplateIDs.remove(templateID)
+            recentTemplateIDs.removeAll { $0 == templateID }
 
             await reloadTemplates()
             invalidateExport()
+            persistFavoriteTemplateIDs()
+            persistCompletedTemplateIDs()
+            persistRecentTemplateIDs()
             importStatusMessage = "Drawing deleted."
         } catch {
             importErrorMessage = error.localizedDescription
@@ -888,10 +1068,17 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImagesByTemplateID.removeValue(forKey: templateID)
                 fillImageCacheByTemplateID.removeValue(forKey: templateID)
                 fillHistoryByTemplateID.removeValue(forKey: templateID)
+                editHistoryByTemplateID.removeValue(forKey: templateID)
+                favoriteTemplateIDs.remove(templateID)
+                completedTemplateIDs.remove(templateID)
+                recentTemplateIDs.removeAll { $0 == templateID }
             }
 
             await reloadTemplates()
             invalidateExport()
+            persistFavoriteTemplateIDs()
+            persistCompletedTemplateIDs()
+            persistRecentTemplateIDs()
             importStatusMessage = "All imported drawings deleted."
         } catch {
             importErrorMessage = error.localizedDescription
@@ -1222,6 +1409,95 @@ final class TemplateStudioViewModel: ObservableObject {
         exportedFileURL = nil
         exportStatusMessage = nil
         exportErrorMessage = nil
+    }
+
+    private func snapshot(for templateID: String) -> TemplateEditSnapshot? {
+        guard !templateID.isEmpty else {
+            return nil
+        }
+
+        let layerStack = layerStacksByTemplateID[templateID]
+            ?? {
+                if templateID == selectedTemplateID {
+                    return currentLayerStack
+                }
+
+                let drawingData = serializedDrawingData(for: drawingsByTemplateID[templateID] ?? PKDrawing())
+                return LayerStack.singleLayer(drawingData: drawingData)
+            }()
+
+        return TemplateEditSnapshot(
+            layerStack: layerStack,
+            fillData: fillImagesByTemplateID[templateID]
+        )
+    }
+
+    private func recordEditChange(from previousSnapshot: TemplateEditSnapshot?, for templateID: String) {
+        guard !templateID.isEmpty,
+              let previousSnapshot,
+              let currentSnapshot = snapshot(for: templateID),
+              previousSnapshot != currentSnapshot
+        else {
+            return
+        }
+
+        var history = editHistoryByTemplateID[templateID] ?? TemplateEditHistory()
+        history.undo.append(previousSnapshot)
+        if history.undo.count > maxEditHistorySteps {
+            history.undo.removeFirst(history.undo.count - maxEditHistorySteps)
+        }
+        history.redo.removeAll(keepingCapacity: true)
+        editHistoryByTemplateID[templateID] = history
+    }
+
+    private func applyEditSnapshot(_ snapshot: TemplateEditSnapshot, for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        layerStacksByTemplateID[templateID] = snapshot.layerStack
+
+        if let activeLayer = snapshot.layerStack.activeLayer,
+           !activeLayer.drawingData.isEmpty,
+           let drawing = try? PKDrawing(data: activeLayer.drawingData)
+        {
+            drawingsByTemplateID[templateID] = drawing
+        } else {
+            drawingsByTemplateID[templateID] = PKDrawing()
+        }
+
+        if let fillData = snapshot.fillData {
+            fillImagesByTemplateID[templateID] = fillData
+            if selectedTemplateID != templateID {
+                fillImageCacheByTemplateID.removeValue(forKey: templateID)
+            }
+        } else {
+            fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillImageCacheByTemplateID.removeValue(forKey: templateID)
+        }
+
+        if selectedTemplateID == templateID {
+            currentLayerStack = snapshot.layerStack
+            restoreActiveLayerDrawing()
+            recompositeLayerOverlays()
+            if let fillData = snapshot.fillData {
+                currentFillImage = fillImageCacheByTemplateID[templateID]
+                    ?? {
+                        let decodedImage = UIImage(data: fillData)
+                        if let decodedImage {
+                            fillImageCacheByTemplateID[templateID] = decodedImage
+                        }
+                        return decodedImage
+                    }()
+            } else {
+                currentFillImage = nil
+            }
+        }
+
+        refreshInProgressState(for: templateID)
+        persistLayerStack(for: templateID)
+        persistFill(for: templateID)
+        invalidateExport()
     }
 
     private func persistLastSelectedTemplateID(_ templateID: String) {

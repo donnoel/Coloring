@@ -7,6 +7,9 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
 
     static let allCategory = TemplateCategory(id: "all", name: "All", isUserCreated: false)
     static let inProgressCategory = TemplateCategory(id: "in-progress", name: "In Progress", isUserCreated: false)
+    static let favoritesCategory = TemplateCategory(id: "favorites", name: "Favorites", isUserCreated: false)
+    static let recentCategory = TemplateCategory(id: "recent", name: "Recent", isUserCreated: false)
+    static let completedCategory = TemplateCategory(id: "completed", name: "Completed", isUserCreated: false)
     static let importedCategory = TemplateCategory(id: "imported", name: "Imported", isUserCreated: false)
     private static let titleBasedBuiltInCategoryTitles: [String: Set<String>] = [
         "Cities & Landmarks": [

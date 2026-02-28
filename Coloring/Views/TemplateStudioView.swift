@@ -416,6 +416,8 @@ struct TemplateStudioView: View {
 
     private func templateRow(_ template: ColoringTemplate) -> some View {
         let isSelected = template.id == viewModel.selectedTemplateID
+        let isFavorite = viewModel.isFavorite(template.id)
+        let isCompleted = viewModel.isCompleted(template.id)
 
         return Button {
             viewModel.selectTemplate(template.id)
@@ -444,6 +446,18 @@ struct TemplateStudioView: View {
                         .background(Color.white.opacity(0.58), in: Circle())
                 }
 
+                if isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.yellow)
+                }
+
+                if isCompleted {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .symbolRenderingMode(.hierarchical)
@@ -464,6 +478,18 @@ struct TemplateStudioView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            Button {
+                viewModel.toggleFavorite(for: template.id)
+            } label: {
+                Label(isFavorite ? "Remove Favorite" : "Add Favorite", systemImage: isFavorite ? "star.slash" : "star")
+            }
+
+            Button {
+                viewModel.toggleCompleted(for: template.id)
+            } label: {
+                Label(isCompleted ? "Mark Incomplete" : "Mark Completed", systemImage: isCompleted ? "arrow.uturn.backward.circle" : "checkmark.seal")
+            }
+
             if template.isImported {
                 Button {
                     startRename(template)
@@ -517,7 +543,11 @@ struct TemplateStudioView: View {
     }
 
     private var sortedTemplates: [ColoringTemplate] {
-        viewModel.filteredTemplates.sorted { lhs, rhs in
+        if viewModel.selectedCategoryFilter == TemplateCategory.recentCategory.id {
+            return viewModel.filteredTemplates
+        }
+
+        return viewModel.filteredTemplates.sorted { lhs, rhs in
             if lhs.source != rhs.source {
                 return lhs.source == .imported
             }
@@ -667,8 +697,8 @@ struct TemplateStudioView: View {
         TemplatePaletteBarView(
             isFillModeActive: $viewModel.isFillModeActive,
             selectedColorID: $viewModel.selectedFillColorID,
-            canUndoFill: viewModel.canUndoFill,
-            canRedoFill: viewModel.canRedoFill,
+            canUndo: viewModel.canUndoEdit,
+            canRedo: viewModel.canRedoEdit,
             isPaletteAtTop: isPaletteAtTop,
             isLibraryVisible: columnVisibility != .detailOnly,
             onToggleLibrary: {
@@ -679,8 +709,8 @@ struct TemplateStudioView: View {
             onTogglePalettePlacement: {
                 togglePalettePlacement()
             },
-            onUndoFill: { viewModel.undoFillStep() },
-            onRedoFill: { viewModel.redoFillStep() }
+            onUndo: { viewModel.undoLastEdit() },
+            onRedo: { viewModel.redoLastEdit() }
         )
         .padding(.horizontal, 20)
         .opacity((isPaletteVisible || viewModel.isFillModeActive) ? 1 : 0)
