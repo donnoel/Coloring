@@ -13,6 +13,8 @@ struct PencilCanvasView: UIViewRepresentable {
     var fillImage: UIImage?
     /// Normalized tap location in template space (0...1 for both axes).
     var onFillTap: ((CGPoint) -> Void)?
+    /// Normalized touch location in template space used to erase a fill region.
+    var onFillErase: ((CGPoint) -> Void)?
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
     var brushTool: PKInkingTool?
@@ -83,7 +85,7 @@ struct PencilCanvasView: UIViewRepresentable {
         uiView.scrollView.delegate = nil
     }
 
-    final class Coordinator: NSObject, PKCanvasViewDelegate, UIPencilInteractionDelegate, UIScrollViewDelegate {
+    final class Coordinator: NSObject, PKCanvasViewDelegate, UIPencilInteractionDelegate, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         var parent: PencilCanvasView
         private weak var canvasView: PKCanvasView?
         private weak var containerView: ZoomableCanvasContainerView?
@@ -94,6 +96,7 @@ struct PencilCanvasView: UIViewRepresentable {
         var lastTemplateID: String?
         var lastTemplateImageIdentity: ObjectIdentifier?
         private var fillTapGesture: UITapGestureRecognizer?
+        private var fillEraseGesture: UILongPressGestureRecognizer?
         private weak var drawingGestureRecognizer: UIGestureRecognizer?
         private var lastAppliedBrushTool: PKInkingTool?
         private var latestLocalDrawingData: Data?
@@ -111,6 +114,7 @@ struct PencilCanvasView: UIViewRepresentable {
             self.containerView = containerView
             canvasView.tool = lastInkTool
             installDrawingInteractionTracking(on: canvasView)
+            installFillEraseGestureIfNeeded(on: canvasView)
 
             guard !isRunningTests else {
                 return
@@ -164,6 +168,7 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker = nil
             pencilInteraction = nil
             drawingGestureRecognizer = nil
+            fillEraseGesture?.isEnabled = false
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
             self.canvasView = nil
@@ -187,6 +192,20 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingLocalSyncResetWorkItem = nil
             latestLocalDrawingData = nil
             hasPendingLocalDrawingSync = false
+        }
+
+        private func installFillEraseGestureIfNeeded(on canvasView: PKCanvasView) {
+            guard fillEraseGesture == nil else {
+                return
+            }
+
+            let gesture = UILongPressGestureRecognizer(target: self, action: #selector(handleFillEraseGesture(_:)))
+            gesture.minimumPressDuration = 0
+            gesture.allowableMovement = .greatestFiniteMagnitude
+            gesture.cancelsTouchesInView = false
+            gesture.delegate = self
+            canvasView.addGestureRecognizer(gesture)
+            fillEraseGesture = gesture
         }
 
         func shouldApplyExternalDrawing(_ externalDrawing: PKDrawing, currentCanvasDrawing: PKDrawing) -> Bool {
@@ -262,22 +281,39 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
-            guard let containerView else {
+            guard let normalizedPoint = normalizedTemplatePoint(for: gesture) else {
                 return
+            }
+
+            parent.onFillTap?(normalizedPoint)
+        }
+
+        @objc private func handleFillEraseGesture(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began || gesture.state == .changed,
+                  !parent.fillMode,
+                  canvasView?.tool is PKEraserTool,
+                  let normalizedPoint = normalizedTemplatePoint(for: gesture)
+            else {
+                return
+            }
+
+            parent.onFillErase?(normalizedPoint)
+        }
+
+        private func normalizedTemplatePoint(for gesture: UIGestureRecognizer) -> CGPoint? {
+            guard let containerView else {
+                return nil
             }
 
             let location = gesture.location(in: containerView.contentView)
             let contentSize = containerView.contentView.bounds.size
             guard contentSize.width > 0, contentSize.height > 0 else {
-                return
+                return nil
             }
 
-            // Convert tap from content-view space to normalized template coordinates.
             let normalizedX = min(max(location.x / contentSize.width, 0), 1)
             let normalizedY = min(max(location.y / contentSize.height, 0), 1)
-            let imagePoint = CGPoint(x: normalizedX, y: normalizedY)
-
-            parent.onFillTap?(imagePoint)
+            return CGPoint(x: normalizedX, y: normalizedY)
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
@@ -340,6 +376,13 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             canvasView.tool = PKEraserTool(.bitmap)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer === fillEraseGesture || otherGestureRecognizer === fillEraseGesture
         }
     }
 }

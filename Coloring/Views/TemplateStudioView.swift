@@ -636,6 +636,9 @@ struct TemplateStudioView: View {
                 onFillTap: { normalizedPoint in
                     viewModel.handleFillTap(at: normalizedPoint)
                 },
+                onFillErase: { normalizedPoint in
+                    viewModel.handleFillErase(at: normalizedPoint)
+                },
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
                 brushTool: viewModel.currentBrushTool

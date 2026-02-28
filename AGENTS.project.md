@@ -12,7 +12,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Single full-screen Apple Pencil studio (no Scene/Templates tab split)
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
-- Apple Pencil Template Studio with orientation-aware built-in packs (22 landscape + 18 portrait)
+- Apple Pencil Template Studio with orientation-aware built-in packs (22 landscape + 17 portrait)
 - Built-in folder filters include In Progress with a live count badge, Landscape/Portrait, plus five title-based folders with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Imported drawing templates from Photos/Files
@@ -71,6 +71,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
 - Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
+- The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.
 - The floating palette should support top/bottom placement, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
 
 ## UX rules

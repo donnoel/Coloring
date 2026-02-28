@@ -1089,6 +1089,50 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testFillEraseClearsFilledRegionAndSupportsUndo() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+
+            let filledSignature = imageSignature(from: viewModel.currentFillImage)
+            XCTAssertNotNil(filledSignature)
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
+
+            viewModel.isFillModeActive = false
+            viewModel.handleFillErase(at: CGPoint(x: 0.5, y: 0.5))
+
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertTrue(viewModel.canUndoFill)
+            XCTAssertTrue(viewModel.inProgressTemplateIDs.isEmpty)
+
+            viewModel.undoFillStep()
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), filledSignature)
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
+        }
+    }
+
     func testLoadBrushPresetsIfNeededLoadsUserPresets() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let brushStore = StubBrushPresetStore()
