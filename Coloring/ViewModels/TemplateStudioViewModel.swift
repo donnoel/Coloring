@@ -58,11 +58,13 @@ final class TemplateStudioViewModel: ObservableObject {
     private struct FillEraseResult {
         let didChange: Bool
         let fillData: Data?
+        let fillImage: UIImage?
     }
 
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private var fillImagesByTemplateID: [String: Data] = [:]
+    private var fillImageCacheByTemplateID: [String: UIImage] = [:]
     private var fillHistoryByTemplateID: [String: FillHistory] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
@@ -193,6 +195,7 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillHistoryByTemplateID = fillHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             importErrorMessage = nil
 
@@ -704,7 +707,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
-        applyFillData(nextFillData, for: selectedTemplateID)
+        applyFillData(nextFillData, for: selectedTemplateID, cachedImage: fillOverlay)
     }
 
     func handleFillErase(at normalizedPoint: CGPoint) {
@@ -721,7 +724,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         let currentFillData = fillImagesByTemplateID[selectedTemplateID] ?? currentFillImage.pngData()
         recordFillStateChange(previousFillData: currentFillData, for: selectedTemplateID)
-        applyFillData(eraseResult.fillData, for: selectedTemplateID)
+        applyFillData(eraseResult.fillData, for: selectedTemplateID, cachedImage: eraseResult.fillImage)
     }
 
     func clearFills() {
@@ -802,6 +805,10 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImagesByTemplateID[renamedTemplate.id] = fillData
             }
 
+            if let fillImage = fillImageCacheByTemplateID.removeValue(forKey: templateID) {
+                fillImageCacheByTemplateID[renamedTemplate.id] = fillImage
+            }
+
             if let fillHistory = fillHistoryByTemplateID.removeValue(forKey: templateID) {
                 fillHistoryByTemplateID[renamedTemplate.id] = fillHistory
             }
@@ -826,6 +833,7 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID.removeValue(forKey: templateID)
             layerStacksByTemplateID.removeValue(forKey: templateID)
             fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillImageCacheByTemplateID.removeValue(forKey: templateID)
             fillHistoryByTemplateID.removeValue(forKey: templateID)
 
             await reloadTemplates()
@@ -852,6 +860,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 drawingsByTemplateID.removeValue(forKey: templateID)
                 layerStacksByTemplateID.removeValue(forKey: templateID)
                 fillImagesByTemplateID.removeValue(forKey: templateID)
+                fillImageCacheByTemplateID.removeValue(forKey: templateID)
                 fillHistoryByTemplateID.removeValue(forKey: templateID)
             }
 
@@ -1324,19 +1333,37 @@ final class TemplateStudioViewModel: ObservableObject {
         fillHistoryByTemplateID[templateID] = history
     }
 
-    private func applyFillData(_ fillData: Data?, for templateID: String) {
+    private func applyFillData(_ fillData: Data?, for templateID: String, cachedImage: UIImage? = nil) {
         guard !templateID.isEmpty else {
             return
         }
 
         if let fillData {
             fillImagesByTemplateID[templateID] = fillData
+            if let cachedImage {
+                fillImageCacheByTemplateID[templateID] = cachedImage
+            } else if selectedTemplateID != templateID {
+                fillImageCacheByTemplateID.removeValue(forKey: templateID)
+            }
         } else {
             fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillImageCacheByTemplateID.removeValue(forKey: templateID)
         }
 
         if selectedTemplateID == templateID {
-            currentFillImage = fillData.flatMap(UIImage.init(data:))
+            if let fillData {
+                currentFillImage = cachedImage
+                    ?? fillImageCacheByTemplateID[templateID]
+                    ?? {
+                        let decodedImage = UIImage(data: fillData)
+                        if let decodedImage {
+                            fillImageCacheByTemplateID[templateID] = decodedImage
+                        }
+                        return decodedImage
+                    }()
+            } else {
+                currentFillImage = nil
+            }
         }
 
         refreshInProgressState(for: templateID)
@@ -1349,8 +1376,12 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        if let fillImage = currentFillImage {
-            fillImagesByTemplateID[selectedTemplateID] = fillImage.pngData()
+        if fillImagesByTemplateID[selectedTemplateID] == nil,
+           let fillImage = currentFillImage,
+           let fillData = fillImage.pngData()
+        {
+            fillImagesByTemplateID[selectedTemplateID] = fillData
+            fillImageCacheByTemplateID[selectedTemplateID] = fillImage
         }
         persistFill(for: selectedTemplateID)
     }
@@ -1362,7 +1393,14 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if let fillData = fillImagesByTemplateID[selectedTemplateID] {
-            currentFillImage = UIImage(data: fillData)
+            currentFillImage = fillImageCacheByTemplateID[selectedTemplateID]
+                ?? {
+                    let decodedImage = UIImage(data: fillData)
+                    if let decodedImage {
+                        fillImageCacheByTemplateID[selectedTemplateID] = decodedImage
+                    }
+                    return decodedImage
+                }()
             return
         }
 
@@ -1403,7 +1441,14 @@ final class TemplateStudioViewModel: ObservableObject {
 
             fillImagesByTemplateID[templateID] = fillData
             if selectedTemplateID == templateID {
-                currentFillImage = UIImage(data: fillData)
+                currentFillImage = fillImageCacheByTemplateID[templateID]
+                    ?? {
+                        let decodedImage = UIImage(data: fillData)
+                        if let decodedImage {
+                            fillImageCacheByTemplateID[templateID] = decodedImage
+                        }
+                        return decodedImage
+                    }()
             }
             refreshInProgressState(for: templateID)
         } catch {
@@ -1532,13 +1577,13 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func eraseFillOverlayRegion(in fillImage: UIImage, at normalizedPoint: CGPoint) -> FillEraseResult {
         guard let fillCGImage = fillImage.cgImage else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         let width = fillCGImage.width
         let height = fillCGImage.height
         guard width > 0, height > 0 else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         let clampedPoint = CGPoint(
@@ -1553,7 +1598,7 @@ final class TemplateStudioViewModel: ObservableObject {
         let totalBytes = height * bytesPerRow
 
         guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -1566,20 +1611,20 @@ final class TemplateStudioViewModel: ObservableObject {
             space: colorSpace,
             bitmapInfo: bitmapInfo.rawValue
         ) else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         context.draw(fillCGImage, in: CGRect(x: 0, y: 0, width: width, height: height))
 
         guard let data = context.data else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         let pixels = data.bindMemory(to: UInt8.self, capacity: totalBytes)
         let targetIndex = (pixelY * bytesPerRow) + (pixelX * bytesPerPixel)
         let targetAlpha = pixels[targetIndex + 3]
         guard targetAlpha > 0 else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         let targetRed = pixels[targetIndex]
@@ -1696,22 +1741,26 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         guard didErase else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
         let hasVisiblePixels = stride(from: 0, to: totalBytes, by: bytesPerPixel)
             .contains { pixels[$0 + 3] > 0 }
         guard hasVisiblePixels else {
-            return FillEraseResult(didChange: true, fillData: nil)
+            return FillEraseResult(didChange: true, fillData: nil, fillImage: nil)
         }
 
-        guard let erasedImage = context.makeImage(),
-              let fillData = UIImage(cgImage: erasedImage).pngData()
+        guard let erasedCGImage = context.makeImage() else {
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
+        }
+
+        let erasedImage = UIImage(cgImage: erasedCGImage)
+        guard let fillData = erasedImage.pngData()
         else {
-            return FillEraseResult(didChange: false, fillData: nil)
+            return FillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
-        return FillEraseResult(didChange: true, fillData: fillData)
+        return FillEraseResult(didChange: true, fillData: fillData, fillImage: erasedImage)
     }
 
     private func fillOverlayPixelMatchesTarget(

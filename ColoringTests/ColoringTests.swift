@@ -1133,6 +1133,48 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testSelectingFilledTemplateRestoresFillFromInMemoryState() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [firstTemplate, secondTemplate],
+                    imageDataSequence: [templateImageData, templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+            let filledSignature = imageSignature(from: viewModel.currentFillImage)
+            XCTAssertNotNil(filledSignature)
+
+            viewModel.selectTemplate(secondTemplate.id)
+            XCTAssertNil(viewModel.currentFillImage)
+
+            viewModel.selectTemplate(firstTemplate.id)
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), filledSignature)
+        }
+    }
+
     func testLoadBrushPresetsIfNeededLoadsUserPresets() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let brushStore = StubBrushPresetStore()
