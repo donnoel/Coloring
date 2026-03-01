@@ -8,75 +8,6 @@ import XCTest
 @testable import Coloring
 
 final class ColoringTests: XCTestCase {
-    func testApplyColorStoresSelectionForRegion() async {
-        await MainActor.run {
-            let viewModel = makeViewModel(scenes: [makeScene(id: "scene-1", regionIDs: ["sky", "sun"])])
-
-            viewModel.selectColor("ocean")
-            viewModel.applyColor(to: "sky")
-
-            XCTAssertEqual(viewModel.colorForRegion("sky")?.id, "ocean")
-        }
-    }
-
-    func testSwitchingScenesKeepsIndependentColorMaps() async {
-        await MainActor.run {
-            let sceneOne = makeScene(id: "scene-1", regionIDs: ["sky"])
-            let sceneTwo = makeScene(id: "scene-2", regionIDs: ["track"])
-            let viewModel = makeViewModel(scenes: [sceneOne, sceneTwo])
-
-            viewModel.selectColor("sunset-red")
-            viewModel.applyColor(to: "sky")
-
-            viewModel.selectScene("scene-2")
-            viewModel.selectColor("teal")
-            viewModel.applyColor(to: "track")
-
-            XCTAssertEqual(viewModel.colorForRegion("track")?.id, "teal")
-
-            viewModel.selectScene("scene-1")
-            XCTAssertEqual(viewModel.colorForRegion("sky")?.id, "sunset-red")
-        }
-    }
-
-    func testClearCurrentSceneRemovesAppliedColors() async {
-        await MainActor.run {
-            let viewModel = makeViewModel(scenes: [makeScene(id: "scene-1", regionIDs: ["ocean"])])
-
-            viewModel.selectColor("violet")
-            viewModel.applyColor(to: "ocean")
-            XCTAssertTrue(viewModel.canClearCurrentScene)
-
-            viewModel.clearCurrentScene()
-
-            XCTAssertNil(viewModel.colorForRegion("ocean"))
-            XCTAssertFalse(viewModel.canClearCurrentScene)
-        }
-    }
-
-    func testExportSetsShareURL() async {
-        let expectedURL = URL(fileURLWithPath: "/tmp/preview.png")
-        let exportService = StubExportService(resultURL: expectedURL)
-        let viewModel = await MainActor.run {
-            makeViewModel(
-                scenes: [makeScene(id: "scene-1", regionIDs: ["field"])],
-                exportService: exportService
-            )
-        }
-
-        await viewModel.exportCurrentScene(canvasSize: CGSize(width: 640, height: 480))
-
-        await MainActor.run {
-            XCTAssertEqual(viewModel.exportedFileURL, expectedURL)
-            XCTAssertEqual(viewModel.exportStatusMessage, "Export is ready to share.")
-        }
-
-        let exportedSceneIDs = await MainActor.run {
-            exportService.exportedSceneIDs
-        }
-        XCTAssertEqual(exportedSceneIDs, ["scene-1"])
-    }
-
     func testTemplateLoadSelectsFirstTemplate() async {
         let library = StubTemplateLibrary(templates: [
             Self.makeTemplate(id: "builtin-1", title: "Template One"),
@@ -471,6 +402,91 @@ final class ColoringTests: XCTestCase {
                 Set(viewModel.filteredTemplates.map(\.id)),
                 Set([strokeTemplate.id, fillTemplate.id])
             )
+        }
+    }
+
+    func testCompletedTemplateIsHiddenFromInProgressCategory() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            XCTAssertEqual(viewModel.visibleInProgressTemplateIDs, Set([template.id]))
+
+            viewModel.toggleCompleted(for: template.id)
+            XCTAssertTrue(viewModel.visibleInProgressTemplateIDs.isEmpty)
+
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertTrue(viewModel.filteredTemplates.isEmpty)
+
+            viewModel.selectedCategoryFilter = TemplateCategory.completedCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [template.id])
+
+            viewModel.toggleCompleted(for: template.id)
+            XCTAssertEqual(viewModel.visibleInProgressTemplateIDs, Set([template.id]))
+
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [template.id])
+        }
+    }
+
+    func testPersistedCompletedTemplateIsExcludedFromInProgressAfterCategoryRestore() async throws {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let drawingStore = StubTemplateDrawingStore()
+        let categoryStore = StubCategoryStore()
+        try await drawingStore.saveFillData(sampleTemplateImageData, for: secondTemplate.id)
+        try await categoryStore.saveCompletedTemplateIDs([secondTemplate.id])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: categoryStore,
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.loadCategoriesIfNeeded()
+        }
+
+        let categoriesLoaded = await waitForCondition {
+            await MainActor.run {
+                viewModel.isCompleted(secondTemplate.id)
+            }
+        }
+        XCTAssertTrue(categoriesLoaded, "Expected completed state to restore from storage.")
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([secondTemplate.id]))
+            XCTAssertTrue(viewModel.visibleInProgressTemplateIDs.isEmpty)
+
+            viewModel.selectedCategoryFilter = TemplateCategory.inProgressCategory.id
+            XCTAssertTrue(viewModel.filteredTemplates.isEmpty)
+
+            viewModel.selectedCategoryFilter = TemplateCategory.completedCategory.id
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [secondTemplate.id])
         }
     }
 
@@ -1120,22 +1136,22 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertFalse(viewModel.canRedoEdit)
 
-            viewModel.undoFillStep()
+            viewModel.undoLastEdit()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), firstSignature)
             XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertTrue(viewModel.canRedoEdit)
 
-            viewModel.undoFillStep()
+            viewModel.undoLastEdit()
             XCTAssertNil(viewModel.currentFillImage)
             XCTAssertFalse(viewModel.canUndoEdit)
             XCTAssertTrue(viewModel.canRedoEdit)
 
-            viewModel.redoFillStep()
+            viewModel.redoLastEdit()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), firstSignature)
             XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertTrue(viewModel.canRedoEdit)
 
-            viewModel.redoFillStep()
+            viewModel.redoLastEdit()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), secondSignature)
             XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertFalse(viewModel.canRedoEdit)
@@ -1213,7 +1229,7 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertTrue(viewModel.inProgressTemplateIDs.isEmpty)
 
-            viewModel.undoFillStep()
+            viewModel.undoLastEdit()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), filledSignature)
             XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
         }
@@ -1657,42 +1673,6 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    @MainActor
-    private func makeViewModel(
-        scenes: [ColoringScene],
-        exportService: any ArtworkExporting = NoOpExportService()
-    ) -> ColoringBookViewModel {
-        ColoringBookViewModel(
-            sceneCatalog: StubSceneCatalog(scenes: scenes),
-            exportService: exportService,
-            palette: ColoringColor.palette
-        )
-    }
-
-    private func makeScene(id: String, regionIDs: [String]) -> ColoringScene {
-        let regions = regionIDs.map { regionID in
-            SceneRegion(
-                id: regionID,
-                name: regionID,
-                shape: .polygon([
-                    UnitPoint2D(x: 0.1, y: 0.1),
-                    UnitPoint2D(x: 0.9, y: 0.1),
-                    UnitPoint2D(x: 0.9, y: 0.9),
-                    UnitPoint2D(x: 0.1, y: 0.9)
-                ])
-            )
-        }
-
-        return ColoringScene(
-            id: id,
-            title: id,
-            subtitle: "Test Scene",
-            canvasAspectRatio: 4.0 / 3.0,
-            regions: regions,
-            detailStrokes: []
-        )
-    }
-
     private static func makeTemplate(id: String, title: String, source: ColoringTemplate.Source = .builtIn) -> ColoringTemplate {
         ColoringTemplate(
             id: id,
@@ -1871,35 +1851,6 @@ final class ColoringTests: XCTestCase {
 @MainActor
 private final class DrawingStateBox {
     var drawing = PKDrawing()
-}
-
-private struct StubSceneCatalog: SceneCatalogProviding {
-    let scenes: [ColoringScene]
-
-    func loadScenes() -> [ColoringScene] {
-        scenes
-    }
-}
-
-private struct NoOpExportService: ArtworkExporting {
-    func exportPNG(scene _: ColoringScene, regionColors _: [String: ColoringColor], canvasSize _: CGSize) async throws -> URL {
-        URL(fileURLWithPath: "/tmp/noop.png")
-    }
-}
-
-@MainActor
-private final class StubExportService: ArtworkExporting {
-    private(set) var exportedSceneIDs: [String] = []
-    private let resultURL: URL
-
-    init(resultURL: URL) {
-        self.resultURL = resultURL
-    }
-
-    func exportPNG(scene: ColoringScene, regionColors _: [String: ColoringColor], canvasSize _: CGSize) async throws -> URL {
-        exportedSceneIDs.append(scene.id)
-        return resultURL
-    }
 }
 
 private actor StubTemplateLibrary: TemplateLibraryProviding {
@@ -2127,20 +2078,24 @@ private actor StubBrushPresetStore: BrushPresetStoreProviding {
     }
 }
 
-private final class StubFloodFillService: FloodFillProviding {
+private final class StubFloodFillService: FloodFillProviding, @unchecked Sendable {
     private let images: [CGImage]
+    private let lock = NSLock()
     private var index = 0
 
     init(images: [UIImage]) {
         self.images = images.compactMap(\.cgImage)
     }
 
-    func floodFill(
+    nonisolated func floodFill(
         image _: CGImage,
         at _: CGPoint,
         with _: UIColor,
         tolerance _: Int
     ) -> CGImage? {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard !images.isEmpty else {
             return nil
         }

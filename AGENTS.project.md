@@ -61,8 +61,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Imported templates are saved locally with atomic writes.
 - Imported templates are mirrored to iCloud when available and restored locally if missing.
 - Template stroke progress is saved per drawing and restored from iCloud after reinstall.
-- The In Progress folder automatically includes drawings that have saved strokes or fills, and removes them when both are cleared.
-- The In Progress chip displays the current number of drawings with saved strokes or fills.
+- The In Progress folder automatically includes drawings that have saved strokes or fills, excludes drawings marked Completed, and removes drawings when both strokes and fills are cleared.
+- The In Progress chip displays the current number of non-completed drawings with saved strokes or fills.
 - Favorites and Completed folder membership persist locally per drawing, and Recent reflects the most recently opened drawings first.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.

@@ -54,6 +54,9 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var inProgressTemplateIDs: Set<String> = []
     @Published private(set) var favoriteTemplateIDs: Set<String> = []
     @Published private(set) var completedTemplateIDs: Set<String> = []
+    var visibleInProgressTemplateIDs: Set<String> {
+        inProgressTemplateIDs.subtracting(completedTemplateIDs)
+    }
     @Published private(set) var allCategories: [TemplateCategory] = [
         TemplateCategory.allCategory,
         TemplateCategory.inProgressCategory,
@@ -63,11 +66,6 @@ final class TemplateStudioViewModel: ObservableObject {
         TemplateCategory.importedCategory
     ]
     @Published private(set) var reorderableCategories: [TemplateCategory] = []
-
-    private struct FillHistory {
-        var undo: [Data?] = []
-        var redo: [Data?] = []
-    }
 
     private struct FillEraseResult {
         let didChange: Bool
@@ -91,7 +89,6 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillImageCacheByTemplateID: [String: UIImage] = [:]
     private var fillImageCacheDataByTemplateID: [String: Data] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
-    private var fillHistoryByTemplateID: [String: FillHistory] = [:]
     private var editHistoryByTemplateID: [String: TemplateEditHistory] = [:]
     private var recentTemplateIDs: [String] = []
     private let templateLibrary: any TemplateLibraryProviding
@@ -108,8 +105,9 @@ final class TemplateStudioViewModel: ObservableObject {
     private var drawingRestoreTask: Task<Void, Never>?
     private var cloudRestoreTask: Task<Void, Never>?
     private var debouncedPersistTask: Task<Void, Never>?
+    private var fillOverlayTask: Task<Void, Never>?
+    private var fillOverlayOperationID = 0
     private var pendingPersistTemplateIDs: Set<String> = []
-    private let maxFillHistorySteps = 100
     private let maxEditHistorySteps = 100
     private let maxRecentTemplates = 20
 
@@ -226,7 +224,6 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheDataByTemplateID = fillImageCacheDataByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            fillHistoryByTemplateID = fillHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             editHistoryByTemplateID = editHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
             completedTemplateIDs = completedTemplateIDs.intersection(validTemplateIDs)
@@ -276,6 +273,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         persistCurrentDrawing()
         persistCurrentFill()
+        cancelPendingFillOverlayWork()
         selectedTemplateID = templateID
         persistLastSelectedTemplateID(templateID)
         markTemplateAsRecent(templateID)
@@ -528,7 +526,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if filterID == TemplateCategory.inProgressCategory.id {
-            return templates.filter { inProgressTemplateIDs.contains($0.id) }
+            return templates.filter { visibleInProgressTemplateIDs.contains($0.id) }
         }
 
         if filterID == TemplateCategory.favoritesCategory.id {
@@ -812,14 +810,6 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Fill Mode
 
-    func toggleFillMode() {
-        isFillModeActive.toggle()
-    }
-
-    func selectFillColor(_ colorID: String) {
-        selectedFillColorID = colorID
-    }
-
     func handleFillTap(at normalizedPoint: CGPoint) {
         guard isFillModeActive,
               let templateImage = selectedTemplateImage,
@@ -828,51 +818,46 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        let fillCanvasSize = normalizedFillCanvasSize(for: templateImage)
-        let renderedTemplate = renderTemplateForFill(templateImage, canvasSize: fillCanvasSize)
-        guard let templateCGImage = renderedTemplate.cgImage else {
-            return
-        }
-
-        let clampedPoint = CGPoint(
-            x: min(max(normalizedPoint.x, 0), 1),
-            y: min(max(normalizedPoint.y, 0), 1)
+        let templateID = selectedTemplateID
+        let currentFillData = fillImagesByTemplateID[templateID]
+        let request = FillOverlayRequest(
+            templateImage: templateImage,
+            existingFillImage: currentFillImage,
+            normalizedPoint: normalizedPoint,
+            fillColor: fillColor.uiColor
         )
-        let imagePoint = CGPoint(
-            x: clampedPoint.x * CGFloat(max(templateCGImage.width - 1, 0)),
-            y: clampedPoint.y * CGFloat(max(templateCGImage.height - 1, 0))
-        )
+        let floodFillService = floodFillService
 
-        // Build the base image: template + existing fill composited.
-        guard let baseImage = compositeBaseImageForFill(templateImage: renderedTemplate) else {
-            return
+        cancelPendingFillOverlayWork()
+        let operationID = fillOverlayOperationID
+
+        fillOverlayTask = Task { [templateID, currentFillData, request] in
+            defer {
+                if fillOverlayOperationID == operationID {
+                    fillOverlayTask = nil
+                }
+            }
+
+            let nextFillData = await Task.detached(priority: .userInitiated) {
+                FillOverlayRenderer.makeFillOverlayData(
+                    request: request,
+                    floodFillService: floodFillService
+                )
+            }.value
+
+            guard !Task.isCancelled,
+                  selectedTemplateID == templateID,
+                  fillOverlayOperationID == operationID,
+                  let nextFillData,
+                  nextFillData != currentFillData
+            else {
+                return
+            }
+
+            let previousSnapshot = snapshot(for: templateID)
+            applyFillData(nextFillData, for: templateID)
+            recordEditChange(from: previousSnapshot, for: templateID)
         }
-
-        guard let filledImage = floodFillService.floodFill(
-            image: baseImage,
-            at: imagePoint,
-            with: fillColor.uiColor,
-            tolerance: 40
-        ) else {
-            return
-        }
-
-        // The flood fill operated on the composited base (template + existing fills).
-        // Extract just the fill overlay by diffing against the original template.
-        let fillOverlay = extractFillOverlay(
-            filledComposite: filledImage,
-            templateCGImage: templateCGImage,
-            existingFillImage: currentFillImage
-        )
-
-        let currentFillData = fillImagesByTemplateID[selectedTemplateID]
-        guard let nextFillData = fillOverlay.pngData(), nextFillData != currentFillData else {
-            return
-        }
-
-        let previousSnapshot = snapshot(for: selectedTemplateID)
-        applyFillData(nextFillData, for: selectedTemplateID, cachedImage: fillOverlay)
-        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
     }
 
     func handleFillErase(at normalizedPoint: CGPoint) {
@@ -882,6 +867,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillOverlayWork()
         let eraseResult = eraseFillOverlayRegion(in: currentFillImage, at: normalizedPoint)
         guard eraseResult.didChange else {
             return
@@ -902,17 +888,10 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillOverlayWork()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         applyFillData(nil, for: selectedTemplateID)
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
-    }
-
-    func undoFillStep() {
-        undoLastEdit()
-    }
-
-    func redoFillStep() {
-        redoLastEdit()
     }
 
     func undoLastEdit() {
@@ -991,10 +970,6 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImageCacheDataByTemplateID[renamedTemplate.id] = cachedFillData
             }
 
-            if let fillHistory = fillHistoryByTemplateID.removeValue(forKey: templateID) {
-                fillHistoryByTemplateID[renamedTemplate.id] = fillHistory
-            }
-
             if let editHistory = editHistoryByTemplateID.removeValue(forKey: templateID) {
                 editHistoryByTemplateID[renamedTemplate.id] = editHistory
             }
@@ -1035,7 +1010,6 @@ final class TemplateStudioViewModel: ObservableObject {
             layerStacksByTemplateID.removeValue(forKey: templateID)
             fillImagesByTemplateID.removeValue(forKey: templateID)
             clearCachedFillImage(for: templateID)
-            fillHistoryByTemplateID.removeValue(forKey: templateID)
             editHistoryByTemplateID.removeValue(forKey: templateID)
             favoriteTemplateIDs.remove(templateID)
             completedTemplateIDs.remove(templateID)
@@ -1069,7 +1043,6 @@ final class TemplateStudioViewModel: ObservableObject {
                 layerStacksByTemplateID.removeValue(forKey: templateID)
                 fillImagesByTemplateID.removeValue(forKey: templateID)
                 clearCachedFillImage(for: templateID)
-                fillHistoryByTemplateID.removeValue(forKey: templateID)
                 editHistoryByTemplateID.removeValue(forKey: templateID)
                 favoriteTemplateIDs.remove(templateID)
                 completedTemplateIDs.remove(templateID)
@@ -1483,6 +1456,12 @@ final class TemplateStudioViewModel: ObservableObject {
         fillImageCacheDataByTemplateID.removeValue(forKey: templateID)
     }
 
+    private func cancelPendingFillOverlayWork() {
+        fillOverlayTask?.cancel()
+        fillOverlayTask = nil
+        fillOverlayOperationID += 1
+    }
+
     private func applyEditSnapshot(_ snapshot: TemplateEditSnapshot, for templateID: String) {
         guard !templateID.isEmpty else {
             return
@@ -1654,20 +1633,6 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Private: Fill Persistence
 
-    private func recordFillStateChange(previousFillData: Data?, for templateID: String) {
-        guard !templateID.isEmpty else {
-            return
-        }
-
-        var history = fillHistoryByTemplateID[templateID] ?? FillHistory()
-        history.undo.append(previousFillData)
-        if history.undo.count > maxFillHistorySteps {
-            history.undo.removeFirst(history.undo.count - maxFillHistorySteps)
-        }
-        history.redo.removeAll(keepingCapacity: true)
-        fillHistoryByTemplateID[templateID] = history
-    }
-
     private func applyFillData(_ fillData: Data?, for templateID: String, cachedImage: UIImage? = nil) {
         guard !templateID.isEmpty else {
             return
@@ -1789,125 +1754,6 @@ final class TemplateStudioViewModel: ObservableObject {
         } catch {
             // Keep existing fill state if persistence read fails.
         }
-    }
-
-    // MARK: - Private: Fill Compositing
-
-    private func normalizedFillCanvasSize(for image: UIImage) -> CGSize {
-        let bestSize = bestExportSize(for: image)
-        return CGSize(
-            width: max(1, bestSize.width.rounded(.toNearestOrAwayFromZero)),
-            height: max(1, bestSize.height.rounded(.toNearestOrAwayFromZero))
-        )
-    }
-
-    private func renderTemplateForFill(_ templateImage: UIImage, canvasSize: CGSize) -> UIImage {
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
-        return renderer.image { _ in
-            UIColor.white.setFill()
-            UIRectFill(CGRect(origin: .zero, size: canvasSize))
-            templateImage.draw(in: CGRect(origin: .zero, size: canvasSize))
-        }
-    }
-
-    private func compositeBaseImageForFill(templateImage: UIImage) -> CGImage? {
-        let size = templateImage.size
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        format.opaque = false
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        let composited = renderer.image { _ in
-            templateImage.draw(in: CGRect(origin: .zero, size: size))
-            if let existingFill = currentFillImage {
-                existingFill.draw(in: CGRect(origin: .zero, size: size))
-            }
-        }
-        return composited.cgImage ?? templateImage.cgImage
-    }
-
-    private func extractFillOverlay(
-        filledComposite: CGImage,
-        templateCGImage: CGImage,
-        existingFillImage: UIImage?
-    ) -> UIImage {
-        let width = templateCGImage.width
-        let height = templateCGImage.height
-        let size = CGSize(width: width, height: height)
-        let bytesPerPixel = 4
-        let bytesPerRow = width * bytesPerPixel
-        let totalBytes = height * bytesPerRow
-
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
-            return UIImage(cgImage: filledComposite)
-        }
-
-        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-
-        // Render the template into a buffer.
-        guard let templateContext = CGContext(
-            data: nil, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
-        ), let templateData = templateContext.data else {
-            return UIImage(cgImage: filledComposite)
-        }
-        templateContext.draw(templateCGImage, in: CGRect(origin: .zero, size: size))
-        let templatePixels = templateData.bindMemory(to: UInt8.self, capacity: totalBytes)
-
-        // Render the filled composite into a buffer.
-        guard let filledContext = CGContext(
-            data: nil, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
-        ), let filledData = filledContext.data else {
-            return UIImage(cgImage: filledComposite)
-        }
-        filledContext.draw(filledComposite, in: CGRect(origin: .zero, size: size))
-        let filledPixels = filledData.bindMemory(to: UInt8.self, capacity: totalBytes)
-
-        // Build the overlay: where the filled differs from template, use the filled pixel.
-        // Start with existing fill overlay if present.
-        guard let overlayContext = CGContext(
-            data: nil, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
-        ), let overlayData = overlayContext.data else {
-            return UIImage(cgImage: filledComposite)
-        }
-
-        if let existingFill = existingFillImage?.cgImage {
-            overlayContext.draw(existingFill, in: CGRect(origin: .zero, size: size))
-        }
-
-        let overlayPixels = overlayData.bindMemory(to: UInt8.self, capacity: totalBytes)
-
-        for i in stride(from: 0, to: totalBytes, by: bytesPerPixel) {
-            let templateR = templatePixels[i]
-            let templateG = templatePixels[i + 1]
-            let templateB = templatePixels[i + 2]
-            let filledR = filledPixels[i]
-            let filledG = filledPixels[i + 1]
-            let filledB = filledPixels[i + 2]
-
-            let differs = abs(Int(templateR) - Int(filledR)) > 2
-                || abs(Int(templateG) - Int(filledG)) > 2
-                || abs(Int(templateB) - Int(filledB)) > 2
-
-            if differs {
-                overlayPixels[i] = filledR
-                overlayPixels[i + 1] = filledG
-                overlayPixels[i + 2] = filledB
-                overlayPixels[i + 3] = filledPixels[i + 3]
-            }
-        }
-
-        guard let overlayCGImage = overlayContext.makeImage() else {
-            return UIImage(cgImage: filledComposite)
-        }
-        return UIImage(cgImage: overlayCGImage)
     }
 
     private func eraseFillOverlayRegion(in fillImage: UIImage, at normalizedPoint: CGPoint) -> FillEraseResult {

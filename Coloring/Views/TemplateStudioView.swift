@@ -571,7 +571,7 @@ struct TemplateStudioView: View {
                                 .font(.caption.weight(.medium))
 
                             if category.id == TemplateCategory.inProgressCategory.id {
-                                Text("\(viewModel.inProgressTemplateIDs.count)")
+                                Text("\(viewModel.visibleInProgressTemplateIDs.count)")
                                     .font(.caption2.weight(.semibold))
                                     .monospacedDigit()
                                     .foregroundStyle(
