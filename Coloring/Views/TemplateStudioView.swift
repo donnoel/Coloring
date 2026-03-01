@@ -375,7 +375,7 @@ struct TemplateStudioView: View {
         .padding(14)
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(elevatedSidebarFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(liquidImportAccent.opacity(0.75), lineWidth: 1)
@@ -395,10 +395,10 @@ struct TemplateStudioView: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.regularMaterial)
+                .fill(controlSidebarFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                        .stroke(sidebarControlStroke, lineWidth: 1)
                 )
         }
     }
@@ -444,7 +444,7 @@ struct TemplateStudioView: View {
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(6)
-                        .background(Color.white.opacity(0.58), in: Circle())
+                        .background(importedTemplateBadgeFill, in: Circle())
                 }
 
                 if isFavorite {
@@ -469,10 +469,10 @@ struct TemplateStudioView: View {
             .padding(.horizontal, 12)
             .background {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.68))
+                    .fill(templateRowFill(isSelected: isSelected))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(isSelected ? Color.accentColor.opacity(0.55) : Color.white.opacity(0.55), lineWidth: 1)
+                            .stroke(templateRowStroke(isSelected: isSelected), lineWidth: 1)
                     )
             }
             .contentShape(Rectangle())
@@ -581,22 +581,12 @@ struct TemplateStudioView: View {
                                     )
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(
-                                        viewModel.selectedCategoryFilter == category.id
-                                            ? Color.white.opacity(0.72)
-                                            : Color(.systemBackground).opacity(0.9),
-                                        in: Capsule()
-                                    )
+                                    .background(categoryBadgeFill(isSelected: viewModel.selectedCategoryFilter == category.id), in: Capsule())
                             }
                         }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(
-                                viewModel.selectedCategoryFilter == category.id
-                                    ? Color.accentColor.opacity(0.2)
-                                    : Color(.systemGray5),
-                                in: Capsule()
-                            )
+                            .background(categoryChipFill(isSelected: viewModel.selectedCategoryFilter == category.id), in: Capsule())
                             .overlay(
                                 Capsule()
                                     .stroke(
@@ -670,6 +660,9 @@ struct TemplateStudioView: View {
                 },
                 onFillErase: { normalizedPoint in
                     viewModel.handleFillErase(at: normalizedPoint)
+                },
+                onAppearanceStyleChanged: { previousTraitCollection in
+                    viewModel.normalizeSelectedTemplateColoring(using: previousTraitCollection)
                 },
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
@@ -811,10 +804,10 @@ struct TemplateStudioView: View {
         .padding(14)
         .background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(elevatedSidebarFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.55), lineWidth: 1)
+                        .stroke(sidebarCardStroke, lineWidth: 1)
                 )
         }
     }
@@ -830,7 +823,97 @@ struct TemplateStudioView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(controlSidebarFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var elevatedSidebarFill: AnyShapeStyle {
+        if colorScheme == .dark {
+            return AnyShapeStyle(Color(red: 0.11, green: 0.15, blue: 0.21).opacity(0.96))
+        }
+
+        return AnyShapeStyle(.ultraThinMaterial)
+    }
+
+    private var controlSidebarFill: AnyShapeStyle {
+        if colorScheme == .dark {
+            return AnyShapeStyle(Color(red: 0.14, green: 0.19, blue: 0.26).opacity(0.96))
+        }
+
+        return AnyShapeStyle(.regularMaterial)
+    }
+
+    private var sidebarControlStroke: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.30, green: 0.39, blue: 0.50).opacity(0.8)
+        }
+
+        return Color.white.opacity(0.26)
+    }
+
+    private var sidebarCardStroke: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.27, green: 0.36, blue: 0.47).opacity(0.82)
+        }
+
+        return Color.white.opacity(0.55)
+    }
+
+    private var importedTemplateBadgeFill: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.22, green: 0.27, blue: 0.34).opacity(0.9)
+        }
+
+        return Color.white.opacity(0.58)
+    }
+
+    private func templateRowFill(isSelected: Bool) -> Color {
+        if isSelected {
+            return colorScheme == .dark
+                ? Color(red: 0.15, green: 0.31, blue: 0.49).opacity(0.42)
+                : Color.accentColor.opacity(0.18)
+        }
+
+        if colorScheme == .dark {
+            return Color(red: 0.13, green: 0.17, blue: 0.23).opacity(0.94)
+        }
+
+        return Color.white.opacity(0.68)
+    }
+
+    private func templateRowStroke(isSelected: Bool) -> Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.55)
+        }
+
+        if colorScheme == .dark {
+            return Color(red: 0.28, green: 0.36, blue: 0.47).opacity(0.78)
+        }
+
+        return Color.white.opacity(0.55)
+    }
+
+    private func categoryBadgeFill(isSelected: Bool) -> Color {
+        if colorScheme == .dark {
+            return isSelected
+                ? Color(red: 0.80, green: 0.90, blue: 1.00).opacity(0.2)
+                : Color(red: 0.18, green: 0.22, blue: 0.29).opacity(0.98)
+        }
+
+        return isSelected
+            ? Color.white.opacity(0.72)
+            : Color(.systemBackground).opacity(0.9)
+    }
+
+    private func categoryChipFill(isSelected: Bool) -> Color {
+        if colorScheme == .dark {
+            return isSelected
+                ? Color(red: 0.13, green: 0.30, blue: 0.50).opacity(0.42)
+                : Color(red: 0.14, green: 0.18, blue: 0.24).opacity(0.96)
+        }
+
+        return isSelected
+            ? Color.accentColor.opacity(0.2)
+            : Color(.systemGray5)
     }
 
     private func handleStrokeInteractionChanged(_ isActive: Bool) {

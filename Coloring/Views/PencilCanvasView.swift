@@ -16,6 +16,7 @@ struct PencilCanvasView: UIViewRepresentable {
     var onFillTap: ((CGPoint) -> Void)?
     /// Normalized touch location in template space used to erase a fill region.
     var onFillErase: ((CGPoint) -> Void)?
+    var onAppearanceStyleChanged: ((UITraitCollection?) -> Void)?
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
     var brushTool: PKInkingTool?
@@ -39,9 +40,9 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
         context.coordinator.updateFillMode(fillMode, in: containerView)
-        containerView.fillImageView.image = fillImage
-        containerView.belowLayerImageView.image = belowLayerImage
-        containerView.aboveLayerImageView.image = aboveLayerImage
+        containerView.fillImageView.image = fillImage?.stableDisplayImage()
+        containerView.belowLayerImageView.image = belowLayerImage?.stableDisplayImage()
+        containerView.aboveLayerImageView.image = aboveLayerImage?.stableDisplayImage()
         return containerView
     }
 
@@ -82,9 +83,9 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.lastTemplateID = templateID
         context.coordinator.updateFillMode(fillMode, in: uiView)
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
-        uiView.fillImageView.image = fillImage
-        uiView.belowLayerImageView.image = belowLayerImage
-        uiView.aboveLayerImageView.image = aboveLayerImage
+        uiView.fillImageView.image = fillImage?.stableDisplayImage()
+        uiView.belowLayerImageView.image = belowLayerImage?.stableDisplayImage()
+        uiView.aboveLayerImageView.image = aboveLayerImage?.stableDisplayImage()
     }
 
     static func dismantleUIView(_ uiView: ZoomableCanvasContainerView, coordinator: Coordinator) {
@@ -93,7 +94,7 @@ struct PencilCanvasView: UIViewRepresentable {
         uiView.scrollView.delegate = nil
     }
 
-    final class Coordinator: NSObject, PKCanvasViewDelegate, UIPencilInteractionDelegate, UIScrollViewDelegate, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, PKCanvasViewDelegate, PKToolPickerObserver, UIPencilInteractionDelegate, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         var parent: PencilCanvasView
         private weak var canvasView: PKCanvasView?
         private weak var containerView: ZoomableCanvasContainerView?
@@ -122,6 +123,9 @@ struct PencilCanvasView: UIViewRepresentable {
             self.canvasView = canvasView
             self.containerView = containerView
             canvasView.tool = lastInkTool
+            containerView.appearanceDidChangeHandler = { [weak self] previousTraitCollection in
+                self?.handleAppearanceChange(previousTraitCollection: previousTraitCollection)
+            }
             installDrawingInteractionTracking(on: canvasView)
             installFillEraseGestureIfNeeded(on: canvasView)
 
@@ -151,6 +155,7 @@ struct PencilCanvasView: UIViewRepresentable {
 
             let toolPicker = PKToolPicker()
             toolPicker.addObserver(canvasView)
+            toolPicker.addObserver(self)
             toolPicker.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
             self.toolPicker = toolPicker
@@ -167,6 +172,7 @@ struct PencilCanvasView: UIViewRepresentable {
 
             if let toolPicker {
                 toolPicker.removeObserver(canvasView)
+                toolPicker.removeObserver(self)
                 toolPicker.setVisible(false, forFirstResponder: canvasView)
             }
 
@@ -181,6 +187,7 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
             self.canvasView = nil
+            containerView?.appearanceDidChangeHandler = nil
             containerView = nil
         }
 
@@ -264,6 +271,36 @@ struct PencilCanvasView: UIViewRepresentable {
             DispatchQueue.main.async(execute: workItem)
         }
 
+        private func handleAppearanceChange(previousTraitCollection: UITraitCollection?) {
+            guard let canvasView else {
+                return
+            }
+
+            normalizeDisplayedDrawing(using: previousTraitCollection, on: canvasView)
+            normalizeCurrentTool(using: previousTraitCollection, on: canvasView)
+            parent.onAppearanceStyleChanged?(previousTraitCollection)
+        }
+
+        private func normalizeDisplayedDrawing(using traitCollection: UITraitCollection?, on canvasView: PKCanvasView) {
+            let normalizedDrawing = canvasView.drawing.stableColorDrawing(using: traitCollection)
+            guard normalizedDrawing != canvasView.drawing else {
+                return
+            }
+
+            applyExternalDrawing(normalizedDrawing, to: canvasView)
+            parent.drawing = normalizedDrawing
+        }
+
+        private func normalizeCurrentTool(using traitCollection: UITraitCollection?, on canvasView: PKCanvasView) {
+            if let inkingTool = canvasView.tool as? PKInkingTool {
+                let normalizedTool = inkingTool.stableResolvedTool(using: traitCollection)
+                canvasView.tool = normalizedTool
+                lastInkTool = normalizedTool
+            } else if let inkingTool = lastInkTool as? PKInkingTool {
+                lastInkTool = inkingTool.stableResolvedTool(using: traitCollection)
+            }
+        }
+
         func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
             let canvasView = containerView.canvasView
             if isFillMode {
@@ -286,18 +323,34 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            let normalizedBrushTool = brushTool.stableResolvedTool(using: canvasView.traitCollection)
+
             // Only apply if the brush tool actually changed to avoid fighting with PKToolPicker.
             if let last = lastAppliedBrushTool,
-               last.inkType == brushTool.inkType,
-               last.width == brushTool.width,
-               last.color == brushTool.color
+               last.inkType == normalizedBrushTool.inkType,
+               last.width == normalizedBrushTool.width,
+               last.color == normalizedBrushTool.color
             {
                 return
             }
 
-            lastAppliedBrushTool = brushTool
-            lastInkTool = brushTool
-            canvasView.tool = brushTool
+            lastAppliedBrushTool = normalizedBrushTool
+            lastInkTool = normalizedBrushTool
+            canvasView.tool = normalizedBrushTool
+        }
+
+        func toolPickerSelectedToolDidChange(_ toolPicker: PKToolPicker) {
+            guard let canvasView else {
+                return
+            }
+
+            DispatchQueue.main.async { [weak self, weak canvasView] in
+                guard let self, let canvasView else {
+                    return
+                }
+
+                self.normalizeCurrentTool(using: canvasView.traitCollection, on: canvasView)
+            }
         }
 
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
@@ -341,9 +394,14 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            markLocalDrawingChanged(canvasView.drawing)
-            parent.drawing = canvasView.drawing
-            parent.onDrawingChanged?(canvasView.drawing)
+            let normalizedDrawing = canvasView.drawing.stableColorDrawing(using: canvasView.traitCollection)
+            if normalizedDrawing != canvasView.drawing {
+                applyExternalDrawing(normalizedDrawing, to: canvasView)
+            }
+
+            markLocalDrawingChanged(normalizedDrawing)
+            parent.drawing = normalizedDrawing
+            parent.onDrawingChanged?(normalizedDrawing)
         }
 
         @objc private func handleDrawingGestureStateChange(_ gesture: UIGestureRecognizer) {
@@ -420,10 +478,12 @@ final class ZoomableCanvasContainerView: UIView {
     private var canvasBaseSize: CGSize = .zero
     private var lastFitZoomScale: CGFloat = 1.0
     private let maxCanvasLongEdge: CGFloat = 2048
+    var appearanceDidChangeHandler: ((UITraitCollection?) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupSubviews()
+        installTraitObserverIfNeeded()
     }
 
     @available(*, unavailable)
@@ -441,7 +501,7 @@ final class ZoomableCanvasContainerView: UIView {
     }
 
     func applyTemplateImage(_ image: UIImage, templateID: String, resetZoom: Bool) {
-        imageView.image = image
+        imageView.image = image.stableDisplayImage()
         let templateChanged = currentTemplateID != templateID
         currentTemplateID = templateID
 
@@ -482,8 +542,9 @@ final class ZoomableCanvasContainerView: UIView {
         scrollView.panGestureRecognizer.minimumNumberOfTouches = 2
         addSubview(scrollView)
 
-        contentView.backgroundColor = .clear
+        contentView.backgroundColor = .white
         scrollView.addSubview(contentView)
+        lockArtworkAppearanceToLight()
 
         imageView.backgroundColor = .white
         imageView.contentMode = .scaleToFill
@@ -518,6 +579,29 @@ final class ZoomableCanvasContainerView: UIView {
         aboveLayerImageView.clipsToBounds = true
         aboveLayerImageView.isUserInteractionEnabled = false
         contentView.addSubview(aboveLayerImageView)
+    }
+
+    private func lockArtworkAppearanceToLight() {
+        let artworkViews: [UIView] = [
+            contentView,
+            imageView,
+            fillImageView,
+            belowLayerImageView,
+            canvasView,
+            aboveLayerImageView
+        ]
+
+        for view in artworkViews {
+            view.overrideUserInterfaceStyle = .light
+        }
+    }
+
+    private func installTraitObserverIfNeeded() {
+        if #available(iOS 17.0, *) {
+            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, previousTraitCollection: UITraitCollection) in
+                self.appearanceDidChangeHandler?(previousTraitCollection)
+            }
+        }
     }
 
     private func layoutContentFrame() {

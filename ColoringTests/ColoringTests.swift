@@ -286,8 +286,17 @@ final class ColoringTests: XCTestCase {
 
             viewModel.isFillModeActive = true
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
-            XCTAssertNotNil(viewModel.currentFillImage)
+        }
 
+        let didApplyFill = await waitForCondition {
+            await MainActor.run {
+                viewModel.currentFillImage != nil
+            }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay to be applied.")
+
+        await MainActor.run {
+            XCTAssertNotNil(viewModel.currentFillImage)
             viewModel.clearFills()
             XCTAssertNil(viewModel.currentFillImage)
 
@@ -1122,16 +1131,50 @@ final class ColoringTests: XCTestCase {
             viewModel.isFillModeActive = true
             XCTAssertFalse(viewModel.canUndoEdit)
             XCTAssertFalse(viewModel.canRedoEdit)
-
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
-            let firstSignature = imageSignature(from: viewModel.currentFillImage)
-            XCTAssertNotNil(firstSignature)
-            XCTAssertTrue(viewModel.canUndoEdit)
-            XCTAssertFalse(viewModel.canRedoEdit)
+        }
 
+        let didApplyFirstFill = await waitForCondition {
+            await MainActor.run {
+                self.imageSignature(from: viewModel.currentFillImage) != nil
+                    && viewModel.canUndoEdit
+                    && !viewModel.canRedoEdit
+            }
+        }
+        XCTAssertTrue(didApplyFirstFill, "Expected first fill overlay to be applied.")
+
+        guard let firstSignature = await MainActor.run(body: {
+            imageSignature(from: viewModel.currentFillImage)
+        }) else {
+            XCTFail("Expected first fill signature.")
+            return
+        }
+
+        await MainActor.run {
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
-            let secondSignature = imageSignature(from: viewModel.currentFillImage)
-            XCTAssertNotNil(secondSignature)
+        }
+
+        let didApplySecondFill = await waitForCondition {
+            await MainActor.run {
+                guard let currentSignature = self.imageSignature(from: viewModel.currentFillImage) else {
+                    return false
+                }
+
+                return currentSignature != firstSignature
+                    && viewModel.canUndoEdit
+                    && !viewModel.canRedoEdit
+            }
+        }
+        XCTAssertTrue(didApplySecondFill, "Expected second fill overlay to be applied.")
+
+        guard let secondSignature = await MainActor.run(body: {
+            imageSignature(from: viewModel.currentFillImage)
+        }) else {
+            XCTFail("Expected second fill signature.")
+            return
+        }
+
+        await MainActor.run {
             XCTAssertNotEqual(firstSignature, secondSignature)
             XCTAssertTrue(viewModel.canUndoEdit)
             XCTAssertFalse(viewModel.canRedoEdit)
@@ -1217,9 +1260,23 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             viewModel.isFillModeActive = true
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+        }
 
-            let filledSignature = imageSignature(from: viewModel.currentFillImage)
-            XCTAssertNotNil(filledSignature)
+        let didApplyFill = await waitForCondition {
+            await MainActor.run {
+                viewModel.currentFillImage != nil
+            }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay to be applied before erase.")
+
+        guard let filledSignature = await MainActor.run(body: {
+            imageSignature(from: viewModel.currentFillImage)
+        }) else {
+            XCTFail("Expected fill signature.")
+            return
+        }
+
+        await MainActor.run {
             XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
 
             viewModel.isFillModeActive = false
@@ -1266,9 +1323,23 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             viewModel.isFillModeActive = true
             viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
-            let filledSignature = imageSignature(from: viewModel.currentFillImage)
-            XCTAssertNotNil(filledSignature)
+        }
 
+        let didApplyFill = await waitForCondition {
+            await MainActor.run {
+                viewModel.currentFillImage != nil
+            }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay to be applied before switching templates.")
+
+        guard let filledSignature = await MainActor.run(body: {
+            imageSignature(from: viewModel.currentFillImage)
+        }) else {
+            XCTFail("Expected fill signature.")
+            return
+        }
+
+        await MainActor.run {
             viewModel.selectTemplate(secondTemplate.id)
             XCTAssertNil(viewModel.currentFillImage)
 
@@ -1671,6 +1742,36 @@ final class ColoringTests: XCTestCase {
             XCTAssertEqual(viewModel.selectedTemplate?.title, secondTemplate.title)
             XCTAssertTrue(viewModel.templates.contains(where: { $0.id == thirdTemplate.id }))
         }
+    }
+
+    @MainActor
+    func testStableDisplayImageStripsTraitBasedAssetVariants() {
+        let lightTraits = UITraitCollection(userInterfaceStyle: .light)
+        let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
+        let lightImage = solidColorTemplateImage(.red, size: CGSize(width: 6, height: 6))
+        let darkImage = solidColorTemplateImage(.blue, size: CGSize(width: 6, height: 6))
+        let asset = UIImageAsset()
+        asset.register(lightImage, with: lightTraits)
+        asset.register(darkImage, with: darkTraits)
+
+        let adaptiveImage = asset.image(with: lightTraits)
+        let stabilizedImage = adaptiveImage.stableDisplayImage()
+
+        XCTAssertEqual(stabilizedImage.renderingMode, .alwaysOriginal)
+        XCTAssertEqual(imageSignature(from: stabilizedImage), imageSignature(from: lightImage))
+    }
+
+    @MainActor
+    func testZoomableCanvasContainerPinsArtworkSurfaceToLightAppearance() {
+        let container = ZoomableCanvasContainerView()
+
+        XCTAssertEqual(container.contentView.overrideUserInterfaceStyle, .light)
+        XCTAssertEqual(container.imageView.overrideUserInterfaceStyle, .light)
+        XCTAssertEqual(container.fillImageView.overrideUserInterfaceStyle, .light)
+        XCTAssertEqual(container.belowLayerImageView.overrideUserInterfaceStyle, .light)
+        XCTAssertEqual(container.canvasView.overrideUserInterfaceStyle, .light)
+        XCTAssertEqual(container.aboveLayerImageView.overrideUserInterfaceStyle, .light)
+        XCTAssertTrue(container.contentView.backgroundColor?.isEqual(UIColor.white) == true)
     }
 
     private static func makeTemplate(id: String, title: String, source: ColoringTemplate.Source = .builtIn) -> ColoringTemplate {

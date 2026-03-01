@@ -318,6 +318,27 @@ final class TemplateStudioViewModel: ObservableObject {
         invalidateExport()
     }
 
+    func normalizeSelectedTemplateColoring(using traitCollection: UITraitCollection?) {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        let normalizedDrawing = currentDrawing.stableColorDrawing(using: traitCollection)
+        let normalizedLayerStack = normalizedColorLayerStack(currentLayerStack, using: traitCollection)
+
+        guard normalizedDrawing != currentDrawing || normalizedLayerStack != currentLayerStack else {
+            return
+        }
+
+        setCurrentDrawingFromModel(normalizedDrawing)
+        currentLayerStack = normalizedLayerStack
+        drawingsByTemplateID[selectedTemplateID] = normalizedDrawing
+        layerStacksByTemplateID[selectedTemplateID] = normalizedLayerStack
+        persistLayerStack(for: selectedTemplateID)
+        recompositeLayerOverlays()
+        invalidateExport()
+    }
+
     // MARK: - Layers
 
     func addLayer() {
@@ -1192,7 +1213,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
-            selectedTemplateImage = UIImage(data: templateData)
+            selectedTemplateImage = UIImage(data: templateData)?.stableDisplayImage()
             loadedTemplateImageID = templateID
         } catch {
             guard !Task.isCancelled else {
@@ -1307,6 +1328,40 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         return !drawing.strokes.isEmpty
+    }
+
+    private func normalizedDrawingData(_ drawingData: Data, using traitCollection: UITraitCollection?) -> Data {
+        guard !drawingData.isEmpty,
+              let drawing = try? PKDrawing(data: drawingData)
+        else {
+            return drawingData
+        }
+
+        let normalizedDrawing = drawing.stableColorDrawing(using: traitCollection)
+        guard normalizedDrawing != drawing else {
+            return drawingData
+        }
+
+        return normalizedDrawing.dataRepresentation()
+    }
+
+    private func normalizedColorLayerStack(_ layerStack: LayerStack, using traitCollection: UITraitCollection?) -> LayerStack {
+        var normalizedLayerStack = layerStack
+        var didChange = false
+
+        normalizedLayerStack.layers = layerStack.layers.map { layer in
+            let normalizedDrawingData = normalizedDrawingData(layer.drawingData, using: traitCollection)
+            guard normalizedDrawingData != layer.drawingData else {
+                return layer
+            }
+
+            didChange = true
+            var normalizedLayer = layer
+            normalizedLayer.drawingData = normalizedDrawingData
+            return normalizedLayer
+        }
+
+        return didChange ? normalizedLayerStack : layerStack
     }
 
     private func persistCurrentDrawing() {
@@ -1495,7 +1550,7 @@ final class TemplateStudioViewModel: ObservableObject {
             if let fillData = snapshot.fillData {
                 currentFillImage = cachedFillImage(for: templateID, matching: fillData)
                     ?? {
-                        let decodedImage = UIImage(data: fillData)
+                        let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
                         if let decodedImage {
                             storeCachedFillImage(decodedImage, data: fillData, for: templateID)
                         }
@@ -1655,7 +1710,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 currentFillImage = cachedImage
                     ?? cachedFillImage(for: templateID, matching: fillData)
                     ?? {
-                        let decodedImage = UIImage(data: fillData)
+                        let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
                         if let decodedImage {
                             storeCachedFillImage(decodedImage, data: fillData, for: templateID)
                         }
@@ -1695,7 +1750,7 @@ final class TemplateStudioViewModel: ObservableObject {
         if let fillData = fillImagesByTemplateID[selectedTemplateID] {
             currentFillImage = cachedFillImage(for: selectedTemplateID, matching: fillData)
                 ?? {
-                    let decodedImage = UIImage(data: fillData)
+                    let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
                     if let decodedImage {
                         storeCachedFillImage(decodedImage, data: fillData, for: selectedTemplateID)
                     }
@@ -1743,7 +1798,7 @@ final class TemplateStudioViewModel: ObservableObject {
             if selectedTemplateID == templateID {
                 currentFillImage = cachedFillImage(for: templateID, matching: fillData)
                     ?? {
-                        let decodedImage = UIImage(data: fillData)
+                        let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
                         if let decodedImage {
                             storeCachedFillImage(decodedImage, data: fillData, for: templateID)
                         }
