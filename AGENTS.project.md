@@ -75,6 +75,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.
 - Undo and redo should preserve the combined per-template edit history for strokes, fills, fill erasing, clears, and layer operations.
 - The floating palette should support top/bottom placement, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
+- Studio and Gallery chrome should adapt to the current system light/dark appearance without changing canvas readability.
 
 ## UX rules
 - iPad-first layout with clear template navigation.

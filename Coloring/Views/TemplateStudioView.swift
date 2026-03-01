@@ -13,6 +13,7 @@ struct TemplateStudioView: View {
     }
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: TemplateStudioViewModel
 
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -721,11 +722,17 @@ struct TemplateStudioView: View {
 
     private var sidebarBackground: some View {
         LinearGradient(
-            colors: [
-                Color(red: 0.93, green: 0.97, blue: 1.00),
-                Color(red: 0.95, green: 0.99, blue: 0.96),
-                Color(red: 0.98, green: 0.98, blue: 0.99)
-            ],
+            colors: colorScheme == .dark
+                ? [
+                    Color(red: 0.09, green: 0.11, blue: 0.14),
+                    Color(red: 0.10, green: 0.14, blue: 0.12),
+                    Color(red: 0.12, green: 0.12, blue: 0.15)
+                ]
+                : [
+                    Color(red: 0.93, green: 0.97, blue: 1.00),
+                    Color(red: 0.95, green: 0.99, blue: 0.96),
+                    Color(red: 0.98, green: 0.98, blue: 0.99)
+                ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -823,7 +830,7 @@ struct TemplateStudioView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func handleStrokeInteractionChanged(_ isActive: Bool) {

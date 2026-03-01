@@ -46,6 +46,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Scrolling** | Sidebar vertical bounce is disabled and the last scroll position is restored after collapsing/reopening the library. |
 | **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
+| **System Appearance Support** | Studio and gallery chrome adapt to light and dark mode while keeping the drawing canvas legible. |
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
@@ -79,6 +80,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Clear Actions**: Clear strokes and clear fills are both confirmation-protected.
 - **Export**: Create a PNG and share from the system share sheet.
 - **Gallery Navigation**: Switch between Studio and Gallery using the top segmented pill without a duplicate Gallery header in the content area.
+- **Light/Dark Mode**: App chrome follows the current system appearance automatically.
 
 ---
 

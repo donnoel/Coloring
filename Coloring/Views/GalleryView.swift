@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct GalleryView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: GalleryViewModel
     @State private var selectedEntry: ArtworkEntry?
     @State private var carouselIndex = 0
@@ -83,11 +84,17 @@ struct GalleryView: View {
     private var galleryBackground: some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.91, green: 0.96, blue: 1.00),
-                    Color(red: 0.93, green: 0.92, blue: 0.99),
-                    Color(red: 0.99, green: 0.93, blue: 0.97)
-                ],
+                colors: colorScheme == .dark
+                    ? [
+                        Color(red: 0.08, green: 0.11, blue: 0.16),
+                        Color(red: 0.10, green: 0.09, blue: 0.16),
+                        Color(red: 0.14, green: 0.10, blue: 0.13)
+                    ]
+                    : [
+                        Color(red: 0.91, green: 0.96, blue: 1.00),
+                        Color(red: 0.93, green: 0.92, blue: 0.99),
+                        Color(red: 0.99, green: 0.93, blue: 0.97)
+                    ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -119,11 +126,11 @@ struct GalleryView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Artwork Gallery")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.black.opacity(0.82))
+                    .foregroundStyle(.primary)
 
                 Text(activeEntry?.sourceTemplateName ?? "Browse your exported drawings")
                     .font(.subheadline)
-                    .foregroundStyle(Color.black.opacity(0.58))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
@@ -134,7 +141,7 @@ struct GalleryView: View {
                 Text("\(carouselIndex + 1) / \(viewModel.entries.count)")
             }
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(Color.black.opacity(0.72))
+            .foregroundStyle(.primary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.ultraThinMaterial, in: Capsule())
@@ -160,8 +167,8 @@ struct GalleryView: View {
                     Capsule(style: .continuous)
                         .fill(
                             index == carouselIndex
-                                ? Color.white.opacity(0.96)
-                                : Color.white.opacity(0.50)
+                                ? Color.white.opacity(colorScheme == .dark ? 0.82 : 0.96)
+                                : Color.white.opacity(colorScheme == .dark ? 0.28 : 0.50)
                         )
                         .frame(width: index == carouselIndex ? 26 : 9, height: 9)
                 }
@@ -177,7 +184,7 @@ struct GalleryView: View {
                     Text(activeEntry.createdAt, style: .date)
                         .font(.footnote)
                 }
-                .foregroundStyle(Color.black.opacity(0.64))
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 16)
@@ -216,7 +223,11 @@ struct GalleryView: View {
     private func thumbnailButton(entry: ArtworkEntry, isSelected: Bool) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.58) : Color.white.opacity(0.34))
+                .fill(
+                    isSelected
+                        ? Color.white.opacity(colorScheme == .dark ? 0.22 : 0.58)
+                        : Color.white.opacity(colorScheme == .dark ? 0.10 : 0.34)
+                )
 
             if let thumbnail = viewModel.thumbnailImage(for: entry) {
                 Image(uiImage: thumbnail)
@@ -252,10 +263,15 @@ struct GalleryView: View {
                     RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.88),
-                                    Color(red: 0.97, green: 0.99, blue: 1.00).opacity(0.92)
-                                ],
+                                colors: colorScheme == .dark
+                                    ? [
+                                        Color.white.opacity(0.12),
+                                        Color(red: 0.17, green: 0.20, blue: 0.28).opacity(0.76)
+                                    ]
+                                    : [
+                                        Color.white.opacity(0.88),
+                                        Color(red: 0.97, green: 0.99, blue: 1.00).opacity(0.92)
+                                    ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
