@@ -6,6 +6,7 @@ struct PencilCanvasView: UIViewRepresentable {
     let templateImage: UIImage
     let templateID: String
     @Binding var drawing: PKDrawing
+    var drawingSyncToken: Int = 0
     var onDrawingChanged: ((PKDrawing) -> Void)?
     var onStrokeInteractionChanged: ((Bool) -> Void)?
     var fillMode: Bool = false
@@ -57,7 +58,14 @@ struct PencilCanvasView: UIViewRepresentable {
             context.coordinator.resetLocalDrawingSyncTracking()
         }
 
-        if context.coordinator.shouldApplyExternalDrawing(drawing, currentCanvasDrawing: canvasView.drawing) {
+        let shouldForceExternalDrawing = context.coordinator.lastDrawingSyncToken != drawingSyncToken
+        context.coordinator.lastDrawingSyncToken = drawingSyncToken
+
+        if context.coordinator.shouldApplyExternalDrawing(
+            drawing,
+            currentCanvasDrawing: canvasView.drawing,
+            forceExternalUpdate: shouldForceExternalDrawing
+        ) {
             context.coordinator.applyExternalDrawing(drawing, to: canvasView)
         }
 
@@ -101,6 +109,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var lastAppliedBrushTool: PKInkingTool?
         private var latestLocalDrawingData: Data?
         private var hasPendingLocalDrawingSync = false
+        var lastDrawingSyncToken = 0
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
         private let isRunningTests = NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
@@ -208,7 +217,18 @@ struct PencilCanvasView: UIViewRepresentable {
             fillEraseGesture = gesture
         }
 
-        func shouldApplyExternalDrawing(_ externalDrawing: PKDrawing, currentCanvasDrawing: PKDrawing) -> Bool {
+        func shouldApplyExternalDrawing(
+            _ externalDrawing: PKDrawing,
+            currentCanvasDrawing: PKDrawing,
+            forceExternalUpdate: Bool = false
+        ) -> Bool {
+            if forceExternalUpdate {
+                hasPendingLocalDrawingSync = false
+                pendingLocalSyncResetWorkItem?.cancel()
+                pendingLocalSyncResetWorkItem = nil
+                return currentCanvasDrawing != externalDrawing
+            }
+
             let externalData = externalDrawing.dataRepresentation()
             if let latestLocalDrawingData, latestLocalDrawingData == externalData {
                 hasPendingLocalDrawingSync = false

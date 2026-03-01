@@ -12,6 +12,7 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var templates: [ColoringTemplate] = []
     @Published var selectedTemplateID: String = ""
     @Published var currentDrawing: PKDrawing
+    @Published private(set) var drawingSyncToken: Int = 0
     @Published private(set) var selectedTemplateImage: UIImage?
     @Published private(set) var exportStatusMessage: String?
     @Published private(set) var exportErrorMessage: String?
@@ -41,6 +42,8 @@ final class TemplateStudioViewModel: ObservableObject {
     }
     @Published private(set) var currentBrushTool: PKInkingTool = PKInkingTool(.marker, color: .black, width: 12)
     @Published private(set) var userBrushPresets: [BrushPreset] = []
+    @Published private(set) var canUndoEdit: Bool = false
+    @Published private(set) var canRedoEdit: Bool = false
 
     // Category state
     @Published var selectedCategoryFilter: String = TemplateCategory.allCategory.id
@@ -86,6 +89,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private var fillImagesByTemplateID: [String: Data] = [:]
     private var fillImageCacheByTemplateID: [String: UIImage] = [:]
+    private var fillImageCacheDataByTemplateID: [String: Data] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var fillHistoryByTemplateID: [String: FillHistory] = [:]
     private var editHistoryByTemplateID: [String: TemplateEditHistory] = [:]
@@ -166,22 +170,6 @@ final class TemplateStudioViewModel: ObservableObject {
         ColoringColor.palette.first { $0.id == selectedFillColorID }
     }
 
-    var canUndoEdit: Bool {
-        guard !selectedTemplateID.isEmpty else {
-            return false
-        }
-
-        return !(editHistoryByTemplateID[selectedTemplateID]?.undo.isEmpty ?? true)
-    }
-
-    var canRedoEdit: Bool {
-        guard !selectedTemplateID.isEmpty else {
-            return false
-        }
-
-        return !(editHistoryByTemplateID[selectedTemplateID]?.redo.isEmpty ?? true)
-    }
-
     // MARK: - Template Loading
 
     func loadTemplatesIfNeeded() async {
@@ -237,6 +225,7 @@ final class TemplateStudioViewModel: ObservableObject {
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            fillImageCacheDataByTemplateID = fillImageCacheDataByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillHistoryByTemplateID = fillHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             editHistoryByTemplateID = editHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
@@ -254,6 +243,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             persistLastSelectedTemplateID(selectedTemplateID)
+            refreshEditAvailability()
 
             await restoreInProgressTemplateIDs(for: loadedTemplates.map(\.id))
             restoreDrawingForSelectedTemplate()
@@ -289,6 +279,7 @@ final class TemplateStudioViewModel: ObservableObject {
         selectedTemplateID = templateID
         persistLastSelectedTemplateID(templateID)
         markTemplateAsRecent(templateID)
+        refreshEditAvailability()
         // Clear immediately so the canvas never shows a mismatched image/drawing pair.
         selectedTemplateImage = nil
         loadedTemplateImageID = nil
@@ -319,7 +310,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
     func clearDrawing() {
         let previousSnapshot = snapshot(for: selectedTemplateID)
-        currentDrawing = PKDrawing()
+        setCurrentDrawingFromModel(PKDrawing())
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         currentLayerStack.updateDrawingData(Data(), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
@@ -335,7 +326,7 @@ final class TemplateStudioViewModel: ObservableObject {
         let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         let newLayer = currentLayerStack.addLayer(name: "Layer \(currentLayerStack.layers.count)")
-        currentDrawing = PKDrawing()
+        setCurrentDrawingFromModel(PKDrawing())
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
@@ -437,14 +428,19 @@ final class TemplateStudioViewModel: ObservableObject {
         currentLayerStack.updateDrawingData(drawingData, for: currentLayerStack.activeLayerID)
     }
 
+    private func setCurrentDrawingFromModel(_ drawing: PKDrawing) {
+        currentDrawing = drawing
+        drawingSyncToken += 1
+    }
+
     private func restoreActiveLayerDrawing() {
         if let activeLayer = currentLayerStack.activeLayer,
            !activeLayer.drawingData.isEmpty,
            let drawing = try? PKDrawing(data: activeLayer.drawingData)
         {
-            currentDrawing = drawing
+            setCurrentDrawingFromModel(drawing)
         } else {
-            currentDrawing = PKDrawing()
+            setCurrentDrawingFromModel(PKDrawing())
         }
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
     }
@@ -930,6 +926,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         history.redo.append(currentSnapshot)
         editHistoryByTemplateID[selectedTemplateID] = history
+        refreshEditAvailability()
         applyEditSnapshot(previousSnapshot, for: selectedTemplateID)
     }
 
@@ -944,6 +941,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         history.undo.append(currentSnapshot)
         editHistoryByTemplateID[selectedTemplateID] = history
+        refreshEditAvailability()
         applyEditSnapshot(nextSnapshot, for: selectedTemplateID)
     }
 
@@ -989,6 +987,10 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImageCacheByTemplateID[renamedTemplate.id] = fillImage
             }
 
+            if let cachedFillData = fillImageCacheDataByTemplateID.removeValue(forKey: templateID) {
+                fillImageCacheDataByTemplateID[renamedTemplate.id] = cachedFillData
+            }
+
             if let fillHistory = fillHistoryByTemplateID.removeValue(forKey: templateID) {
                 fillHistoryByTemplateID[renamedTemplate.id] = fillHistory
             }
@@ -1032,7 +1034,7 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID.removeValue(forKey: templateID)
             layerStacksByTemplateID.removeValue(forKey: templateID)
             fillImagesByTemplateID.removeValue(forKey: templateID)
-            fillImageCacheByTemplateID.removeValue(forKey: templateID)
+            clearCachedFillImage(for: templateID)
             fillHistoryByTemplateID.removeValue(forKey: templateID)
             editHistoryByTemplateID.removeValue(forKey: templateID)
             favoriteTemplateIDs.remove(templateID)
@@ -1066,7 +1068,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 drawingsByTemplateID.removeValue(forKey: templateID)
                 layerStacksByTemplateID.removeValue(forKey: templateID)
                 fillImagesByTemplateID.removeValue(forKey: templateID)
-                fillImageCacheByTemplateID.removeValue(forKey: templateID)
+                clearCachedFillImage(for: templateID)
                 fillHistoryByTemplateID.removeValue(forKey: templateID)
                 editHistoryByTemplateID.removeValue(forKey: templateID)
                 favoriteTemplateIDs.remove(templateID)
@@ -1351,7 +1353,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func restoreDrawingForSelectedTemplate() {
         guard !selectedTemplateID.isEmpty else {
-            currentDrawing = PKDrawing()
+            setCurrentDrawingFromModel(PKDrawing())
             currentLayerStack = .singleLayer()
             belowLayerImage = nil
             aboveLayerImage = nil
@@ -1368,14 +1370,14 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if let drawing = drawingsByTemplateID[selectedTemplateID] {
-            currentDrawing = drawing
+            setCurrentDrawingFromModel(drawing)
             currentLayerStack = .singleLayer(drawingData: drawing.dataRepresentation())
             belowLayerImage = nil
             aboveLayerImage = nil
             return
         }
 
-        currentDrawing = PKDrawing()
+        setCurrentDrawingFromModel(PKDrawing())
         currentLayerStack = .singleLayer()
         belowLayerImage = nil
         aboveLayerImage = nil
@@ -1448,6 +1450,37 @@ final class TemplateStudioViewModel: ObservableObject {
         }
         history.redo.removeAll(keepingCapacity: true)
         editHistoryByTemplateID[templateID] = history
+        refreshEditAvailability()
+    }
+
+    private func refreshEditAvailability() {
+        guard !selectedTemplateID.isEmpty else {
+            canUndoEdit = false
+            canRedoEdit = false
+            return
+        }
+
+        let history = editHistoryByTemplateID[selectedTemplateID]
+        canUndoEdit = !(history?.undo.isEmpty ?? true)
+        canRedoEdit = !(history?.redo.isEmpty ?? true)
+    }
+
+    private func cachedFillImage(for templateID: String, matching fillData: Data) -> UIImage? {
+        guard fillImageCacheDataByTemplateID[templateID] == fillData else {
+            return nil
+        }
+
+        return fillImageCacheByTemplateID[templateID]
+    }
+
+    private func storeCachedFillImage(_ image: UIImage, data: Data, for templateID: String) {
+        fillImageCacheByTemplateID[templateID] = image
+        fillImageCacheDataByTemplateID[templateID] = data
+    }
+
+    private func clearCachedFillImage(for templateID: String) {
+        fillImageCacheByTemplateID.removeValue(forKey: templateID)
+        fillImageCacheDataByTemplateID.removeValue(forKey: templateID)
     }
 
     private func applyEditSnapshot(_ snapshot: TemplateEditSnapshot, for templateID: String) {
@@ -1469,11 +1502,11 @@ final class TemplateStudioViewModel: ObservableObject {
         if let fillData = snapshot.fillData {
             fillImagesByTemplateID[templateID] = fillData
             if selectedTemplateID != templateID {
-                fillImageCacheByTemplateID.removeValue(forKey: templateID)
+                clearCachedFillImage(for: templateID)
             }
         } else {
             fillImagesByTemplateID.removeValue(forKey: templateID)
-            fillImageCacheByTemplateID.removeValue(forKey: templateID)
+            clearCachedFillImage(for: templateID)
         }
 
         if selectedTemplateID == templateID {
@@ -1481,11 +1514,11 @@ final class TemplateStudioViewModel: ObservableObject {
             restoreActiveLayerDrawing()
             recompositeLayerOverlays()
             if let fillData = snapshot.fillData {
-                currentFillImage = fillImageCacheByTemplateID[templateID]
+                currentFillImage = cachedFillImage(for: templateID, matching: fillData)
                     ?? {
                         let decodedImage = UIImage(data: fillData)
                         if let decodedImage {
-                            fillImageCacheByTemplateID[templateID] = decodedImage
+                            storeCachedFillImage(decodedImage, data: fillData, for: templateID)
                         }
                         return decodedImage
                     }()
@@ -1604,7 +1637,7 @@ final class TemplateStudioViewModel: ObservableObject {
             layerStacksByTemplateID[templateID] = layerStack
 
             if selectedTemplateID == templateID {
-                currentDrawing = drawing
+                setCurrentDrawingFromModel(drawing)
                 currentLayerStack = layerStack
                 belowLayerImage = nil
                 aboveLayerImage = nil
@@ -1643,23 +1676,23 @@ final class TemplateStudioViewModel: ObservableObject {
         if let fillData {
             fillImagesByTemplateID[templateID] = fillData
             if let cachedImage {
-                fillImageCacheByTemplateID[templateID] = cachedImage
+                storeCachedFillImage(cachedImage, data: fillData, for: templateID)
             } else if selectedTemplateID != templateID {
-                fillImageCacheByTemplateID.removeValue(forKey: templateID)
+                clearCachedFillImage(for: templateID)
             }
         } else {
             fillImagesByTemplateID.removeValue(forKey: templateID)
-            fillImageCacheByTemplateID.removeValue(forKey: templateID)
+            clearCachedFillImage(for: templateID)
         }
 
         if selectedTemplateID == templateID {
             if let fillData {
                 currentFillImage = cachedImage
-                    ?? fillImageCacheByTemplateID[templateID]
+                    ?? cachedFillImage(for: templateID, matching: fillData)
                     ?? {
                         let decodedImage = UIImage(data: fillData)
                         if let decodedImage {
-                            fillImageCacheByTemplateID[templateID] = decodedImage
+                            storeCachedFillImage(decodedImage, data: fillData, for: templateID)
                         }
                         return decodedImage
                     }()
@@ -1683,7 +1716,7 @@ final class TemplateStudioViewModel: ObservableObject {
            let fillData = fillImage.pngData()
         {
             fillImagesByTemplateID[selectedTemplateID] = fillData
-            fillImageCacheByTemplateID[selectedTemplateID] = fillImage
+            storeCachedFillImage(fillImage, data: fillData, for: selectedTemplateID)
         }
         persistFill(for: selectedTemplateID)
     }
@@ -1695,11 +1728,11 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if let fillData = fillImagesByTemplateID[selectedTemplateID] {
-            currentFillImage = fillImageCacheByTemplateID[selectedTemplateID]
+            currentFillImage = cachedFillImage(for: selectedTemplateID, matching: fillData)
                 ?? {
                     let decodedImage = UIImage(data: fillData)
                     if let decodedImage {
-                        fillImageCacheByTemplateID[selectedTemplateID] = decodedImage
+                        storeCachedFillImage(decodedImage, data: fillData, for: selectedTemplateID)
                     }
                     return decodedImage
                 }()
@@ -1743,11 +1776,11 @@ final class TemplateStudioViewModel: ObservableObject {
 
             fillImagesByTemplateID[templateID] = fillData
             if selectedTemplateID == templateID {
-                currentFillImage = fillImageCacheByTemplateID[templateID]
+                currentFillImage = cachedFillImage(for: templateID, matching: fillData)
                     ?? {
                         let decodedImage = UIImage(data: fillData)
                         if let decodedImage {
-                            fillImageCacheByTemplateID[templateID] = decodedImage
+                            storeCachedFillImage(decodedImage, data: fillData, for: templateID)
                         }
                         return decodedImage
                     }()

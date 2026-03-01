@@ -113,10 +113,15 @@ struct TemplatePaletteBarView: View {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(canUndo ? .secondary : .tertiary)
-                    .padding(6)
+                    .padding(8)
+                    .background(
+                        canUndo ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!canUndo)
+            .contentShape(Rectangle())
             .accessibilityLabel("Undo")
 
             Button {
@@ -125,10 +130,15 @@ struct TemplatePaletteBarView: View {
                 Image(systemName: "arrow.uturn.forward")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(canRedo ? .secondary : .tertiary)
-                    .padding(6)
+                    .padding(8)
+                    .background(
+                        canRedo ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!canRedo)
+            .contentShape(Rectangle())
             .accessibilityLabel("Redo")
         }
     }

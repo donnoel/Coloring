@@ -1506,6 +1506,119 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorAllowsForcedDrawingReapplyDuringLocalSync() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let initialDrawing = PKDrawing()
+            let localDrawing = makeSampleTemplateDrawing()
+
+            drawingState.drawing = initialDrawing
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+            canvasView.drawing = localDrawing
+
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            XCTAssertTrue(
+                coordinator.shouldApplyExternalDrawing(
+                    initialDrawing,
+                    currentCanvasDrawing: canvasView.drawing,
+                    forceExternalUpdate: true
+                )
+            )
+        }
+    }
+
+    func testCanvasDrivenStrokeEnablesUndoHistory() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: viewModel.selectedTemplateID,
+                drawing: Binding(
+                    get: { viewModel.currentDrawing },
+                    set: { viewModel.currentDrawing = $0 }
+                ),
+                onDrawingChanged: { drawing in
+                    viewModel.updateDrawing(drawing)
+                }
+            )
+
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+            canvasView.drawing = sampleDrawing
+
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            XCTAssertTrue(viewModel.canUndoEdit)
+
+            viewModel.undoLastEdit()
+
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
+    }
+
+    func testRestoredFillDoesNotSeedUndoHistory() async throws {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let drawingStore = StubTemplateDrawingStore()
+        let fillData = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8)).pngData()
+        }
+        try await drawingStore.saveFillData(XCTUnwrap(fillData), for: template.id)
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        await MainActor.run {
+            XCTAssertNotNil(viewModel.currentFillImage)
+            XCTAssertFalse(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canRedoEdit)
+
+            viewModel.undoLastEdit()
+            XCTAssertNotNil(viewModel.currentFillImage)
+            XCTAssertFalse(viewModel.canRedoEdit)
+        }
+    }
+
     func testRefreshTemplatesFromStoragePreservesSelectionAcrossReload() async {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")

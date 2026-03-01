@@ -654,6 +654,7 @@ struct TemplateStudioView: View {
                 templateImage: templateImage,
                 templateID: viewModel.selectedTemplateID,
                 drawing: $viewModel.currentDrawing,
+                drawingSyncToken: viewModel.drawingSyncToken,
                 onDrawingChanged: { drawing in
                     viewModel.updateDrawing(drawing)
                 },
