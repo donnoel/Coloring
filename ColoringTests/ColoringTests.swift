@@ -1528,11 +1528,13 @@ final class ColoringTests: XCTestCase {
 
             coordinator.canvasViewDrawingDidChange(canvasView)
 
-            XCTAssertEqual(drawingState.drawing, localDrawing)
+            let synchronizedDrawing = localDrawing.stableColorDrawing(using: canvasView.traitCollection)
+
+            XCTAssertEqual(drawingState.drawing.strokes.count, synchronizedDrawing.strokes.count)
             XCTAssertFalse(
                 coordinator.shouldApplyExternalDrawing(
-                    initialDrawing,
-                    currentCanvasDrawing: canvasView.drawing
+                    synchronizedDrawing,
+                    currentCanvasDrawing: initialDrawing
                 )
             )
 
@@ -1540,8 +1542,8 @@ final class ColoringTests: XCTestCase {
 
             XCTAssertTrue(
                 coordinator.shouldApplyExternalDrawing(
-                    initialDrawing,
-                    currentCanvasDrawing: canvasView.drawing
+                    synchronizedDrawing,
+                    currentCanvasDrawing: initialDrawing
                 )
             )
         }
@@ -1569,6 +1571,7 @@ final class ColoringTests: XCTestCase {
             canvasView.drawing = localDrawing
 
             coordinator.canvasViewDrawingDidChange(canvasView)
+            let synchronizedDrawing = drawingState.drawing
 
             XCTAssertFalse(
                 coordinator.shouldApplyExternalDrawing(
@@ -1579,7 +1582,7 @@ final class ColoringTests: XCTestCase {
 
             XCTAssertFalse(
                 coordinator.shouldApplyExternalDrawing(
-                    localDrawing,
+                    synchronizedDrawing,
                     currentCanvasDrawing: canvasView.drawing
                 )
             )
@@ -1588,6 +1591,38 @@ final class ColoringTests: XCTestCase {
                 coordinator.shouldApplyExternalDrawing(
                     initialDrawing,
                     currentCanvasDrawing: canvasView.drawing
+                )
+            )
+        }
+    }
+
+    func testPencilCanvasCoordinatorSkipsReapplyWhenBindingMatchesLatestLocalData() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let initialDrawing = PKDrawing()
+            let localDrawing = makeSampleTemplateDrawing()
+
+            drawingState.drawing = initialDrawing
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+            canvasView.drawing = localDrawing
+
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            XCTAssertFalse(
+                coordinator.shouldApplyExternalDrawing(
+                    localDrawing,
+                    currentCanvasDrawing: initialDrawing
                 )
             )
         }
@@ -1774,6 +1809,32 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(container.contentView.backgroundColor?.isEqual(UIColor.white) == true)
     }
 
+    func testStableResolvedColorPreservesMonochromeChannelValues() {
+        let monochromeBlack = UIColor(cgColor: CGColor(gray: 0, alpha: 1))
+        XCTAssertEqual(monochromeBlack.cgColor.colorSpace?.model, .monochrome)
+
+        let stabilizedBlack = monochromeBlack.stableResolvedColor(using: nil)
+        assertColorComponents(
+            stabilizedBlack,
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 1
+        )
+
+        let semiTransparentWhite = UIColor(cgColor: CGColor(gray: 1, alpha: 0.5))
+        XCTAssertEqual(semiTransparentWhite.cgColor.colorSpace?.model, .monochrome)
+
+        let stabilizedWhite = semiTransparentWhite.stableResolvedColor(using: nil)
+        assertColorComponents(
+            stabilizedWhite,
+            red: 1,
+            green: 1,
+            blue: 1,
+            alpha: 0.5
+        )
+    }
+
     private static func makeTemplate(id: String, title: String, source: ColoringTemplate.Source = .builtIn) -> ColoringTemplate {
         ColoringTemplate(
             id: id,
@@ -1782,6 +1843,32 @@ final class ColoringTests: XCTestCase {
             source: source,
             filePath: "/tmp/\(id).png"
         )
+    }
+
+    private func assertColorComponents(
+        _ color: UIColor,
+        red expectedRed: CGFloat,
+        green expectedGreen: CGFloat,
+        blue expectedBlue: CGFloat,
+        alpha expectedAlpha: CGFloat,
+        accuracy: CGFloat = 0.001,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var actualRed: CGFloat = 0
+        var actualGreen: CGFloat = 0
+        var actualBlue: CGFloat = 0
+        var actualAlpha: CGFloat = 0
+
+        XCTAssertTrue(
+            color.getRed(&actualRed, green: &actualGreen, blue: &actualBlue, alpha: &actualAlpha),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(actualRed, expectedRed, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actualGreen, expectedGreen, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actualBlue, expectedBlue, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actualAlpha, expectedAlpha, accuracy: accuracy, file: file, line: line)
     }
 
     @MainActor

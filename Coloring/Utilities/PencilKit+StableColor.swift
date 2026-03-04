@@ -4,6 +4,15 @@ import UIKit
 extension UIColor {
     nonisolated func stableResolvedColor(using traitCollection: UITraitCollection?) -> UIColor {
         let resolvedColor = traitCollection.map { self.resolvedColor(with: $0) } ?? self
+        let stableSRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+
+        if let normalizedColor = resolvedColor.cgColor.converted(
+            to: stableSRGBColorSpace,
+            intent: .defaultIntent,
+            options: nil
+        ) {
+            return UIColor(cgColor: normalizedColor)
+        }
 
         var red: CGFloat = 0
         var green: CGFloat = 0
@@ -14,13 +23,12 @@ extension UIColor {
             return UIColor(red: red, green: green, blue: blue, alpha: alpha)
         }
 
-        let coreImageColor = CIColor(color: resolvedColor)
-        return UIColor(
-            red: coreImageColor.red,
-            green: coreImageColor.green,
-            blue: coreImageColor.blue,
-            alpha: coreImageColor.alpha
-        )
+        var white: CGFloat = 0
+        if resolvedColor.getWhite(&white, alpha: &alpha) {
+            return UIColor(white: white, alpha: alpha)
+        }
+
+        return resolvedColor
     }
 }
 
