@@ -270,6 +270,21 @@ struct PencilCanvasView: UIViewRepresentable {
             canvasView.becomeFirstResponder()
         }
 
+        private func colorResolutionTraitCollection(for canvasView: PKCanvasView) -> UITraitCollection? {
+            if let windowTraitCollection = canvasView.window?.traitCollection {
+                return windowTraitCollection
+            }
+
+            if let activeSceneTraitCollection = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive })?
+                .traitCollection {
+                return activeSceneTraitCollection
+            }
+
+            return canvasView.traitCollection
+        }
+
         private func installDrawingInteractionTracking(on canvasView: PKCanvasView) {
             let gesture = canvasView.drawingGestureRecognizer
 
@@ -407,7 +422,9 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            let normalizedBrushTool = brushTool.stableResolvedTool(using: canvasView.traitCollection)
+            let normalizedBrushTool = brushTool.stableResolvedTool(
+                using: colorResolutionTraitCollection(for: canvasView)
+            )
 
             // Only apply if the brush tool actually changed to avoid fighting with PKToolPicker.
             if let last = lastAppliedBrushTool,
@@ -433,7 +450,10 @@ struct PencilCanvasView: UIViewRepresentable {
                     return
                 }
 
-                self.normalizeCurrentTool(using: canvasView.traitCollection, on: canvasView)
+                self.normalizeCurrentTool(
+                    using: self.colorResolutionTraitCollection(for: canvasView),
+                    on: canvasView
+                )
             }
         }
 
@@ -478,7 +498,9 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            let normalizedDrawing = canvasView.drawing.stableColorDrawing(using: canvasView.traitCollection)
+            let normalizedDrawing = canvasView.drawing.stableColorDrawing(
+                using: colorResolutionTraitCollection(for: canvasView)
+            )
             markLocalDrawingChanged(normalizedDrawing)
             parent.drawing = normalizedDrawing
             parent.onDrawingChanged?(normalizedDrawing)

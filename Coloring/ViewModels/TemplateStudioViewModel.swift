@@ -107,6 +107,8 @@ final class TemplateStudioViewModel: ObservableObject {
     private var debouncedPersistTask: Task<Void, Never>?
     private var fillOverlayTask: Task<Void, Never>?
     private var fillOverlayOperationID = 0
+    private var fillRestoreTask: Task<Void, Never>?
+    private var fillRestoreOperationID = 0
     private var pendingPersistTemplateIDs: Set<String> = []
     private let maxEditHistorySteps = 100
     private let maxRecentTemplates = 20
@@ -839,6 +841,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillRestoreWork()
         let templateID = selectedTemplateID
         let currentFillData = fillImagesByTemplateID[templateID]
         let request = FillOverlayRequest(
@@ -888,6 +891,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillRestoreWork()
         cancelPendingFillOverlayWork()
         let eraseResult = eraseFillOverlayRegion(in: currentFillImage, at: normalizedPoint)
         guard eraseResult.didChange else {
@@ -909,6 +913,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillRestoreWork()
         cancelPendingFillOverlayWork()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         applyFillData(nil, for: selectedTemplateID)
@@ -1517,6 +1522,12 @@ final class TemplateStudioViewModel: ObservableObject {
         fillOverlayOperationID += 1
     }
 
+    private func cancelPendingFillRestoreWork() {
+        fillRestoreTask?.cancel()
+        fillRestoreTask = nil
+        fillRestoreOperationID += 1
+    }
+
     private func applyEditSnapshot(_ snapshot: TemplateEditSnapshot, for templateID: String) {
         guard !templateID.isEmpty else {
             return
@@ -1744,10 +1755,12 @@ final class TemplateStudioViewModel: ObservableObject {
     private func restoreFillForSelectedTemplate() {
         guard !selectedTemplateID.isEmpty else {
             currentFillImage = nil
+            cancelPendingFillRestoreWork()
             return
         }
 
         if let fillData = fillImagesByTemplateID[selectedTemplateID] {
+            cancelPendingFillRestoreWork()
             currentFillImage = cachedFillImage(for: selectedTemplateID, matching: fillData)
                 ?? {
                     let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
@@ -1761,8 +1774,10 @@ final class TemplateStudioViewModel: ObservableObject {
 
         currentFillImage = nil
         let templateID = selectedTemplateID
-        Task { [weak self] in
-            await self?.loadPersistedFill(for: templateID)
+        cancelPendingFillRestoreWork()
+        let operationID = fillRestoreOperationID
+        fillRestoreTask = Task { [weak self] in
+            await self?.loadPersistedFill(for: templateID, operationID: operationID)
         }
     }
 
@@ -1781,12 +1796,25 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
-    private func loadPersistedFill(for templateID: String) async {
+    private func loadPersistedFill(for templateID: String, operationID: Int) async {
+        defer {
+            if fillRestoreOperationID == operationID {
+                fillRestoreTask = nil
+            }
+        }
+
         do {
+            guard fillRestoreOperationID == operationID else {
+                return
+            }
+
             guard let fillData = try await drawingStore.loadFillData(for: templateID) else {
                 return
             }
             guard !Task.isCancelled else {
+                return
+            }
+            guard fillRestoreOperationID == operationID else {
                 return
             }
 

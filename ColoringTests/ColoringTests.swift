@@ -1292,6 +1292,64 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testStaleFillRestoreTaskDoesNotReapplyFillAfterErase() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let initialFillData = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8)).pngData()
+        }
+
+        let drawingStore = StubTemplateDrawingStore()
+        try? await drawingStore.saveFillData(XCTUnwrap(initialFillData), for: template.id)
+        await drawingStore.enqueueFillLoadDelay(0.05)
+        await drawingStore.enqueueFillLoadDelay(0.35)
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        Task {
+            await viewModel.refreshTemplatesFromStorage()
+        }
+
+        let didRestoreFill = await waitForCondition(timeout: 1.0) {
+            await MainActor.run {
+                viewModel.currentFillImage != nil
+            }
+        }
+        XCTAssertTrue(didRestoreFill, "Expected persisted fill to restore before erase.")
+
+        await MainActor.run {
+            viewModel.isFillModeActive = false
+            viewModel.handleFillErase(at: CGPoint(x: 0.5, y: 0.5))
+            XCTAssertNil(viewModel.currentFillImage)
+        }
+
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        await MainActor.run {
+            XCTAssertNil(
+                viewModel.currentFillImage,
+                "Expected stale fill-restore work not to reapply erased fill."
+            )
+        }
+    }
+
     func testSelectingFilledTemplateRestoresFillFromInMemoryState() async {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
@@ -1546,6 +1604,58 @@ final class ColoringTests: XCTestCase {
                     currentCanvasDrawing: initialDrawing
                 )
             )
+        }
+    }
+
+    func testPencilCanvasCoordinatorUsesWindowTraitsForDynamicStrokeNormalization() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            drawingState.drawing = PKDrawing()
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+            window.overrideUserInterfaceStyle = .dark
+            let hostController = UIViewController()
+            window.rootViewController = hostController
+            window.makeKeyAndVisible()
+
+            let canvasView = PKCanvasView(frame: hostController.view.bounds)
+            canvasView.overrideUserInterfaceStyle = .light
+            hostController.view.addSubview(canvasView)
+            hostController.view.layoutIfNeeded()
+
+            canvasView.drawing = makeSampleTemplateDrawing(color: .label)
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            guard let strokeColor = drawingState.drawing.strokes.first?.ink.color else {
+                XCTFail("Expected a normalized stroke color.")
+                window.isHidden = true
+                return
+            }
+
+            var red: CGFloat = 0
+            var green: CGFloat = 0
+            var blue: CGFloat = 0
+            var alpha: CGFloat = 0
+            XCTAssertTrue(strokeColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+
+            let luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+            XCTAssertGreaterThan(
+                luminance,
+                0.7,
+                "Expected dynamic label color to resolve using dark-mode window traits."
+            )
+
+            window.isHidden = true
         }
     }
 
@@ -1893,7 +2003,12 @@ final class ColoringTests: XCTestCase {
 
     @MainActor
     private func makeSampleTemplateDrawing() -> PKDrawing {
-        let ink = PKInk(.pen, color: .black)
+        makeSampleTemplateDrawing(color: .black)
+    }
+
+    @MainActor
+    private func makeSampleTemplateDrawing(color: UIColor) -> PKDrawing {
+        let ink = PKInk(.pen, color: color)
         let points = [
             PKStrokePoint(
                 location: CGPoint(x: 10, y: 10),
@@ -2126,6 +2241,7 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     private var drawingDataByTemplateID: [String: Data] = [:]
     private var fillDataByTemplateID: [String: Data] = [:]
     private var layerStackDataByTemplateID: [String: Data] = [:]
+    private var fillLoadDelays: [TimeInterval] = []
 
     func loadDrawingData(for templateID: String) throws -> Data? {
         drawingDataByTemplateID[templateID]
@@ -2150,7 +2266,13 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     }
 
     func loadFillData(for templateID: String) throws -> Data? {
-        fillDataByTemplateID[templateID]
+        if !fillLoadDelays.isEmpty {
+            let delay = fillLoadDelays.removeFirst()
+            if delay > 0 {
+                Thread.sleep(forTimeInterval: delay)
+            }
+        }
+        return fillDataByTemplateID[templateID]
     }
 
     func saveFillData(_ fillData: Data, for templateID: String) throws {
@@ -2195,6 +2317,10 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func drawingData(for templateID: String) -> Data? {
         drawingDataByTemplateID[templateID]
+    }
+
+    func enqueueFillLoadDelay(_ delay: TimeInterval) {
+        fillLoadDelays.append(delay)
     }
 }
 
