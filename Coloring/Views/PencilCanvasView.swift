@@ -112,11 +112,17 @@ struct PencilCanvasView: UIViewRepresentable {
         private var hasPendingLocalDrawingSync = false
         var lastDrawingSyncToken = 0
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
+        private var lifecycleObservers: [NSObjectProtocol] = []
+        private var lastFillModeState: Bool?
         private let isRunningTests = NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
+        }
+
+        deinit {
+            unregisterLifecycleObservers()
         }
 
         func connect(to canvasView: PKCanvasView, containerView: ZoomableCanvasContainerView) {
@@ -128,13 +134,14 @@ struct PencilCanvasView: UIViewRepresentable {
             }
             installDrawingInteractionTracking(on: canvasView)
             installFillEraseGestureIfNeeded(on: canvasView)
+            registerLifecycleObserversIfNeeded()
 
             guard !isRunningTests else {
                 return
             }
 
             DispatchQueue.main.async { [weak self] in
-                self?.installToolingIfPossible()
+                self?.recoverToolPickerVisibilityIfNeeded()
             }
         }
 
@@ -186,9 +193,81 @@ struct PencilCanvasView: UIViewRepresentable {
             fillEraseGesture?.isEnabled = false
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
+            lastFillModeState = nil
+            unregisterLifecycleObservers()
             self.canvasView = nil
             containerView?.appearanceDidChangeHandler = nil
             containerView = nil
+        }
+
+        private func registerLifecycleObserversIfNeeded() {
+            guard lifecycleObservers.isEmpty else {
+                return
+            }
+
+            let center = NotificationCenter.default
+            lifecycleObservers.append(
+                center.addObserver(
+                    forName: UIApplication.didBecomeActiveNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.recoverToolPickerVisibilityIfNeeded()
+                }
+            )
+            lifecycleObservers.append(
+                center.addObserver(
+                    forName: UIScene.didActivateNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.recoverToolPickerVisibilityIfNeeded()
+                }
+            )
+            lifecycleObservers.append(
+                center.addObserver(
+                    forName: UIWindow.didBecomeKeyNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.recoverToolPickerVisibilityIfNeeded()
+                }
+            )
+        }
+
+        private func unregisterLifecycleObservers() {
+            guard !lifecycleObservers.isEmpty else {
+                return
+            }
+
+            let center = NotificationCenter.default
+            for observer in lifecycleObservers {
+                center.removeObserver(observer)
+            }
+            lifecycleObservers.removeAll()
+        }
+
+        private func recoverToolPickerVisibilityIfNeeded() {
+            guard !isRunningTests,
+                  let canvasView
+            else {
+                return
+            }
+
+            guard canvasView.window != nil else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.recoverToolPickerVisibilityIfNeeded()
+                }
+                return
+            }
+
+            if toolPicker == nil {
+                installToolingIfPossible()
+                return
+            }
+
+            toolPicker?.setVisible(true, forFirstResponder: canvasView)
+            canvasView.becomeFirstResponder()
         }
 
         private func installDrawingInteractionTracking(on canvasView: PKCanvasView) {
@@ -302,6 +381,8 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
+            let didFillModeChange = lastFillModeState != isFillMode
+            lastFillModeState = isFillMode
             let canvasView = containerView.canvasView
             if isFillMode {
                 canvasView.isUserInteractionEnabled = false
@@ -315,6 +396,9 @@ struct PencilCanvasView: UIViewRepresentable {
             } else {
                 canvasView.isUserInteractionEnabled = true
                 fillTapGesture?.isEnabled = false
+                if didFillModeChange {
+                    recoverToolPickerVisibilityIfNeeded()
+                }
             }
         }
 
@@ -432,12 +516,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func showToolPicker() {
-            guard let canvasView, let toolPicker else {
-                return
-            }
-
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
-            canvasView.becomeFirstResponder()
+            recoverToolPickerVisibilityIfNeeded()
         }
 
         private func switchToEraser() {
