@@ -310,6 +310,10 @@ struct TemplateStudioView: View {
                     }
                     .foregroundStyle(.orange)
                 }
+
+                Text("App Version \(appVersionText)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .listRowSeparator(.hidden)
         }
@@ -328,6 +332,22 @@ struct TemplateStudioView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    private var appVersionText: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        switch (shortVersion, buildNumber) {
+        case let (version?, build?) where !version.isEmpty && !build.isEmpty:
+            return "\(version) (\(build))"
+        case let (version?, _) where !version.isEmpty:
+            return version
+        case let (_, build?) where !build.isEmpty:
+            return build
+        default:
+            return "Unavailable"
+        }
     }
 
     private var importControls: some View {
