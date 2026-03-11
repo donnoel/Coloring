@@ -46,6 +46,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Scrolling** | Sidebar vertical bounce is disabled and the last scroll position is restored after collapsing/reopening the library. |
 | **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
+| **High-Contrast Fill Swatches** | Fill palette includes true black/white with adaptive outlines so extreme colors stay distinguishable in light and dark mode. |
 | **System Appearance Support** | Studio and gallery chrome adapt to light and dark mode while keeping the drawing canvas legible. |
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |

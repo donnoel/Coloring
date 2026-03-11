@@ -37,6 +37,7 @@ extension ColoringColor {
         ColoringColor(id: "sand", name: "Sand", red: 0.82, green: 0.70, blue: 0.54, opacity: 1.0),
         ColoringColor(id: "slate", name: "Slate", red: 0.43, green: 0.50, blue: 0.58, opacity: 1.0),
         ColoringColor(id: "charcoal", name: "Charcoal", red: 0.22, green: 0.24, blue: 0.30, opacity: 1.0),
+        ColoringColor(id: "black", name: "Black", red: 0.00, green: 0.00, blue: 0.00, opacity: 1.0),
         ColoringColor(id: "white", name: "White", red: 1.00, green: 1.00, blue: 1.00, opacity: 1.0)
     ]
 
