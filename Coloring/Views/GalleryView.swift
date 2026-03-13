@@ -60,7 +60,7 @@ struct GalleryView: View {
     }
 
     private func galleryContent(in size: CGSize) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 18) {
             galleryHeader
 
             artworkStage(in: size)
@@ -70,8 +70,8 @@ struct GalleryView: View {
             thumbnailRail
         }
         .padding(.horizontal, horizontalContentPadding(for: size))
-        .padding(.top, 24)
-        .padding(.bottom, 20)
+        .padding(.top, 28)
+        .padding(.bottom, 22)
     }
 
     private func artworkStage(in size: CGSize) -> some View {
@@ -133,6 +133,16 @@ struct GalleryView: View {
                 startRadius: 90,
                 endRadius: 540
             )
+
+            RadialGradient(
+                colors: [
+                    Color.black.opacity(colorScheme == .dark ? 0.36 : 0.20),
+                    .clear
+                ],
+                center: .bottom,
+                startRadius: 40,
+                endRadius: 460
+            )
         }
     }
 
@@ -163,13 +173,13 @@ struct GalleryView: View {
         .font(.footnote.weight(.semibold))
         .foregroundStyle(.primary)
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
                 .stroke(glassStrokeSoft, lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.34 : 0.14), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.30 : 0.12), radius: 8, x: 0, y: 4)
     }
 
     private var carouselMeta: some View {
@@ -214,7 +224,7 @@ struct GalleryView: View {
             }
         }
         .padding(.horizontal, 4)
-        .padding(.top, 2)
+        .padding(.top, 4)
     }
 
     private var thumbnailRail: some View {
@@ -237,15 +247,15 @@ struct GalleryView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(glassStrokeSoft, lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.36 : 0.14), radius: 12, x: 0, y: 7)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.30 : 0.12), radius: 10, x: 0, y: 6)
     }
 
     private func thumbnailButton(entry: ArtworkEntry, isSelected: Bool) -> some View {
@@ -268,7 +278,7 @@ struct GalleryView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .frame(width: 96, height: 70)
+        .frame(width: 90, height: 64)
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -284,11 +294,11 @@ struct GalleryView: View {
         )
         .shadow(
             color: Color.black.opacity(isSelected ? (colorScheme == .dark ? 0.38 : 0.18) : (colorScheme == .dark ? 0.12 : 0.04)),
-            radius: isSelected ? 12 : 6,
+            radius: isSelected ? 10 : 6,
             x: 0,
-            y: isSelected ? 7 : 3
+            y: isSelected ? 6 : 3
         )
-        .scaleEffect(isSelected ? 1.01 : 0.98)
+        .scaleEffect(isSelected ? 1.015 : 0.985)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isSelected)
     }
 
@@ -300,33 +310,15 @@ struct GalleryView: View {
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.34 : 0.14))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-
-                RoundedRectangle(cornerRadius: cardCornerRadius - 8, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [
-                                    Color(red: 0.08, green: 0.10, blue: 0.13).opacity(0.94),
-                                    Color(red: 0.06, green: 0.07, blue: 0.09).opacity(0.98)
-                                ]
-                                : [
-                                    Color(red: 0.77, green: 0.80, blue: 0.86).opacity(0.56),
-                                    Color(red: 0.68, green: 0.71, blue: 0.78).opacity(0.50)
-                                ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .padding(6)
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.42 : 0.18))
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
 
                 if let thumbnail = viewModel.thumbnailImage(for: entry) {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(14)
+                        .padding(12)
                 } else {
                     Image(systemName: "photo")
                         .font(.title2)
@@ -334,18 +326,28 @@ struct GalleryView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                RoundedRectangle(cornerRadius: cardCornerRadius - 8, style: .continuous)
-                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.24 : 0.44), lineWidth: 1)
-                    .padding(6)
+                RoundedRectangle(cornerRadius: cardCornerRadius - 6, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.24 : 0.40), lineWidth: 1)
+                    .padding(4)
             }
             .frame(height: previewHeight)
             .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.36 : 0.56), lineWidth: 1)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(colorScheme == .dark ? 0.12 : 0.16), .clear],
+                            startPoint: .top,
+                            endPoint: .center
+                        )
+                    )
             )
-            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.44 : 0.20), radius: 26, x: 0, y: 16)
-            .padding(.horizontal, 10)
+            .overlay(
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.34 : 0.50), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.48 : 0.24), radius: 34, x: 0, y: 20)
+            .padding(.horizontal, 14)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -359,18 +361,18 @@ struct GalleryView: View {
 
     private func cardWidth(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let widthFactor: CGFloat = isLandscape ? 0.88 : 0.91
+        let widthFactor: CGFloat = isLandscape ? 0.82 : 0.87
         return max(360, min(1160, size.width * widthFactor))
     }
 
     private func previewHeight(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let heightFactor: CGFloat = isLandscape ? 0.56 : 0.50
-        return max(320, min(740, size.height * heightFactor))
+        let heightFactor: CGFloat = isLandscape ? 0.48 : 0.44
+        return max(280, min(680, size.height * heightFactor))
     }
 
     private func carouselHeight(for size: CGSize) -> CGFloat {
-        previewHeight(for: size) + 34
+        previewHeight(for: size) + 24
     }
 
     private func horizontalContentPadding(for size: CGSize) -> CGFloat {
