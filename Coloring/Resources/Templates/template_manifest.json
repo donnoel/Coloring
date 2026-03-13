@@ -126,6 +126,90 @@
     "orientation": "landscape"
   },
   {
+    "fileName": "landscape-23.png",
+    "title": "AI and Robotics",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-24.png",
+    "title": "Elephant in Savanna",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-25.png",
+    "title": "Invasion over Seattle",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-26.png",
+    "title": "London Cityscape",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-27.png",
+    "title": "Manhattan Skyline",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-28.png",
+    "title": "Motorcycle Racers",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-29.png",
+    "title": "Mountain Hike",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-30.png",
+    "title": "Off-Roading Adventure",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-31.png",
+    "title": "Playful Kitten",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-32.png",
+    "title": "Redwood Forest",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-33.png",
+    "title": "Rocket Launch",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-34.png",
+    "title": "Showdown",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-35.png",
+    "title": "The Beach",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-36.png",
+    "title": "Voyage Through Space",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
     "fileName": "portrait-01.png",
     "title": "City Scape",
     "category": "Portrait",
@@ -200,6 +284,18 @@
   {
     "fileName": "portrait-18.png",
     "title": "Stuntman Bob",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-19.png",
+    "title": "Flower Garden",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-20.png",
+    "title": "Winning",
     "category": "Portrait",
     "orientation": "portrait"
   }
