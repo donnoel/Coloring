@@ -6,7 +6,7 @@ struct GalleryView: View {
     @ObservedObject var viewModel: GalleryViewModel
     @State private var selectedEntry: ArtworkEntry?
     @State private var carouselIndex = 0
-    private let cardCornerRadius: CGFloat = 38
+    private let cardCornerRadius: CGFloat = 32
 
     var body: some View {
         NavigationStack {
@@ -63,15 +63,7 @@ struct GalleryView: View {
         VStack(spacing: 14) {
             galleryHeader
 
-            TabView(selection: $carouselIndex) {
-                ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
-                    artworkCard(entry: entry, in: size)
-                        .tag(index)
-                        .padding(.horizontal, horizontalInset(for: size))
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: carouselHeight(for: size))
+            artworkStage(in: size)
 
             carouselMeta
 
@@ -79,7 +71,19 @@ struct GalleryView: View {
         }
         .padding(.horizontal, horizontalContentPadding(for: size))
         .padding(.top, 24)
-        .padding(.bottom, 24)
+        .padding(.bottom, 20)
+    }
+
+    private func artworkStage(in size: CGSize) -> some View {
+        TabView(selection: $carouselIndex) {
+            ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
+                artworkCard(entry: entry, in: size)
+                    .tag(index)
+                    .padding(.horizontal, horizontalInset(for: size))
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: carouselHeight(for: size))
     }
 
     private var galleryBackground: some View {
@@ -87,14 +91,14 @@ struct GalleryView: View {
             LinearGradient(
                 colors: colorScheme == .dark
                     ? [
-                        Color(red: 0.05, green: 0.07, blue: 0.09),
-                        Color(red: 0.08, green: 0.10, blue: 0.12),
-                        Color(red: 0.10, green: 0.11, blue: 0.14)
+                        Color(red: 0.03, green: 0.04, blue: 0.06),
+                        Color(red: 0.05, green: 0.06, blue: 0.09),
+                        Color(red: 0.08, green: 0.09, blue: 0.13)
                     ]
                     : [
-                        Color(red: 0.96, green: 0.97, blue: 0.99),
-                        Color(red: 0.95, green: 0.96, blue: 0.98),
-                        Color(red: 0.95, green: 0.95, blue: 0.97)
+                        Color(red: 0.72, green: 0.75, blue: 0.81),
+                        Color(red: 0.63, green: 0.67, blue: 0.73),
+                        Color(red: 0.56, green: 0.60, blue: 0.67)
                     ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -102,46 +106,46 @@ struct GalleryView: View {
 
             RadialGradient(
                 colors: [
-                    Color.white.opacity(colorScheme == .dark ? 0.08 : 0.16),
+                    Color.white.opacity(colorScheme == .dark ? 0.08 : 0.12),
+                    .clear
+                ],
+                center: .topTrailing,
+                startRadius: 40,
+                endRadius: 420
+            )
+
+            RadialGradient(
+                colors: [
+                    Color(red: 0.34, green: 0.49, blue: 0.69).opacity(colorScheme == .dark ? 0.20 : 0.13),
                     .clear
                 ],
                 center: .top,
-                startRadius: 64,
+                startRadius: 60,
                 endRadius: 520
             )
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.38, green: 0.54, blue: 0.75).opacity(colorScheme == .dark ? 0.17 : 0.10),
-                    .clear
-                ],
-                center: .topTrailing,
-                startRadius: 52,
-                endRadius: 640
-            )
-
-            RadialGradient(
-                colors: [
-                    Color(red: 0.58, green: 0.63, blue: 0.82).opacity(colorScheme == .dark ? 0.16 : 0.10),
+                    Color(red: 0.38, green: 0.41, blue: 0.57).opacity(colorScheme == .dark ? 0.16 : 0.11),
                     .clear
                 ],
                 center: .bottomLeading,
-                startRadius: 80,
-                endRadius: 600
+                startRadius: 90,
+                endRadius: 540
             )
         }
     }
 
     private var galleryHeader: some View {
         HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Artwork Gallery")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.95) : Color.primary)
 
                 Text(activeEntry?.sourceTemplateName ?? "Browse your exported drawings")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.74) : Color.primary.opacity(0.74))
                     .lineLimit(1)
             }
 
@@ -158,42 +162,31 @@ struct GalleryView: View {
         }
         .font(.footnote.weight(.semibold))
         .foregroundStyle(.primary)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(.thinMaterial, in: Capsule())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(colorScheme == .dark ? 0.16 : 0.36), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .mask(Capsule())
+                .stroke(glassStrokeSoft, lineWidth: 1)
         )
-        .overlay(
-            Capsule()
-                .stroke(glassStrokeStrong, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.08), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.34 : 0.14), radius: 10, x: 0, y: 5)
     }
 
     private var carouselMeta: some View {
-        HStack(spacing: 12) {
+        HStack {
             HStack(spacing: 6) {
                 ForEach(viewModel.entries.indices, id: \.self) { index in
                     Capsule(style: .continuous)
                         .fill(
                             index == carouselIndex
-                                ? Color.white.opacity(colorScheme == .dark ? 0.82 : 0.96)
-                                : Color.white.opacity(colorScheme == .dark ? 0.28 : 0.50)
+                                ? Color.white.opacity(colorScheme == .dark ? 0.84 : 0.94)
+                                : Color.white.opacity(colorScheme == .dark ? 0.30 : 0.46)
                         )
                         .frame(width: index == carouselIndex ? 26 : 9, height: 9)
                 }
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: carouselIndex)
-            .padding(.horizontal, 13)
+            .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
@@ -201,7 +194,7 @@ struct GalleryView: View {
                     .stroke(glassStrokeSoft, lineWidth: 1)
             )
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 10)
 
             if let activeEntry {
                 HStack(spacing: 6) {
@@ -210,23 +203,23 @@ struct GalleryView: View {
                     Text(activeEntry.createdAt, style: .date)
                         .font(.footnote)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.80) : Color.primary.opacity(0.72))
                 .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(.thinMaterial, in: Capsule())
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
                     Capsule()
                         .stroke(glassStrokeSoft, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.20 : 0.06), radius: 8, x: 0, y: 4)
             }
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 4)
+        .padding(.top, 2)
     }
 
     private var thumbnailRail: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
                     Button {
                         let updateSelection = {
@@ -244,29 +237,15 @@ struct GalleryView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(colorScheme == .dark ? 0.13 : 0.34),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .mask(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(glassStrokeSoft, lineWidth: 1)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(glassStrokeStrong, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.07), radius: 14, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.36 : 0.14), radius: 12, x: 0, y: 7)
     }
 
     private func thumbnailButton(entry: ArtworkEntry, isSelected: Bool) -> some View {
@@ -274,8 +253,8 @@ struct GalleryView: View {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(
                     isSelected
-                        ? Color.white.opacity(colorScheme == .dark ? 0.28 : 0.62)
-                        : Color.white.opacity(colorScheme == .dark ? 0.10 : 0.33)
+                        ? Color.white.opacity(colorScheme == .dark ? 0.24 : 0.50)
+                        : Color.black.opacity(colorScheme == .dark ? 0.22 : 0.06)
                 )
 
             if let thumbnail = viewModel.thumbnailImage(for: entry) {
@@ -294,22 +273,22 @@ struct GalleryView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .stroke(
-                    isSelected ? Color.white.opacity(colorScheme == .dark ? 0.98 : 0.92) : glassStrokeSoft,
+                    isSelected ? Color.white.opacity(colorScheme == .dark ? 0.90 : 0.84) : Color.white.opacity(colorScheme == .dark ? 0.24 : 0.42),
                     lineWidth: isSelected ? 2 : 1
                 )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(Color.white.opacity(isSelected ? 0.24 : 0), lineWidth: 1)
-                .blur(radius: 1.8)
+                .stroke(Color.white.opacity(isSelected ? 0.28 : 0), lineWidth: 1)
+                .blur(radius: 2.0)
         )
         .shadow(
-            color: Color.black.opacity(isSelected ? (colorScheme == .dark ? 0.30 : 0.14) : (colorScheme == .dark ? 0.12 : 0.04)),
-            radius: isSelected ? 16 : 8,
+            color: Color.black.opacity(isSelected ? (colorScheme == .dark ? 0.38 : 0.18) : (colorScheme == .dark ? 0.12 : 0.04)),
+            radius: isSelected ? 12 : 6,
             x: 0,
-            y: isSelected ? 10 : 4
+            y: isSelected ? 7 : 3
         )
-        .scaleEffect(isSelected ? 1.02 : 0.98)
+        .scaleEffect(isSelected ? 1.01 : 0.98)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isSelected)
     }
 
@@ -321,43 +300,33 @@ struct GalleryView: View {
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-
-                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(colorScheme == .dark ? 0.16 : 0.34),
-                                .clear
-                            ],
-                            startPoint: .top,
-                            endPoint: .center
-                        )
-                    )
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.34 : 0.14))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
 
                 RoundedRectangle(cornerRadius: cardCornerRadius - 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: colorScheme == .dark
                                 ? [
-                                    Color(red: 0.16, green: 0.18, blue: 0.23).opacity(0.78),
-                                    Color(red: 0.09, green: 0.10, blue: 0.13).opacity(0.90)
+                                    Color(red: 0.08, green: 0.10, blue: 0.13).opacity(0.94),
+                                    Color(red: 0.06, green: 0.07, blue: 0.09).opacity(0.98)
                                 ]
                                 : [
-                                    Color(red: 0.99, green: 1.00, blue: 1.00).opacity(0.95),
-                                    Color(red: 0.95, green: 0.97, blue: 0.99).opacity(0.90)
+                                    Color(red: 0.77, green: 0.80, blue: 0.86).opacity(0.56),
+                                    Color(red: 0.68, green: 0.71, blue: 0.78).opacity(0.50)
                                 ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
+                    .padding(6)
 
                 if let thumbnail = viewModel.thumbnailImage(for: entry) {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(30)
+                        .padding(14)
                 } else {
                     Image(systemName: "photo")
                         .font(.title2)
@@ -366,16 +335,17 @@ struct GalleryView: View {
                 }
 
                 RoundedRectangle(cornerRadius: cardCornerRadius - 8, style: .continuous)
-                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.28 : 0.50), lineWidth: 1)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.24 : 0.44), lineWidth: 1)
+                    .padding(6)
             }
             .frame(height: previewHeight)
             .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .stroke(glassStrokeStrong, lineWidth: 1)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.36 : 0.56), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.34 : 0.13), radius: 34, x: 0, y: 20)
-            .padding(.horizontal, 6)
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.44 : 0.20), radius: 26, x: 0, y: 16)
+            .padding(.horizontal, 10)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -389,18 +359,18 @@ struct GalleryView: View {
 
     private func cardWidth(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let widthFactor: CGFloat = isLandscape ? 0.92 : 0.95
+        let widthFactor: CGFloat = isLandscape ? 0.88 : 0.91
         return max(360, min(1160, size.width * widthFactor))
     }
 
     private func previewHeight(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let heightFactor: CGFloat = isLandscape ? 0.63 : 0.58
-        return max(360, min(800, size.height * heightFactor))
+        let heightFactor: CGFloat = isLandscape ? 0.56 : 0.50
+        return max(320, min(740, size.height * heightFactor))
     }
 
     private func carouselHeight(for size: CGSize) -> CGFloat {
-        previewHeight(for: size) + 12
+        previewHeight(for: size) + 34
     }
 
     private func horizontalContentPadding(for size: CGSize) -> CGFloat {
@@ -413,11 +383,7 @@ struct GalleryView: View {
     }
 
     private var glassStrokeSoft: Color {
-        Color.white.opacity(colorScheme == .dark ? 0.32 : 0.62)
-    }
-
-    private var glassStrokeStrong: Color {
-        Color.white.opacity(colorScheme == .dark ? 0.50 : 0.76)
+        Color.white.opacity(colorScheme == .dark ? 0.28 : 0.44)
     }
 
     private func syncCarouselIndex() {
