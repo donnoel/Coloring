@@ -204,12 +204,6 @@
     "orientation": "landscape"
   },
   {
-    "fileName": "landscape-36.png",
-    "title": "Voyage Through Space",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
     "fileName": "landscape-37.png",
     "title": "Arch of Constantine",
     "category": "Landscape",
@@ -278,12 +272,6 @@
   {
     "fileName": "landscape-48.png",
     "title": "Rialto Bridge",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-49.png",
-    "title": "Rushmore",
     "category": "Landscape",
     "orientation": "landscape"
   },
@@ -372,12 +360,6 @@
     "orientation": "portrait"
   },
   {
-    "fileName": "portrait-10.png",
-    "title": "Boys and Bikes",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
     "fileName": "portrait-11.png",
     "title": "Boys Friend",
     "category": "Portrait",
@@ -404,12 +386,6 @@
   {
     "fileName": "portrait-19.png",
     "title": "Flower Garden",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-20.png",
-    "title": "Winning",
     "category": "Portrait",
     "orientation": "portrait"
   },

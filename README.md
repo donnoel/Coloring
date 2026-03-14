@@ -33,7 +33,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **72 Built-In Orientation Packs** | Includes 54 landscape and 18 portrait built-in drawings. |
 | **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills and shows a live count badge. |
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
-| **Expanded Built-In Folders** | Adds five title-based folders (Cities & Landmarks, Nature & Outdoors, People & Portraits, Animals & Wildlife, Action & Motion); drawings can appear in multiple folders. |
+| **Expanded Built-In Folders** | Adds difficulty folders (Easy, Intermediate, Challenging) and five title-based folders (Cities & Landmarks, Nature & Outdoors, People & Portraits, Animals & Wildlife, Action & Motion); drawings can appear in multiple folders. |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
@@ -60,7 +60,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
-- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, plus the five title-based folders; the same drawing may appear in more than one built-in folder.
+- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, `Easy`, `Intermediate`, `Challenging`, plus the five title-based folders; the same drawing may appear in more than one built-in folder.
 - **Folder Ordering**: Open **Manage Categories** and drag folders to set the order shown in category chips.
 - **Favorites / Completed**: Long-press a drawing in the sidebar to favorite it or mark it completed.
 - **Recent**: The `Recent` folder shows the most recently opened drawings first.
