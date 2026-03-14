@@ -318,7 +318,7 @@ struct GalleryView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(12)
+                        .padding(8)
                 } else {
                     Image(systemName: "photo")
                         .font(.title2)
@@ -347,7 +347,7 @@ struct GalleryView: View {
                     .stroke(Color.white.opacity(colorScheme == .dark ? 0.34 : 0.50), lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.48 : 0.24), radius: 34, x: 0, y: 20)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 6)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -361,18 +361,18 @@ struct GalleryView: View {
 
     private func cardWidth(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let widthFactor: CGFloat = isLandscape ? 0.82 : 0.87
-        return max(360, min(1160, size.width * widthFactor))
+        let widthFactor: CGFloat = isLandscape ? 0.94 : 0.96
+        return max(420, min(1240, size.width * widthFactor))
     }
 
     private func previewHeight(for size: CGSize) -> CGFloat {
         let isLandscape = size.width > size.height
-        let heightFactor: CGFloat = isLandscape ? 0.48 : 0.44
-        return max(280, min(680, size.height * heightFactor))
+        let heightFactor: CGFloat = isLandscape ? 0.66 : 0.60
+        return max(380, min(860, size.height * heightFactor))
     }
 
     private func carouselHeight(for size: CGSize) -> CGFloat {
-        previewHeight(for: size) + 24
+        previewHeight(for: size) + 18
     }
 
     private func horizontalContentPadding(for size: CGSize) -> CGFloat {
