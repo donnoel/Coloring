@@ -19,6 +19,10 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "manhattan island",
             "the needle",
             "city scape",
+            "invasion over seattle",
+            "london city scape",
+            "london cityscape",
+            "manhattan skyline",
             "futuristic lunar base",
             "neon city racing"
         ],
@@ -27,7 +31,14 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "future nature",
             "glacier park",
             "ocean",
-            "manhattan island"
+            "manhattan island",
+            "elephant in savanna",
+            "flower garden",
+            "melancholy at the pool",
+            "mountain hike",
+            "off-roading adventure",
+            "redwood forest",
+            "the beach"
         ],
         "People & Portraits": [
             "home",
@@ -38,14 +49,22 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "loving mother",
             "sad girl",
             "ai girl",
-            "future alien"
+            "future alien",
+            "boys and bikes",
+            "boys friend",
+            "girl on the bench",
+            "melancholy at the pool",
+            "stuntman bob",
+            "winning"
         ],
         "Animals & Wildlife": [
             "cats",
             "dogs",
             "elephant",
             "lurking",
-            "future alien"
+            "future alien",
+            "elephant in savanna",
+            "playful kitten"
         ],
         "Action & Motion": [
             "bikes",
@@ -53,7 +72,18 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "4 wheeling",
             "ice skating in space",
             "wheelie",
-            "neon city racing"
+            "neon city racing",
+            "ai and robotics",
+            "boys and bikes",
+            "invasion over seattle",
+            "motorcycle racers",
+            "mountain hike",
+            "off-roading adventure",
+            "rocket launch",
+            "showdown",
+            "stuntman bob",
+            "voyage through space",
+            "winning"
         ]
     ]
 
