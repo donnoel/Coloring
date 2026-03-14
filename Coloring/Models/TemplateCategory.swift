@@ -13,6 +13,8 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
     static let importedCategory = TemplateCategory(id: "imported", name: "Imported", isUserCreated: false)
     private static let titleBasedBuiltInCategoryTitles: [String: Set<String>] = [
         "Cities & Landmarks": [
+            "alleyway with steps",
+            "arch of constantine",
             "settlement",
             "neighborhood",
             "brooklyn bridge",
@@ -23,13 +25,25 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "london city scape",
             "london cityscape",
             "manhattan skyline",
+            "portland downtown",
+            "rialto bridge",
+            "rushmore",
+            "space needle",
+            "village by the sea",
+            "gothic courtyard",
             "futuristic lunar base",
             "neon city racing"
         ],
         "Nature & Outdoors": [
             "beach",
+            "grand canyon",
             "future nature",
             "glacier park",
+            "half dome",
+            "lack como",
+            "lake and mountain",
+            "lake stroll",
+            "mountain view",
             "ocean",
             "manhattan island",
             "elephant in savanna",
@@ -37,8 +51,13 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "melancholy at the pool",
             "mountain hike",
             "off-roading adventure",
+            "rainforest",
+            "ranch",
             "redwood forest",
-            "the beach"
+            "tent time",
+            "the beach",
+            "trailing",
+            "village by the sea"
         ],
         "People & Portraits": [
             "home",
@@ -58,9 +77,11 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "winning"
         ],
         "Animals & Wildlife": [
+            "cat and flag",
             "cats",
             "dogs",
             "elephant",
+            "elephant sculpture",
             "lurking",
             "future alien",
             "elephant in savanna",
@@ -82,7 +103,9 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "rocket launch",
             "showdown",
             "stuntman bob",
+            "truck and bike",
             "voyage through space",
+            "vroom vroom",
             "winning"
         ]
     ]

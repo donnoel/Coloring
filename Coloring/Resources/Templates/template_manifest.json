@@ -210,6 +210,120 @@
     "orientation": "landscape"
   },
   {
+    "fileName": "landscape-37.png",
+    "title": "Arch of Constantine",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-38.png",
+    "title": "Elephant Sculpture",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-39.png",
+    "title": "Grand Canyon",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-40.png",
+    "title": "Half Dome",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-41.png",
+    "title": "Lack Como",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-42.png",
+    "title": "Lake and Mountain",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-43.png",
+    "title": "Lake Stroll",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-44.png",
+    "title": "Mountain View",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-45.png",
+    "title": "Portland Downtown",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-46.png",
+    "title": "Rainforest",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-47.png",
+    "title": "Ranch",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-48.png",
+    "title": "Rialto Bridge",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-49.png",
+    "title": "Rushmore",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-50.png",
+    "title": "Space Needle",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-51.png",
+    "title": "Tent Time",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-52.png",
+    "title": "Trailing",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-53.png",
+    "title": "Truck and Bike",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-54.png",
+    "title": "Village by the Sea",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
+    "fileName": "landscape-55.png",
+    "title": "Vroom Vroom",
+    "category": "Landscape",
+    "orientation": "landscape"
+  },
+  {
     "fileName": "portrait-01.png",
     "title": "City Scape",
     "category": "Portrait",
@@ -296,6 +410,24 @@
   {
     "fileName": "portrait-20.png",
     "title": "Winning",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-21.png",
+    "title": "Alleyway with Steps",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-22.png",
+    "title": "Cat and Flag",
+    "category": "Portrait",
+    "orientation": "portrait"
+  },
+  {
+    "fileName": "portrait-23.png",
+    "title": "Gothic Courtyard",
     "category": "Portrait",
     "orientation": "portrait"
   }
