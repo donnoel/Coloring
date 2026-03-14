@@ -3,20 +3,20 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    private enum RootTab {
+    private enum RootTab: String {
         case studio
         case gallery
     }
 
     @StateObject private var templateViewModel = TemplateStudioViewModel()
     @StateObject private var galleryViewModel = GalleryViewModel()
-    @State private var selectedTab: RootTab = .studio
+    @AppStorage("contentView.selectedTab") private var selectedTabRawValue: String = RootTab.studio.rawValue
 
     var body: some View {
         ZStack {
             backgroundGradient
 
-            TabView(selection: $selectedTab) {
+            TabView(selection: selectedTabBinding) {
                 TemplateStudioView(viewModel: templateViewModel)
                     .tabItem {
                         Label("Studio", systemImage: "paintbrush.pointed")
@@ -29,6 +29,14 @@ struct ContentView: View {
                     }
                     .tag(RootTab.gallery)
             }
+        }
+    }
+
+    private var selectedTabBinding: Binding<RootTab> {
+        Binding {
+            RootTab(rawValue: selectedTabRawValue) ?? .studio
+        } set: { newValue in
+            selectedTabRawValue = newValue.rawValue
         }
     }
 
