@@ -67,6 +67,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
+- Library sidebar resize should remain responsive during drag and persist the chosen width after drag ends.
 - Built-in landscape templates request landscape orientation, and built-in portrait templates request portrait orientation.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.

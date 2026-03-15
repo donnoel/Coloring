@@ -44,7 +44,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Template Orientation Enforcement** | Landscape templates request landscape mode; portrait templates request portrait mode when opened. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
-| **Stable Sidebar Scrolling** | Sidebar vertical bounce is disabled and the last scroll position is restored after collapsing/reopening the library. |
+| **Stable Sidebar Navigation** | Sidebar vertical bounce is disabled, the last scroll position is restored after collapsing/reopening the library, and resize drag remains smooth while width still persists. |
 | **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
 | **High-Contrast Fill Swatches** | Fill palette includes true black/white with adaptive outlines so extreme colors stay distinguishable in light and dark mode. |
 | **System Appearance Support** | Studio and gallery chrome adapt to light and dark mode while keeping the drawing canvas and native PencilKit picker appearance-stable. |

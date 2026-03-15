@@ -32,7 +32,8 @@ struct TemplateStudioView: View {
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
     @State private var requestedCanvasOrientation: ColoringTemplate.CanvasOrientation = .any
-    @SceneStorage("templateStudio.sidebarWidth") private var sidebarWidth: Double = Self.defaultSidebarWidth
+    @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
+    @State private var liveSidebarWidth: Double = Self.defaultSidebarWidth
     @SceneStorage("templateStudio.palettePlacement") private var palettePlacementRawValue: String = PalettePlacement.bottom.rawValue
     @State private var sidebarResizeStartWidth: Double?
 
@@ -161,6 +162,11 @@ struct TemplateStudioView: View {
             LayerPanelView(viewModel: viewModel)
         }
         .onAppear {
+            let clampedWidth = clampedSidebarWidth(storedSidebarWidth)
+            liveSidebarWidth = clampedWidth
+            if clampedWidth != storedSidebarWidth {
+                storedSidebarWidth = clampedWidth
+            }
             applyCanvasOrientationForSelectedTemplate(force: true)
         }
         .onDisappear {
@@ -326,7 +332,7 @@ struct TemplateStudioView: View {
         }
         .navigationSplitViewColumnWidth(
             min: Self.sidebarMinWidth,
-            ideal: CGFloat(sidebarWidth),
+            ideal: CGFloat(liveSidebarWidth),
             max: Self.sidebarMaxWidth
         )
         .navigationTitle("")
@@ -766,7 +772,7 @@ struct TemplateStudioView: View {
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     if sidebarResizeStartWidth == nil {
-                        sidebarResizeStartWidth = sidebarWidth
+                        sidebarResizeStartWidth = liveSidebarWidth
                     }
 
                     guard let sidebarResizeStartWidth else {
@@ -774,13 +780,11 @@ struct TemplateStudioView: View {
                     }
 
                     let proposedWidth = sidebarResizeStartWidth + Double(value.translation.width)
-                    sidebarWidth = min(
-                        max(proposedWidth, Double(Self.sidebarMinWidth)),
-                        Double(Self.sidebarMaxWidth)
-                    )
+                    liveSidebarWidth = clampedSidebarWidth(proposedWidth)
                 }
                 .onEnded { _ in
                     sidebarResizeStartWidth = nil
+                    storedSidebarWidth = liveSidebarWidth
                 }
         )
         .accessibilityElement(children: .ignore)
@@ -1000,6 +1004,13 @@ struct TemplateStudioView: View {
                 : PalettePlacement.top.rawValue
             isPaletteVisible = true
         }
+    }
+
+    private func clampedSidebarWidth(_ proposedWidth: Double) -> Double {
+        min(
+            max(proposedWidth, Double(Self.sidebarMinWidth)),
+            Double(Self.sidebarMaxWidth)
+        )
     }
 
     private func applyCanvasOrientationForSelectedTemplate(force: Bool = false) {
