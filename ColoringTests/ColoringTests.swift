@@ -1607,7 +1607,7 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    func testPencilCanvasCoordinatorUsesWindowTraitsForDynamicStrokeNormalization() async {
+    func testPencilCanvasCoordinatorUsesLightTraitsForDynamicStrokeNormalization() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
             drawingState.drawing = PKDrawing()
@@ -1649,10 +1649,10 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(strokeColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
 
             let luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
-            XCTAssertGreaterThan(
+            XCTAssertLessThan(
                 luminance,
-                0.7,
-                "Expected dynamic label color to resolve using dark-mode window traits."
+                0.3,
+                "Expected dynamic label color to resolve using light-mode artwork traits."
             )
 
             window.isHidden = true

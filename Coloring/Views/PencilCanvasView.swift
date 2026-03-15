@@ -161,6 +161,8 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             let toolPicker = PKToolPicker()
+            toolPicker.overrideUserInterfaceStyle = .light
+            toolPicker.colorUserInterfaceStyle = .light
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
             toolPicker.setVisible(true, forFirstResponder: canvasView)
@@ -270,19 +272,8 @@ struct PencilCanvasView: UIViewRepresentable {
             canvasView.becomeFirstResponder()
         }
 
-        private func colorResolutionTraitCollection(for canvasView: PKCanvasView) -> UITraitCollection? {
-            if let windowTraitCollection = canvasView.window?.traitCollection {
-                return windowTraitCollection
-            }
-
-            if let activeSceneTraitCollection = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive })?
-                .traitCollection {
-                return activeSceneTraitCollection
-            }
-
-            return canvasView.traitCollection
+        private func colorResolutionTraitCollection(for _: PKCanvasView) -> UITraitCollection {
+            UITraitCollection(userInterfaceStyle: .light)
         }
 
         private func installDrawingInteractionTracking(on canvasView: PKCanvasView) {
@@ -365,14 +356,15 @@ struct PencilCanvasView: UIViewRepresentable {
             DispatchQueue.main.async(execute: workItem)
         }
 
-        private func handleAppearanceChange(previousTraitCollection: UITraitCollection?) {
+        private func handleAppearanceChange(previousTraitCollection _: UITraitCollection?) {
             guard let canvasView else {
                 return
             }
 
-            normalizeDisplayedDrawing(using: previousTraitCollection, on: canvasView)
-            normalizeCurrentTool(using: previousTraitCollection, on: canvasView)
-            parent.onAppearanceStyleChanged?(previousTraitCollection)
+            let artworkTraitCollection = colorResolutionTraitCollection(for: canvasView)
+            normalizeDisplayedDrawing(using: artworkTraitCollection, on: canvasView)
+            normalizeCurrentTool(using: artworkTraitCollection, on: canvasView)
+            parent.onAppearanceStyleChanged?(artworkTraitCollection)
         }
 
         private func normalizeDisplayedDrawing(using traitCollection: UITraitCollection?, on canvasView: PKCanvasView) {
