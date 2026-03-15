@@ -77,6 +77,7 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "winning"
         ],
         "Animals & Wildlife": [
+            "jacks",
             "cat and flag",
             "cats",
             "dogs",
