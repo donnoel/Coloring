@@ -161,7 +161,8 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             let toolPicker = PKToolPicker()
-            toolPicker.overrideUserInterfaceStyle = .light
+            // Keep picker controls readable (especially white + opacity) regardless of system theme.
+            toolPicker.overrideUserInterfaceStyle = .dark
             toolPicker.colorUserInterfaceStyle = .light
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
