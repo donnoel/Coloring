@@ -10,10 +10,9 @@ struct PencilCanvasView: UIViewRepresentable {
     var onDrawingChanged: ((PKDrawing) -> Void)?
     var onStrokeInteractionChanged: ((Bool) -> Void)?
     var fillMode: Bool = false
-    var selectedFillColor: UIColor?
     var fillImage: UIImage?
     /// Normalized tap location in template space (0...1 for both axes).
-    var onFillTap: ((CGPoint) -> Void)?
+    var onFillTap: ((CGPoint, UIColor) -> Void)?
     /// Normalized touch location in template space used to erase a fill region.
     var onFillErase: ((CGPoint) -> Void)?
     var onAppearanceStyleChanged: ((UITraitCollection?) -> Void)?
@@ -391,18 +390,19 @@ struct PencilCanvasView: UIViewRepresentable {
         func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
             let didFillModeChange = lastFillModeState != isFillMode
             lastFillModeState = isFillMode
-            let canvasView = containerView.canvasView
             if isFillMode {
-                canvasView.isUserInteractionEnabled = false
+                drawingGestureRecognizer?.isEnabled = false
                 if fillTapGesture == nil {
                     let tap = UITapGestureRecognizer(target: self, action: #selector(handleFillTap(_:)))
                     tap.numberOfTapsRequired = 1
+                    tap.cancelsTouchesInView = false
                     containerView.contentView.addGestureRecognizer(tap)
                     fillTapGesture = tap
                 }
                 fillTapGesture?.isEnabled = true
+                recoverToolPickerVisibilityIfNeeded()
             } else {
-                canvasView.isUserInteractionEnabled = true
+                drawingGestureRecognizer?.isEnabled = true
                 fillTapGesture?.isEnabled = false
                 if didFillModeChange {
                     recoverToolPickerVisibilityIfNeeded()
@@ -451,11 +451,14 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
-            guard let normalizedPoint = normalizedTemplatePoint(for: gesture) else {
+            guard let normalizedPoint = normalizedTemplatePoint(for: gesture),
+                  let fillColor = activeFillColor()
+            else {
                 return
             }
 
-            parent.onFillTap?(normalizedPoint)
+            parent.onFillTap?(normalizedPoint, fillColor)
+            recoverToolPickerVisibilityIfNeeded()
         }
 
         @objc private func handleFillEraseGesture(_ gesture: UILongPressGestureRecognizer) {
@@ -551,6 +554,24 @@ struct PencilCanvasView: UIViewRepresentable {
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             gestureRecognizer === fillEraseGesture || otherGestureRecognizer === fillEraseGesture
+        }
+
+        private func activeFillColor() -> UIColor? {
+            if let canvasView,
+               let inkingTool = canvasView.tool as? PKInkingTool {
+                return inkingTool.color.stableResolvedColor(using: colorResolutionTraitCollection(for: canvasView))
+            }
+
+            if let inkingTool = lastInkTool as? PKInkingTool,
+               let canvasView {
+                return inkingTool.color.stableResolvedColor(using: colorResolutionTraitCollection(for: canvasView))
+            }
+
+            if let inkingTool = lastInkTool as? PKInkingTool {
+                return inkingTool.color
+            }
+
+            return nil
         }
     }
 }

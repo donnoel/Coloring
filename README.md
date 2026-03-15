@@ -38,7 +38,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
-| **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels. |
+| **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels, using the active PencilKit tool color. |
 | **Fill Erasing in Coloring Mode** | The PencilKit eraser can remove touched fill regions after you switch back from fill mode. |
 | **Unified Undo / Redo** | Toolbar undo and redo work across drawing strokes, fills, fill erasing, clears, and layer changes for the selected drawing. |
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
@@ -46,7 +46,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Navigation** | Sidebar vertical bounce is disabled, the last scroll position is restored after collapsing/reopening the library, and resize drag remains smooth while width still persists. |
 | **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
-| **High-Contrast Fill Swatches** | Fill palette includes true black/white with adaptive outlines so extreme colors stay distinguishable in light and dark mode. |
+| **Unified Color Source** | Stroke and fill actions both use the active native PencilKit color selection. |
 | **System Appearance Support** | Studio and gallery chrome adapt to light and dark mode while keeping the drawing canvas and native PencilKit picker appearance-stable. |
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
@@ -72,9 +72,11 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
 - **Initial Fit Centering**: New templates open centered at fit scale, including portrait drawings on landscape iPad screens.
 - **Fill**: Switch to fill mode from the floating palette and tap enclosed regions to color them.
+- **PencilKit Picker in Fill Mode**: The native PencilKit palette stays available in fill mode so you can change colors without switching back to draw mode.
 - **Palette Position**: Use the arrow button in the palette to move it between top and bottom.
 - **Undo/Redo**: Use the toolbar arrows in draw mode or fill mode to step backward or forward through recent edits for the selected drawing.
 - **Fill Erasing**: After filling, switch back to coloring mode and use the PencilKit eraser to remove the touched fill region.
+- **Fill Color Source**: Fill mode uses the currently selected PencilKit color, so strokes and fills share the same palette.
 - **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.
 - **Manage Imported Templates**: Rename, delete one, or use **Delete All Imported** (with confirmations).

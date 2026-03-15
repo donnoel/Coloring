@@ -679,10 +679,9 @@ struct TemplateStudioView: View {
                     handleStrokeInteractionChanged(isActive)
                 },
                 fillMode: viewModel.isFillModeActive,
-                selectedFillColor: viewModel.selectedFillColor?.uiColor,
                 fillImage: viewModel.currentFillImage,
-                onFillTap: { normalizedPoint in
-                    viewModel.handleFillTap(at: normalizedPoint)
+                onFillTap: { normalizedPoint, fillColor in
+                    viewModel.handleFillTap(at: normalizedPoint, color: fillColor)
                 },
                 onFillErase: { normalizedPoint in
                     viewModel.handleFillErase(at: normalizedPoint)
@@ -717,7 +716,6 @@ struct TemplateStudioView: View {
     private var paletteBar: some View {
         TemplatePaletteBarView(
             isFillModeActive: $viewModel.isFillModeActive,
-            selectedColorID: $viewModel.selectedFillColorID,
             canUndo: viewModel.canUndoEdit,
             canRedo: viewModel.canRedoEdit,
             isPaletteAtTop: isPaletteAtTop,

@@ -1,9 +1,7 @@
 import SwiftUI
 
 struct TemplatePaletteBarView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Binding var isFillModeActive: Bool
-    @Binding var selectedColorID: String
     var canUndo: Bool
     var canRedo: Bool
     var isPaletteAtTop: Bool
@@ -17,13 +15,6 @@ struct TemplatePaletteBarView: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 fillToggle
-
-                Divider()
-                    .frame(height: 28)
-
-                if isFillModeActive {
-                    colorPalette
-                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -142,59 +133,5 @@ struct TemplatePaletteBarView: View {
             .contentShape(Rectangle())
             .accessibilityLabel("Redo")
         }
-    }
-
-    private var colorPalette: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(ColoringColor.palette) { color in
-                    Button {
-                        selectedColorID = color.id
-                    } label: {
-                        Circle()
-                            .fill(color.swiftUIColor)
-                            .frame(width: 28, height: 28)
-                            .overlay {
-                                Circle()
-                                    .stroke(swatchBorderColor(for: color), lineWidth: 1)
-                            }
-                            .overlay {
-                                if color.id == selectedColorID {
-                                    Circle()
-                                        .stroke(selectionRingColor(for: color), lineWidth: 2.5)
-                                        .frame(width: 34, height: 34)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(color.name)
-                }
-            }
-            .padding(.horizontal, 4)
-        }
-    }
-
-    private func swatchBorderColor(for color: ColoringColor) -> Color {
-        let luminance = color.red * 0.2126 + color.green * 0.7152 + color.blue * 0.0722
-
-        if luminance > 0.92 {
-            return colorScheme == .dark ? Color.white.opacity(0.62) : Color.black.opacity(0.28)
-        }
-
-        if luminance < 0.10 {
-            return colorScheme == .dark ? Color.white.opacity(0.40) : Color.black.opacity(0.18)
-        }
-
-        return colorScheme == .dark ? Color.white.opacity(0.22) : Color.black.opacity(0.12)
-    }
-
-    private func selectionRingColor(for color: ColoringColor) -> Color {
-        let luminance = color.red * 0.2126 + color.green * 0.7152 + color.blue * 0.0722
-
-        if luminance > 0.80 {
-            return Color.black.opacity(0.88)
-        }
-
-        return Color.white.opacity(0.95)
     }
 }

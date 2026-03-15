@@ -71,6 +71,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Built-in landscape templates request landscape orientation, and built-in portrait templates request portrait orientation.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
+- Fill color selection should rely on the active native PencilKit color rather than a separate in-app swatch palette.
+- The native PencilKit palette should remain available in both draw and fill modes so users can change colors without mode switching.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
 - Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
 - The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.

@@ -24,7 +24,6 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // Fill mode state
     @Published var isFillModeActive: Bool = false
-    @Published var selectedFillColorID: String = ColoringColor.defaultColorID
     @Published private(set) var currentFillImage: UIImage?
 
     // Layer state
@@ -164,10 +163,6 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         return size.width / size.height
-    }
-
-    var selectedFillColor: ColoringColor? {
-        ColoringColor.palette.first { $0.id == selectedFillColorID }
     }
 
     // MARK: - Template Loading
@@ -833,13 +828,13 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Fill Mode
 
-    func handleFillTap(at normalizedPoint: CGPoint) {
+    func handleFillTap(at normalizedPoint: CGPoint, color: UIColor? = nil) {
         guard isFillModeActive,
-              let templateImage = selectedTemplateImage,
-              let fillColor = selectedFillColor
+              let templateImage = selectedTemplateImage
         else {
             return
         }
+        let fillColor = color ?? currentBrushTool.color
 
         cancelPendingFillRestoreWork()
         let templateID = selectedTemplateID
@@ -848,7 +843,7 @@ final class TemplateStudioViewModel: ObservableObject {
             templateImage: templateImage,
             existingFillImage: currentFillImage,
             normalizedPoint: normalizedPoint,
-            fillColor: fillColor.uiColor
+            fillColor: fillColor
         )
         let floodFillService = floodFillService
 
