@@ -1049,6 +1049,48 @@ final class ColoringTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: thumbnailURL.path))
     }
 
+    func testGalleryStoreServiceNormalizesTransparentArtworkToOpaqueWhite() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
+        let store = makeRealGalleryStore(galleryURL: galleryURL)
+        let transparentImageData = await MainActor.run {
+            transparentTemplateImageData(size: CGSize(width: 24, height: 24))
+        }
+
+        let entry = try await store.saveArtwork(
+            imageData: transparentImageData,
+            sourceTemplateID: "builtin-1",
+            sourceTemplateName: "Template One"
+        )
+
+        let fullImageURL = galleryURL.appendingPathComponent(entry.fullImageFilename)
+        let thumbnailURL = galleryURL.appendingPathComponent(entry.thumbnailFilename)
+        let fullImageData = try Data(contentsOf: fullImageURL)
+        let thumbnailData = try Data(contentsOf: thumbnailURL)
+
+        let fullSignature = await MainActor.run { imageSignature(from: fullImageData) }
+        let thumbnailSignature = await MainActor.run { imageSignature(from: thumbnailData) }
+
+        guard let fullSignature, fullSignature.count == 4 else {
+            XCTFail("Expected full-size image signature.")
+            return
+        }
+        guard let thumbnailSignature, thumbnailSignature.count == 4 else {
+            XCTFail("Expected thumbnail image signature.")
+            return
+        }
+
+        XCTAssertEqual(fullSignature[3], 255)
+        XCTAssertGreaterThanOrEqual(fullSignature[0], 240)
+        XCTAssertGreaterThanOrEqual(fullSignature[1], 240)
+        XCTAssertGreaterThanOrEqual(fullSignature[2], 240)
+
+        XCTAssertEqual(thumbnailSignature[3], 255)
+        XCTAssertGreaterThanOrEqual(thumbnailSignature[0], 240)
+        XCTAssertGreaterThanOrEqual(thumbnailSignature[1], 240)
+        XCTAssertGreaterThanOrEqual(thumbnailSignature[2], 240)
+    }
+
     func testTemplateExportUsesTemplateSizedCanvas() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let templateImageData = await MainActor.run {
@@ -1987,6 +2029,20 @@ final class ColoringTests: XCTestCase {
         size imageSize: CGSize = CGSize(width: 2, height: 2)
     ) -> Data {
         solidColorTemplateImage(color, size: imageSize).pngData() ?? sampleTemplateImageData
+    }
+
+    @MainActor
+    private func transparentTemplateImageData(
+        size imageSize: CGSize = CGSize(width: 2, height: 2)
+    ) -> Data {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
+        let transparentImage = renderer.image { _ in
+            UIColor.clear.setFill()
+            UIRectFill(CGRect(origin: .zero, size: imageSize))
+        }
+        return transparentImage.pngData() ?? sampleTemplateImageData
     }
 
     @MainActor

@@ -72,12 +72,14 @@ struct LayerCompositorService: LayerCompositing {
         let renderer = UIGraphicsImageRenderer(size: canvasSize)
 
         return renderer.image { _ in
+            let exportTraitCollection = UITraitCollection(userInterfaceStyle: .light)
             for layer in layers {
                 guard let drawing = try? PKDrawing(data: layer.drawingData) else {
                     continue
                 }
 
-                let drawingImage = drawing.image(from: canvasRect, scale: 2.0)
+                let normalizedDrawing = drawing.stableColorDrawing(using: exportTraitCollection)
+                let drawingImage = normalizedDrawing.image(from: canvasRect, scale: 2.0)
                 drawingImage.draw(in: canvasRect)
             }
         }

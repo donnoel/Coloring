@@ -43,10 +43,31 @@ final class GalleryViewModel: ObservableObject {
     }
 
     func thumbnailImage(for entry: ArtworkEntry) -> UIImage? {
-        UIImage(contentsOfFile: entry.thumbnailPath)
+        galleryDisplayImage(atPath: entry.thumbnailPath)
     }
 
     func fullImage(for entry: ArtworkEntry) -> UIImage? {
-        UIImage(contentsOfFile: entry.fullImagePath)
+        galleryDisplayImage(atPath: entry.fullImagePath)
+    }
+
+    private func galleryDisplayImage(atPath path: String) -> UIImage? {
+        guard let image = UIImage(contentsOfFile: path) else {
+            return nil
+        }
+
+        let stableImage = image.stableDisplayImage()
+        guard stableImage.size.width > 0, stableImage.size.height > 0 else {
+            return stableImage
+        }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = stableImage.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: stableImage.size, format: format)
+        return renderer.image { _ in
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: stableImage.size))
+            stableImage.draw(in: CGRect(origin: .zero, size: stableImage.size))
+        }
     }
 }

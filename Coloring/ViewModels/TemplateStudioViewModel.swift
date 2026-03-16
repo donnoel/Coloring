@@ -1108,20 +1108,26 @@ final class TemplateStudioViewModel: ObservableObject {
             let templateData = try await templateLibrary.imageData(for: selectedTemplate)
 
             let canvasSize = bestExportSize(for: selectedTemplateImage)
-            let fillData = currentFillImage?.pngData()
+            let exportTraitCollection = UITraitCollection(userInterfaceStyle: .light)
+            let normalizedExportDrawing = currentDrawing.stableColorDrawing(using: exportTraitCollection)
+            let fillData = currentFillImage?.stableDisplayImage().pngData()
 
             // Sync the active layer before export.
             syncActiveLayerDrawingToStack()
+            let normalizedExportLayerStack = normalizedColorLayerStack(
+                currentLayerStack,
+                using: exportTraitCollection
+            )
             let allLayersImageData: Data?
-            if currentLayerStack.layers.count > 1 {
+            if normalizedExportLayerStack.layers.count > 1 {
                 allLayersImageData = layerCompositor.compositeAllVisibleLayers(
-                    layers: currentLayerStack.layers,
+                    layers: normalizedExportLayerStack.layers,
                     canvasSize: canvasSize
                 )?.pngData()
             } else {
                 allLayersImageData = nil
             }
-            let drawingData = currentDrawing.dataRepresentation()
+            let drawingData = normalizedExportDrawing.dataRepresentation()
 
             let exportedURL = try await exportService.exportPNG(
                 templateData: templateData,

@@ -363,14 +363,47 @@ struct FloodFillService: FloodFillProviding {
     }
 
     private nonisolated func extractRGBA(from color: UIColor, r: inout UInt8, g: inout UInt8, b: inout UInt8, a: inout UInt8) {
+        let normalizedColor = color.stableResolvedColor(using: UITraitCollection(userInterfaceStyle: .light))
+
         var red: CGFloat = 0
         var green: CGFloat = 0
         var blue: CGFloat = 0
         var alpha: CGFloat = 0
-        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        r = UInt8(min(max(red * 255, 0), 255))
-        g = UInt8(min(max(green * 255, 0), 255))
-        b = UInt8(min(max(blue * 255, 0), 255))
-        a = UInt8(min(max(alpha * 255, 0), 255))
+        if normalizedColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            r = UInt8(min(max(red * 255, 0), 255))
+            g = UInt8(min(max(green * 255, 0), 255))
+            b = UInt8(min(max(blue * 255, 0), 255))
+            a = UInt8(min(max(alpha * 255, 0), 255))
+            return
+        }
+
+        var white: CGFloat = 0
+        if normalizedColor.getWhite(&white, alpha: &alpha) {
+            let value = UInt8(min(max(white * 255, 0), 255))
+            r = value
+            g = value
+            b = value
+            a = UInt8(min(max(alpha * 255, 0), 255))
+            return
+        }
+
+        if let stableColor = normalizedColor.cgColor.converted(
+            to: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+            intent: .defaultIntent,
+            options: nil
+        ), let components = stableColor.components {
+            let alphaComponent = components.count > 3 ? components[3] : 1
+            r = UInt8(min(max(components[0] * 255, 0), 255))
+            g = UInt8(min(max(components[1] * 255, 0), 255))
+            b = UInt8(min(max(components[2] * 255, 0), 255))
+            a = UInt8(min(max(alphaComponent * 255, 0), 255))
+            return
+        }
+
+        // Keep behavior deterministic instead of leaking uninitialized values if conversion fails.
+        r = 0
+        g = 0
+        b = 0
+        a = 255
     }
 }

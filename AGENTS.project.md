@@ -79,7 +79,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Undo and redo should preserve the combined per-template edit history for strokes, fills, fill erasing, clears, and layer operations.
 - The floating palette should support top/bottom placement, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
 - Studio and Gallery chrome should adapt to the current system light/dark appearance without changing canvas readability or altering artwork colors.
-- The native PencilKit tool picker should keep a stable high-contrast appearance and light-canvas color mapping so black/white inks do not invert when the system appearance changes.
+- The native PencilKit tool picker should stay in sync with the active system appearance while preserving light-canvas color mapping so black/white inks do not invert.
+- Gallery exports and thumbnails should be normalized to an opaque white-backed image so transparent regions never appear dark in gallery previews.
 
 ## UX rules
 - iPad-first layout with clear template navigation.

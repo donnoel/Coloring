@@ -160,11 +160,9 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             let toolPicker = PKToolPicker()
-            // Keep picker controls readable (especially white + opacity) regardless of system theme.
-            toolPicker.overrideUserInterfaceStyle = .dark
-            toolPicker.colorUserInterfaceStyle = .light
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
+            applyToolPickerAppearance(for: toolPicker, on: canvasView)
             toolPicker.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
             self.toolPicker = toolPicker
@@ -268,8 +266,18 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            if let toolPicker {
+                applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            }
             toolPicker?.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
+        }
+
+        private func applyToolPickerAppearance(for toolPicker: PKToolPicker, on canvasView: PKCanvasView) {
+            let interfaceStyle = canvasView.traitCollection.userInterfaceStyle
+            toolPicker.overrideUserInterfaceStyle = interfaceStyle
+            // Keep white/black color selection behavior stable regardless of app appearance.
+            toolPicker.colorUserInterfaceStyle = .light
         }
 
         private func colorResolutionTraitCollection(for _: PKCanvasView) -> UITraitCollection {
@@ -361,6 +369,9 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            if let toolPicker {
+                applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            }
             let artworkTraitCollection = colorResolutionTraitCollection(for: canvasView)
             normalizeDisplayedDrawing(using: artworkTraitCollection, on: canvasView)
             normalizeCurrentTool(using: artworkTraitCollection, on: canvasView)

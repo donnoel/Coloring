@@ -67,13 +67,14 @@ actor GalleryStoreService: GalleryStoreProviding {
         let entryID = UUID().uuidString
         let fullImageFilename = "\(entryID).png"
         let thumbnailFilename = "\(entryID)_thumb.png"
+        let normalizedImageData = normalizeArtworkImageData(imageData)
 
         // Save full image
         let fullImageURL = directoryURL.appendingPathComponent(fullImageFilename)
-        try imageData.write(to: fullImageURL, options: .atomic)
+        try normalizedImageData.write(to: fullImageURL, options: .atomic)
 
         // Generate and save thumbnail
-        if let fullImage = UIImage(data: imageData) {
+        if let fullImage = UIImage(data: normalizedImageData) {
             let thumbnailData = generateThumbnail(from: fullImage, maxSize: 300)
             let thumbnailURL = directoryURL.appendingPathComponent(thumbnailFilename)
             try? thumbnailData?.write(to: thumbnailURL, options: .atomic)
@@ -131,11 +132,39 @@ actor GalleryStoreService: GalleryStoreProviding {
             thumbnailSize = CGSize(width: maxSize * aspectRatio, height: maxSize)
         }
 
-        let renderer = UIGraphicsImageRenderer(size: thumbnailSize)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: thumbnailSize, format: format)
         let thumbnailImage = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: thumbnailSize))
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: thumbnailSize))
+            image.stableDisplayImage().draw(in: CGRect(origin: .zero, size: thumbnailSize))
         }
 
         return thumbnailImage.pngData()
+    }
+
+    private func normalizeArtworkImageData(_ imageData: Data) -> Data {
+        guard let sourceImage = UIImage(data: imageData) else {
+            return imageData
+        }
+
+        let stableImage = sourceImage.stableDisplayImage()
+        guard stableImage.size.width > 0, stableImage.size.height > 0 else {
+            return imageData
+        }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = stableImage.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: stableImage.size, format: format)
+        let normalizedImage = renderer.image { _ in
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: stableImage.size))
+            stableImage.draw(in: CGRect(origin: .zero, size: stableImage.size))
+        }
+
+        return normalizedImage.pngData() ?? imageData
     }
 }
