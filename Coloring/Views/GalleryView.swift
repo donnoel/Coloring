@@ -313,7 +313,13 @@ struct GalleryView: View {
                     .fill(Color.black.opacity(colorScheme == .dark ? 0.42 : 0.18))
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
 
-                if let thumbnail = viewModel.thumbnailImage(for: entry) {
+                if let fullImage = viewModel.fullImage(for: entry) {
+                    Image(uiImage: fullImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(8)
+                } else if let thumbnail = viewModel.thumbnailImage(for: entry) {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .scaledToFit()

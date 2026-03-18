@@ -8,9 +8,11 @@ struct ArtworkDetailView: View {
     @State private var isDeleteConfirmationPresented = false
 
     var body: some View {
+        let fullImage = viewModel.fullImage(for: entry)
+
         NavigationStack {
             GeometryReader { geometry in
-                if let image = viewModel.fullImage(for: entry) {
+                if let image = fullImage {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
@@ -40,7 +42,7 @@ struct ArtworkDetailView: View {
                 }
 
                 ToolbarItem(placement: .primaryAction) {
-                    if viewModel.fullImage(for: entry) != nil {
+                    if fullImage != nil {
                         Button {
                             presentShareSheet()
                         } label: {

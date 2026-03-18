@@ -9,6 +9,8 @@ final class GalleryViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let galleryStore: any GalleryStoreProviding
+    private var thumbnailCache: [String: UIImage] = [:]
+    private var fullImageCache: [String: UIImage] = [:]
 
     init(galleryStore: any GalleryStoreProviding) {
         self.galleryStore = galleryStore
@@ -24,6 +26,10 @@ final class GalleryViewModel: ObservableObject {
 
         do {
             entries = try await galleryStore.loadEntries()
+            let thumbnailPaths = Set(entries.map(\.thumbnailPath))
+            let fullImagePaths = Set(entries.map(\.fullImagePath))
+            thumbnailCache = thumbnailCache.filter { thumbnailPaths.contains($0.key) }
+            fullImageCache = fullImageCache.filter { fullImagePaths.contains($0.key) }
         } catch {
             errorMessage = "Could not load gallery."
         }
@@ -34,6 +40,10 @@ final class GalleryViewModel: ObservableObject {
     func deleteEntry(_ id: String) {
         Task {
             do {
+                if let deletedEntry = entries.first(where: { $0.id == id }) {
+                    thumbnailCache.removeValue(forKey: deletedEntry.thumbnailPath)
+                    fullImageCache.removeValue(forKey: deletedEntry.fullImagePath)
+                }
                 try await galleryStore.deleteEntry(id)
                 entries.removeAll { $0.id == id }
             } catch {
@@ -43,31 +53,28 @@ final class GalleryViewModel: ObservableObject {
     }
 
     func thumbnailImage(for entry: ArtworkEntry) -> UIImage? {
-        galleryDisplayImage(atPath: entry.thumbnailPath)
-    }
+        if let cachedImage = thumbnailCache[entry.thumbnailPath] {
+            return cachedImage
+        }
 
-    func fullImage(for entry: ArtworkEntry) -> UIImage? {
-        galleryDisplayImage(atPath: entry.fullImagePath)
-    }
-
-    private func galleryDisplayImage(atPath path: String) -> UIImage? {
-        guard let image = UIImage(contentsOfFile: path) else {
+        guard let image = UIImage(contentsOfFile: entry.thumbnailPath) else {
             return nil
         }
 
-        let stableImage = image.stableDisplayImage()
-        guard stableImage.size.width > 0, stableImage.size.height > 0 else {
-            return stableImage
+        thumbnailCache[entry.thumbnailPath] = image
+        return image
+    }
+
+    func fullImage(for entry: ArtworkEntry) -> UIImage? {
+        if let cachedImage = fullImageCache[entry.fullImagePath] {
+            return cachedImage
         }
 
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = stableImage.scale
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: stableImage.size, format: format)
-        return renderer.image { _ in
-            UIColor.white.setFill()
-            UIRectFill(CGRect(origin: .zero, size: stableImage.size))
-            stableImage.draw(in: CGRect(origin: .zero, size: stableImage.size))
+        guard let image = UIImage(contentsOfFile: entry.fullImagePath) else {
+            return nil
         }
+
+        fullImageCache[entry.fullImagePath] = image
+        return image
     }
 }
