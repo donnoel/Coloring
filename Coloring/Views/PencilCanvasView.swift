@@ -389,8 +389,8 @@ struct PencilCanvasView: UIViewRepresentable {
             isApplyingExternalDrawing = false
         }
 
-        private func markLocalDrawingChanged(_ drawing: PKDrawing) {
-            latestLocalDrawingData = drawing.dataRepresentation()
+        private func markLocalDrawingChanged(_ drawingData: Data) {
+            latestLocalDrawingData = drawingData
             hasPendingLocalDrawingSync = true
 
             pendingLocalSyncResetWorkItem?.cancel()
@@ -545,7 +545,14 @@ struct PencilCanvasView: UIViewRepresentable {
             let normalizedDrawing = canvasView.drawing.stableColorDrawing(
                 using: colorResolutionTraitCollection(for: canvasView)
             )
-            markLocalDrawingChanged(normalizedDrawing)
+            let normalizedDrawingData = normalizedDrawing.dataRepresentation()
+            if latestLocalDrawingData == normalizedDrawingData,
+               parent.drawing == normalizedDrawing
+            {
+                return
+            }
+
+            markLocalDrawingChanged(normalizedDrawingData)
             parent.drawing = normalizedDrawing
             parent.onDrawingChanged?(normalizedDrawing)
         }
