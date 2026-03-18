@@ -41,9 +41,9 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.updateFillMode(fillMode, in: containerView)
         context.coordinator.updateOverlayImages(
             in: containerView,
-            fillImage: fillImage?.stableDisplayImage(),
-            belowLayerImage: belowLayerImage?.stableDisplayImage(),
-            aboveLayerImage: aboveLayerImage?.stableDisplayImage()
+            fillImage: fillImage,
+            belowLayerImage: belowLayerImage,
+            aboveLayerImage: aboveLayerImage
         )
         return containerView
     }
@@ -87,9 +87,9 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
         context.coordinator.updateOverlayImages(
             in: uiView,
-            fillImage: fillImage?.stableDisplayImage(),
-            belowLayerImage: belowLayerImage?.stableDisplayImage(),
-            aboveLayerImage: aboveLayerImage?.stableDisplayImage()
+            fillImage: fillImage,
+            belowLayerImage: belowLayerImage,
+            aboveLayerImage: aboveLayerImage
         )
     }
 
@@ -113,9 +113,9 @@ struct PencilCanvasView: UIViewRepresentable {
         private var fillEraseGesture: UILongPressGestureRecognizer?
         private weak var drawingGestureRecognizer: UIGestureRecognizer?
         private var lastAppliedBrushTool: PKInkingTool?
-        private var lastAppliedFillImageIdentity: ObjectIdentifier?
-        private var lastAppliedBelowLayerImageIdentity: ObjectIdentifier?
-        private var lastAppliedAboveLayerImageIdentity: ObjectIdentifier?
+        private var lastSourceFillImageIdentity: ObjectIdentifier?
+        private var lastSourceBelowLayerImageIdentity: ObjectIdentifier?
+        private var lastSourceAboveLayerImageIdentity: ObjectIdentifier?
         private var latestLocalDrawingData: Data?
         private var hasPendingLocalDrawingSync = false
         var lastDrawingSyncToken = 0
@@ -200,9 +200,9 @@ struct PencilCanvasView: UIViewRepresentable {
             pencilInteraction = nil
             drawingGestureRecognizer = nil
             fillEraseGesture?.isEnabled = false
-            lastAppliedFillImageIdentity = nil
-            lastAppliedBelowLayerImageIdentity = nil
-            lastAppliedAboveLayerImageIdentity = nil
+            lastSourceFillImageIdentity = nil
+            lastSourceBelowLayerImageIdentity = nil
+            lastSourceAboveLayerImageIdentity = nil
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
             lastFillModeState = nil
@@ -219,21 +219,21 @@ struct PencilCanvasView: UIViewRepresentable {
             aboveLayerImage: UIImage?
         ) {
             let fillImageIdentity = fillImage.map(ObjectIdentifier.init)
-            if fillImageIdentity != lastAppliedFillImageIdentity {
-                containerView.fillImageView.image = fillImage
-                lastAppliedFillImageIdentity = fillImageIdentity
+            if fillImageIdentity != lastSourceFillImageIdentity {
+                containerView.fillImageView.image = fillImage?.stableDisplayImage()
+                lastSourceFillImageIdentity = fillImageIdentity
             }
 
             let belowLayerImageIdentity = belowLayerImage.map(ObjectIdentifier.init)
-            if belowLayerImageIdentity != lastAppliedBelowLayerImageIdentity {
-                containerView.belowLayerImageView.image = belowLayerImage
-                lastAppliedBelowLayerImageIdentity = belowLayerImageIdentity
+            if belowLayerImageIdentity != lastSourceBelowLayerImageIdentity {
+                containerView.belowLayerImageView.image = belowLayerImage?.stableDisplayImage()
+                lastSourceBelowLayerImageIdentity = belowLayerImageIdentity
             }
 
             let aboveLayerImageIdentity = aboveLayerImage.map(ObjectIdentifier.init)
-            if aboveLayerImageIdentity != lastAppliedAboveLayerImageIdentity {
-                containerView.aboveLayerImageView.image = aboveLayerImage
-                lastAppliedAboveLayerImageIdentity = aboveLayerImageIdentity
+            if aboveLayerImageIdentity != lastSourceAboveLayerImageIdentity {
+                containerView.aboveLayerImageView.image = aboveLayerImage?.stableDisplayImage()
+                lastSourceAboveLayerImageIdentity = aboveLayerImageIdentity
             }
         }
 
