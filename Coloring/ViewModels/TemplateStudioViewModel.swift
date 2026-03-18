@@ -87,6 +87,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillImagesByTemplateID: [String: Data] = [:]
     private var fillImageCacheByTemplateID: [String: UIImage] = [:]
     private var fillImageCacheDataByTemplateID: [String: Data] = [:]
+    private var persistedColoringByTemplateID: [String: Bool] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var editHistoryByTemplateID: [String: TemplateEditHistory] = [:]
     private var recentTemplateIDs: [String] = []
@@ -221,6 +222,7 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheDataByTemplateID = fillImageCacheDataByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
             editHistoryByTemplateID = editHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
             favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
             completedTemplateIDs = completedTemplateIDs.intersection(validTemplateIDs)
@@ -994,6 +996,9 @@ final class TemplateStudioViewModel: ObservableObject {
             if let editHistory = editHistoryByTemplateID.removeValue(forKey: templateID) {
                 editHistoryByTemplateID[renamedTemplate.id] = editHistory
             }
+            if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: templateID) {
+                persistedColoringByTemplateID[renamedTemplate.id] = hasPersistedColoring
+            }
 
             if favoriteTemplateIDs.remove(templateID) != nil {
                 favoriteTemplateIDs.insert(renamedTemplate.id)
@@ -1030,6 +1035,7 @@ final class TemplateStudioViewModel: ObservableObject {
             drawingsByTemplateID.removeValue(forKey: templateID)
             layerStacksByTemplateID.removeValue(forKey: templateID)
             fillImagesByTemplateID.removeValue(forKey: templateID)
+            persistedColoringByTemplateID.removeValue(forKey: templateID)
             clearCachedFillImage(for: templateID)
             editHistoryByTemplateID.removeValue(forKey: templateID)
             favoriteTemplateIDs.remove(templateID)
@@ -1063,6 +1069,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 drawingsByTemplateID.removeValue(forKey: templateID)
                 layerStacksByTemplateID.removeValue(forKey: templateID)
                 fillImagesByTemplateID.removeValue(forKey: templateID)
+                persistedColoringByTemplateID.removeValue(forKey: templateID)
                 clearCachedFillImage(for: templateID)
                 editHistoryByTemplateID.removeValue(forKey: templateID)
                 favoriteTemplateIDs.remove(templateID)
@@ -1244,10 +1251,11 @@ final class TemplateStudioViewModel: ObservableObject {
         for templateID in templateIDs {
             if hasColoring(for: templateID) {
                 restoredTemplateIDs.insert(templateID)
+                persistedColoringByTemplateID[templateID] = true
                 continue
             }
 
-            if await hasPersistedColoring(for: templateID) {
+            if await hasColoringOnDiskIfNeeded(for: templateID) {
                 restoredTemplateIDs.insert(templateID)
             }
         }
@@ -1262,8 +1270,10 @@ final class TemplateStudioViewModel: ObservableObject {
 
         if hasColoring(for: templateID) {
             inProgressTemplateIDs.insert(templateID)
+            persistedColoringByTemplateID[templateID] = true
         } else {
             inProgressTemplateIDs.remove(templateID)
+            persistedColoringByTemplateID.removeValue(forKey: templateID)
         }
     }
 
@@ -1314,6 +1324,20 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         return false
+    }
+
+    private func hasColoringOnDiskIfNeeded(for templateID: String) async -> Bool {
+        if let hasPersistedColoring = persistedColoringByTemplateID[templateID] {
+            return hasPersistedColoring
+        }
+
+        let hasPersistedColoring = await hasPersistedColoring(for: templateID)
+        if hasPersistedColoring {
+            persistedColoringByTemplateID[templateID] = true
+        } else {
+            persistedColoringByTemplateID.removeValue(forKey: templateID)
+        }
+        return hasPersistedColoring
     }
 
     private func serializedDrawingData(for drawing: PKDrawing) -> Data {
@@ -1640,6 +1664,11 @@ final class TemplateStudioViewModel: ObservableObject {
                 guard layerStacksByTemplateID[templateID] == nil else { return }
 
                 layerStacksByTemplateID[templateID] = layerStack
+                if hasStrokeColoring(for: templateID) {
+                    persistedColoringByTemplateID[templateID] = true
+                } else {
+                    persistedColoringByTemplateID.removeValue(forKey: templateID)
+                }
                 if selectedTemplateID == templateID {
                     currentLayerStack = layerStack
                     restoreActiveLayerDrawing()
@@ -1681,6 +1710,11 @@ final class TemplateStudioViewModel: ObservableObject {
             let layerStack = LayerStack.singleLayer(drawingData: drawingData)
             drawingsByTemplateID[templateID] = drawing
             layerStacksByTemplateID[templateID] = layerStack
+            if hasStrokeColoring(for: templateID) {
+                persistedColoringByTemplateID[templateID] = true
+            } else {
+                persistedColoringByTemplateID.removeValue(forKey: templateID)
+            }
 
             if selectedTemplateID == templateID {
                 setCurrentDrawingFromModel(drawing)
@@ -1824,6 +1858,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             fillImagesByTemplateID[templateID] = fillData
+            persistedColoringByTemplateID[templateID] = true
             if selectedTemplateID == templateID {
                 currentFillImage = cachedFillImage(for: templateID, matching: fillData)
                     ?? {
