@@ -39,9 +39,12 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
         context.coordinator.updateFillMode(fillMode, in: containerView)
-        containerView.fillImageView.image = fillImage?.stableDisplayImage()
-        containerView.belowLayerImageView.image = belowLayerImage?.stableDisplayImage()
-        containerView.aboveLayerImageView.image = aboveLayerImage?.stableDisplayImage()
+        context.coordinator.updateOverlayImages(
+            in: containerView,
+            fillImage: fillImage?.stableDisplayImage(),
+            belowLayerImage: belowLayerImage?.stableDisplayImage(),
+            aboveLayerImage: aboveLayerImage?.stableDisplayImage()
+        )
         return containerView
     }
 
@@ -82,9 +85,12 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.lastTemplateID = templateID
         context.coordinator.updateFillMode(fillMode, in: uiView)
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
-        uiView.fillImageView.image = fillImage?.stableDisplayImage()
-        uiView.belowLayerImageView.image = belowLayerImage?.stableDisplayImage()
-        uiView.aboveLayerImageView.image = aboveLayerImage?.stableDisplayImage()
+        context.coordinator.updateOverlayImages(
+            in: uiView,
+            fillImage: fillImage?.stableDisplayImage(),
+            belowLayerImage: belowLayerImage?.stableDisplayImage(),
+            aboveLayerImage: aboveLayerImage?.stableDisplayImage()
+        )
     }
 
     static func dismantleUIView(_ uiView: ZoomableCanvasContainerView, coordinator: Coordinator) {
@@ -107,6 +113,9 @@ struct PencilCanvasView: UIViewRepresentable {
         private var fillEraseGesture: UILongPressGestureRecognizer?
         private weak var drawingGestureRecognizer: UIGestureRecognizer?
         private var lastAppliedBrushTool: PKInkingTool?
+        private var lastAppliedFillImageIdentity: ObjectIdentifier?
+        private var lastAppliedBelowLayerImageIdentity: ObjectIdentifier?
+        private var lastAppliedAboveLayerImageIdentity: ObjectIdentifier?
         private var latestLocalDrawingData: Data?
         private var hasPendingLocalDrawingSync = false
         var lastDrawingSyncToken = 0
@@ -191,6 +200,9 @@ struct PencilCanvasView: UIViewRepresentable {
             pencilInteraction = nil
             drawingGestureRecognizer = nil
             fillEraseGesture?.isEnabled = false
+            lastAppliedFillImageIdentity = nil
+            lastAppliedBelowLayerImageIdentity = nil
+            lastAppliedAboveLayerImageIdentity = nil
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
             lastFillModeState = nil
@@ -198,6 +210,31 @@ struct PencilCanvasView: UIViewRepresentable {
             self.canvasView = nil
             containerView?.appearanceDidChangeHandler = nil
             containerView = nil
+        }
+
+        func updateOverlayImages(
+            in containerView: ZoomableCanvasContainerView,
+            fillImage: UIImage?,
+            belowLayerImage: UIImage?,
+            aboveLayerImage: UIImage?
+        ) {
+            let fillImageIdentity = fillImage.map(ObjectIdentifier.init)
+            if fillImageIdentity != lastAppliedFillImageIdentity {
+                containerView.fillImageView.image = fillImage
+                lastAppliedFillImageIdentity = fillImageIdentity
+            }
+
+            let belowLayerImageIdentity = belowLayerImage.map(ObjectIdentifier.init)
+            if belowLayerImageIdentity != lastAppliedBelowLayerImageIdentity {
+                containerView.belowLayerImageView.image = belowLayerImage
+                lastAppliedBelowLayerImageIdentity = belowLayerImageIdentity
+            }
+
+            let aboveLayerImageIdentity = aboveLayerImage.map(ObjectIdentifier.init)
+            if aboveLayerImageIdentity != lastAppliedAboveLayerImageIdentity {
+                containerView.aboveLayerImageView.image = aboveLayerImage
+                lastAppliedAboveLayerImageIdentity = aboveLayerImageIdentity
+            }
         }
 
         private func registerLifecycleObserversIfNeeded() {
