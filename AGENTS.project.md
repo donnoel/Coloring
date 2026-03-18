@@ -47,9 +47,13 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Services:
   - `/Users/donnoel/Development/Coloring/Coloring/Services/TemplateLibraryService.swift`
   - `/Users/donnoel/Development/Coloring/Coloring/Services/TemplateArtworkExportService.swift`
+  - `/Users/donnoel/Development/Coloring/Coloring/Services/GalleryStoreService.swift`
+- Gallery view model:
+  - `/Users/donnoel/Development/Coloring/Coloring/ViewModels/GalleryViewModel.swift`
 - Core drawing UI:
   - `/Users/donnoel/Development/Coloring/Coloring/Views/TemplateStudioView.swift`
   - `/Users/donnoel/Development/Coloring/Coloring/Views/PencilCanvasView.swift`
+  - `/Users/donnoel/Development/Coloring/Coloring/Views/GalleryView.swift`
 
 ## Concurrency rules (important)
 - Keep SwiftUI/view-model state on the main actor.
@@ -81,6 +85,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Studio and Gallery chrome should adapt to the current system light/dark appearance without changing canvas readability or altering artwork colors.
 - The native PencilKit tool picker should stay in sync with the active system appearance while preserving light-canvas color mapping so black/white inks do not invert.
 - Gallery exports and thumbnails should be normalized to an opaque white-backed image so transparent regions never appear dark in gallery previews.
+- Gallery stage cards should render full-resolution artwork, while the bottom thumbnail rail should use compact thumbnails for performance.
 
 ## UX rules
 - iPad-first layout with clear template navigation.
