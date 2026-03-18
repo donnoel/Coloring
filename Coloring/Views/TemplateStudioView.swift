@@ -6,7 +6,7 @@ import UIKit
 struct TemplateStudioView: View {
     private static let defaultSidebarWidth: Double = 390
     private static let sidebarMinWidth: CGFloat = 300
-    private static let sidebarMaxWidth: CGFloat = 560
+    private static let sidebarMaxWidth: CGFloat = 640
     private enum PalettePlacement: String {
         case bottom
         case top
@@ -338,6 +338,11 @@ struct TemplateStudioView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .searchable(
+            text: $viewModel.templateSearchText,
+            placement: .sidebar,
+            prompt: "Search drawings"
+        )
     }
 
     private var appVersionText: String {
