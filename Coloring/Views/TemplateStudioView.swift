@@ -338,11 +338,6 @@ struct TemplateStudioView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .searchable(
-            text: $viewModel.templateSearchText,
-            placement: .sidebar,
-            prompt: "Search drawings"
-        )
     }
 
     private var appVersionText: String {
