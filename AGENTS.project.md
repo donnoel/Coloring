@@ -12,7 +12,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Single full-screen Apple Pencil studio (no Scene/Templates tab split)
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
-- Apple Pencil Template Studio with orientation-aware built-in packs (54 landscape + 18 portrait)
+- Apple Pencil Template Studio with orientation-tagged built-in packs (54 landscape + 18 portrait)
 - Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Landscape/Portrait, three difficulty folders (Easy/Intermediate/Challenging), plus five title-based folders with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Imported drawing templates from Photos/Files
@@ -72,7 +72,6 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
 - Library sidebar resize should remain responsive during drag and persist the chosen width after drag ends.
-- Built-in landscape templates request landscape orientation, and built-in portrait templates request portrait orientation.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Fill color selection should rely on the active native PencilKit color rather than a separate in-app swatch palette.

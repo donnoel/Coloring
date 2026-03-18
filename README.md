@@ -42,7 +42,6 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Fill Erasing in Coloring Mode** | The PencilKit eraser can remove touched fill regions after you switch back from fill mode. |
 | **Unified Undo / Redo** | Toolbar undo and redo work across drawing strokes, fills, fill erasing, clears, and layer changes for the selected drawing. |
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
-| **Template Orientation Enforcement** | Landscape templates request landscape mode; portrait templates request portrait mode when opened. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Navigation** | Sidebar vertical bounce is disabled, the last scroll position is restored after collapsing/reopening the library, and resize drag remains smooth while width still persists. |
 | **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
@@ -65,7 +64,6 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Folder Ordering**: Open **Manage Categories** and drag folders to set the order shown in category chips.
 - **Favorites / Completed**: Long-press a drawing in the sidebar to favorite it or mark it completed.
 - **Recent**: The `Recent` folder shows the most recently opened drawings first.
-- **Orientation by Template**: Built-in landscape drawings open in landscape mode; built-in portrait drawings open in portrait mode.
 - **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
 - **Sidebar Resize**: Drag the sidebar's trailing handle to set your preferred library width.
 - **Sidebar Status Messages**: Import/export and restore messages are shown inline without a separate "Status" section title.

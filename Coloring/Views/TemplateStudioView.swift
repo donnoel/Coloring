@@ -1,7 +1,6 @@
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
-import UIKit
 
 struct TemplateStudioView: View {
     private static let defaultSidebarWidth: Double = 390
@@ -31,7 +30,6 @@ struct TemplateStudioView: View {
     @State private var isCategoryManagementPresented = false
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
-    @State private var requestedCanvasOrientation: ColoringTemplate.CanvasOrientation = .any
     @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
     @State private var liveSidebarWidth: Double = Self.defaultSidebarWidth
     @SceneStorage("templateStudio.palettePlacement") private var palettePlacementRawValue: String = PalettePlacement.bottom.rawValue
@@ -48,7 +46,6 @@ struct TemplateStudioView: View {
             await viewModel.loadTemplatesIfNeeded()
             viewModel.loadBrushPresetsIfNeeded()
             viewModel.loadCategoriesIfNeeded()
-            applyCanvasOrientationForSelectedTemplate(force: true)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
@@ -57,9 +54,6 @@ struct TemplateStudioView: View {
 
             Task {
                 await viewModel.refreshTemplatesFromStorage()
-                await MainActor.run {
-                    applyCanvasOrientationForSelectedTemplate(force: true)
-                }
             }
         }
         .onChange(of: selectedPhotoItem) { _, newItem in
@@ -73,7 +67,6 @@ struct TemplateStudioView: View {
         }
         .onChange(of: viewModel.selectedTemplateID) { _, _ in
             showPaletteImmediately()
-            applyCanvasOrientationForSelectedTemplate()
         }
         .onChange(of: viewModel.isFillModeActive) { _, isFillModeActive in
             if isFillModeActive {
@@ -167,7 +160,6 @@ struct TemplateStudioView: View {
             if clampedWidth != storedSidebarWidth {
                 storedSidebarWidth = clampedWidth
             }
-            applyCanvasOrientationForSelectedTemplate(force: true)
         }
         .onDisappear {
             paletteAutoShowTask?.cancel()
@@ -1011,28 +1003,6 @@ struct TemplateStudioView: View {
         )
     }
 
-    private func applyCanvasOrientationForSelectedTemplate(force: Bool = false) {
-        let desiredOrientation = viewModel.selectedTemplate?.canvasOrientation ?? .any
-        guard force || desiredOrientation != requestedCanvasOrientation else {
-            return
-        }
-
-        requestedCanvasOrientation = desiredOrientation
-
-        AppOrientationLock.setMask(desiredOrientation.interfaceOrientationMask)
-
-        guard let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive })
-        else {
-            return
-        }
-
-        windowScene.requestGeometryUpdate(
-            .iOS(interfaceOrientations: desiredOrientation.interfaceOrientationMask)
-        )
-    }
-
     private var canSaveRename: Bool {
         !renameDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -1154,19 +1124,6 @@ struct TemplateStudioView: View {
                     viewModel.reportImportFailure("Could not import the selected file.")
                 }
             }
-        }
-    }
-}
-
-private extension ColoringTemplate.CanvasOrientation {
-    var interfaceOrientationMask: UIInterfaceOrientationMask {
-        switch self {
-        case .any:
-            return .all
-        case .landscape:
-            return .landscape
-        case .portrait:
-            return .portrait
         }
     }
 }
