@@ -166,6 +166,19 @@ final class TemplateStudioViewModel: ObservableObject {
         return size.width / size.height
     }
 
+    @discardableResult
+    private func assignIfChanged<T: Equatable>(
+        _ keyPath: ReferenceWritableKeyPath<TemplateStudioViewModel, T>,
+        to value: T
+    ) -> Bool {
+        guard self[keyPath: keyPath] != value else {
+            return false
+        }
+
+        self[keyPath: keyPath] = value
+        return true
+    }
+
     // MARK: - Template Loading
 
     func loadTemplatesIfNeeded() async {
@@ -198,13 +211,13 @@ final class TemplateStudioViewModel: ObservableObject {
 
         do {
             let loadedTemplates = try await templateLibrary.loadTemplates()
-            templates = loadedTemplates
+            assignIfChanged(\.templates, to: loadedTemplates)
             builtInCategoryNamesByTemplateID = Dictionary(
                 uniqueKeysWithValues: loadedTemplates.map { template in
                     (template.id, TemplateCategory.builtInCategoryNames(for: template))
                 }
             )
-            builtInCategories = Set(
+            let resolvedBuiltInCategories = Set(
                 builtInCategoryNamesByTemplateID.values.flatMap(\.self)
             )
             .sorted()
@@ -215,6 +228,7 @@ final class TemplateStudioViewModel: ObservableObject {
                     isUserCreated: false
                 )
             }
+            assignIfChanged(\.builtInCategories, to: resolvedBuiltInCategories)
             syncCategoryOrderWithAvailableCategories()
             let validTemplateIDs = Set(loadedTemplates.map(\.id))
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
@@ -224,9 +238,12 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImageCacheDataByTemplateID = fillImageCacheDataByTemplateID.filter { validTemplateIDs.contains($0.key) }
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
             editHistoryByTemplateID = editHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
-            completedTemplateIDs = completedTemplateIDs.intersection(validTemplateIDs)
-            recentTemplateIDs.removeAll { !validTemplateIDs.contains($0) }
+            assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
+            assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
+            let filteredRecentTemplateIDs = recentTemplateIDs.filter { validTemplateIDs.contains($0) }
+            if recentTemplateIDs != filteredRecentTemplateIDs {
+                recentTemplateIDs = filteredRecentTemplateIDs
+            }
             importErrorMessage = nil
 
             if selectedTemplateID.isEmpty || !validTemplateIDs.contains(selectedTemplateID) {
@@ -690,13 +707,13 @@ final class TemplateStudioViewModel: ObservableObject {
         Task { [categoryStore] in
             do {
                 let categories = try await categoryStore.loadUserCategories()
-                self.userCategories = categories
+                self.assignIfChanged(\.userCategories, to: categories)
                 let assignments = try await categoryStore.loadCategoryAssignments()
-                self.categoryAssignments = assignments
+                self.assignIfChanged(\.categoryAssignments, to: assignments)
                 let storedOrder = try await categoryStore.loadCategoryOrder()
-                self.categoryOrder = storedOrder
-                self.favoriteTemplateIDs = try await categoryStore.loadFavoriteTemplateIDs()
-                self.completedTemplateIDs = try await categoryStore.loadCompletedTemplateIDs()
+                self.assignIfChanged(\.categoryOrder, to: storedOrder)
+                self.assignIfChanged(\.favoriteTemplateIDs, to: try await categoryStore.loadFavoriteTemplateIDs())
+                self.assignIfChanged(\.completedTemplateIDs, to: try await categoryStore.loadCompletedTemplateIDs())
                 self.recentTemplateIDs = try await categoryStore.loadRecentTemplateIDs()
                 self.filterStoredTemplateStateToAvailableTemplates()
                 self.syncCategoryOrderWithAvailableCategories()
@@ -707,7 +724,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 self.markTemplateAsRecent(self.selectedTemplateID)
             }
         }
-        builtInCategories = TemplateCategory.builtInCategories(from: templates)
+        assignIfChanged(\.builtInCategories, to: TemplateCategory.builtInCategories(from: templates))
         syncCategoryOrderWithAvailableCategories()
     }
 
@@ -770,23 +787,26 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func filterStoredTemplateStateToAvailableTemplates() {
         let validTemplateIDs = Set(templates.map(\.id))
-        favoriteTemplateIDs = favoriteTemplateIDs.intersection(validTemplateIDs)
-        completedTemplateIDs = completedTemplateIDs.intersection(validTemplateIDs)
-        recentTemplateIDs.removeAll { !validTemplateIDs.contains($0) }
+        assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
+        assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
+        let filteredRecentTemplateIDs = recentTemplateIDs.filter { validTemplateIDs.contains($0) }
+        if recentTemplateIDs != filteredRecentTemplateIDs {
+            recentTemplateIDs = filteredRecentTemplateIDs
+        }
     }
 
     private func rebuildCategoryLists() {
         let availableCategories = builtInCategories + userCategories
         guard !availableCategories.isEmpty else {
-            reorderableCategories = []
-            allCategories = [
+            assignIfChanged(\.reorderableCategories, to: [])
+            assignIfChanged(\.allCategories, to: [
                 TemplateCategory.allCategory,
                 TemplateCategory.inProgressCategory,
                 TemplateCategory.favoritesCategory,
                 TemplateCategory.recentCategory,
                 TemplateCategory.completedCategory,
                 TemplateCategory.importedCategory
-            ]
+            ])
             return
         }
 
@@ -807,23 +827,24 @@ final class TemplateStudioViewModel: ObservableObject {
             ordered.append(category)
         }
 
-        reorderableCategories = ordered
-        allCategories = [
+        assignIfChanged(\.reorderableCategories, to: ordered)
+        assignIfChanged(\.allCategories, to: [
             TemplateCategory.allCategory,
             TemplateCategory.inProgressCategory,
             TemplateCategory.favoritesCategory,
             TemplateCategory.recentCategory,
             TemplateCategory.completedCategory
-        ] + ordered + [TemplateCategory.importedCategory]
+        ] + ordered + [TemplateCategory.importedCategory])
     }
 
     private func syncCategoryOrderWithAvailableCategories() {
         let availableCategoryIDs = Set((builtInCategories + userCategories).map(\.id))
-        categoryOrder = categoryOrder.filter { availableCategoryIDs.contains($0) }
+        var updatedCategoryOrder = categoryOrder.filter { availableCategoryIDs.contains($0) }
 
-        for category in builtInCategories + userCategories where !categoryOrder.contains(category.id) {
-            categoryOrder.append(category.id)
+        for category in builtInCategories + userCategories where !updatedCategoryOrder.contains(category.id) {
+            updatedCategoryOrder.append(category.id)
         }
+        assignIfChanged(\.categoryOrder, to: updatedCategoryOrder)
 
         rebuildCategoryLists()
     }
@@ -1260,7 +1281,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
         }
 
-        inProgressTemplateIDs = restoredTemplateIDs
+        assignIfChanged(\.inProgressTemplateIDs, to: restoredTemplateIDs)
     }
 
     private func refreshInProgressState(for templateID: String) {
@@ -1269,11 +1290,21 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if hasColoring(for: templateID) {
-            inProgressTemplateIDs.insert(templateID)
-            persistedColoringByTemplateID[templateID] = true
+            if !inProgressTemplateIDs.contains(templateID) {
+                inProgressTemplateIDs.insert(templateID)
+            }
+
+            if persistedColoringByTemplateID[templateID] != true {
+                persistedColoringByTemplateID[templateID] = true
+            }
         } else {
-            inProgressTemplateIDs.remove(templateID)
-            persistedColoringByTemplateID.removeValue(forKey: templateID)
+            if inProgressTemplateIDs.contains(templateID) {
+                inProgressTemplateIDs.remove(templateID)
+            }
+
+            if persistedColoringByTemplateID[templateID] != nil {
+                persistedColoringByTemplateID.removeValue(forKey: templateID)
+            }
         }
     }
 
