@@ -777,11 +777,18 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        recentTemplateIDs.removeAll { $0 == templateID }
-        recentTemplateIDs.insert(templateID, at: 0)
-        if recentTemplateIDs.count > maxRecentTemplates {
-            recentTemplateIDs.removeLast(recentTemplateIDs.count - maxRecentTemplates)
+        var updatedRecentTemplateIDs = recentTemplateIDs
+        updatedRecentTemplateIDs.removeAll { $0 == templateID }
+        updatedRecentTemplateIDs.insert(templateID, at: 0)
+        if updatedRecentTemplateIDs.count > maxRecentTemplates {
+            updatedRecentTemplateIDs.removeLast(updatedRecentTemplateIDs.count - maxRecentTemplates)
         }
+
+        guard recentTemplateIDs != updatedRecentTemplateIDs else {
+            return
+        }
+
+        recentTemplateIDs = updatedRecentTemplateIDs
         persistRecentTemplateIDs()
     }
 
@@ -1497,9 +1504,9 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func invalidateExport() {
-        exportedFileURL = nil
-        exportStatusMessage = nil
-        exportErrorMessage = nil
+        assignIfChanged(\.exportedFileURL, to: nil)
+        assignIfChanged(\.exportStatusMessage, to: nil)
+        assignIfChanged(\.exportErrorMessage, to: nil)
     }
 
     private func snapshot(for templateID: String) -> TemplateEditSnapshot? {
@@ -1544,14 +1551,14 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func refreshEditAvailability() {
         guard !selectedTemplateID.isEmpty else {
-            canUndoEdit = false
-            canRedoEdit = false
+            assignIfChanged(\.canUndoEdit, to: false)
+            assignIfChanged(\.canRedoEdit, to: false)
             return
         }
 
         let history = editHistoryByTemplateID[selectedTemplateID]
-        canUndoEdit = !(history?.undo.isEmpty ?? true)
-        canRedoEdit = !(history?.redo.isEmpty ?? true)
+        assignIfChanged(\.canUndoEdit, to: !(history?.undo.isEmpty ?? true))
+        assignIfChanged(\.canRedoEdit, to: !(history?.redo.isEmpty ?? true))
     }
 
     private func cachedFillImage(for templateID: String, matching fillData: Data) -> UIImage? {
