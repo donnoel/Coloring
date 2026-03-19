@@ -26,11 +26,17 @@ protocol TemplateDrawingStoreProviding: Actor {
 }
 
 actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
+    private struct DataFingerprint: Equatable {
+        let size: Int
+        let hash: Int
+    }
+
     private let fileManager: FileManager
     private let logger: Logger
     private let cloudContainerIdentifier: String?
     private let documentsDirectoryURLProvider: @Sendable () throws -> URL
     private let ubiquityContainerURLProvider: @Sendable (String?) -> URL?
+    private var lastCloudSyncedFingerprintByFilename: [String: DataFingerprint] = [:]
 
     init(
         fileManager: FileManager = .default,
@@ -214,9 +220,21 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             return
         }
 
+        let newFingerprint = Self.fingerprint(for: drawingData)
+        if lastCloudSyncedFingerprintByFilename[filename] == newFingerprint {
+            return
+        }
+
         let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
         let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
         do {
+            if fileManager.fileExists(atPath: cloudFileURL.path),
+               cloudFileMatches(drawingData, existingFileURL: cloudFileURL)
+            {
+                lastCloudSyncedFingerprintByFilename[filename] = newFingerprint
+                return
+            }
+
             if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
                 try fileManager.removeItem(at: cloudPlaceholderURL)
             }
@@ -225,6 +243,7 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             }
 
             try drawingData.write(to: cloudFileURL, options: [.atomic])
+            lastCloudSyncedFingerprintByFilename[filename] = newFingerprint
         } catch {
             logger.error("Failed to sync drawing to iCloud: \(error.localizedDescription, privacy: .public)")
         }
@@ -251,6 +270,11 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
 
             if fileManager.fileExists(atPath: oldCloudURL.path) {
                 try fileManager.moveItem(at: oldCloudURL, to: newCloudURL)
+                if let oldFingerprint = lastCloudSyncedFingerprintByFilename.removeValue(forKey: oldFilename) {
+                    lastCloudSyncedFingerprintByFilename[newFilename] = oldFingerprint
+                } else {
+                    lastCloudSyncedFingerprintByFilename.removeValue(forKey: newFilename)
+                }
             } else if fileManager.fileExists(atPath: oldCloudPlaceholderURL.path) {
                 try fileManager.removeItem(at: oldCloudPlaceholderURL)
             }
@@ -273,8 +297,22 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
                 try fileManager.removeItem(at: cloudPlaceholderURL)
             }
+            lastCloudSyncedFingerprintByFilename.removeValue(forKey: filename)
         } catch {
             logger.error("Failed to delete drawing from iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func cloudFileMatches(_ drawingData: Data, existingFileURL: URL) -> Bool {
+        do {
+            let values = try existingFileURL.resourceValues(forKeys: [.fileSizeKey])
+            guard values.fileSize == drawingData.count else {
+                return false
+            }
+
+            return try Data(contentsOf: existingFileURL) == drawingData
+        } catch {
+            return false
         }
     }
 
@@ -432,6 +470,13 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
         let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
         return templateID.addingPercentEncoding(withAllowedCharacters: allowedCharacters)
             ?? templateID.replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "-", options: .regularExpression)
+    }
+
+    nonisolated private static func fingerprint(for data: Data) -> DataFingerprint {
+        var hasher = Hasher()
+        hasher.combine(data.count)
+        hasher.combine(data)
+        return DataFingerprint(size: data.count, hash: hasher.finalize())
     }
 }
 

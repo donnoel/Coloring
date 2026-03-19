@@ -1309,8 +1309,8 @@ final class TemplateStudioViewModel: ObservableObject {
                 inProgressTemplateIDs.remove(templateID)
             }
 
-            if persistedColoringByTemplateID[templateID] != nil {
-                persistedColoringByTemplateID.removeValue(forKey: templateID)
+            if persistedColoringByTemplateID[templateID] != false {
+                persistedColoringByTemplateID[templateID] = false
             }
         }
     }
@@ -1370,11 +1370,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let hasPersistedColoring = await hasPersistedColoring(for: templateID)
-        if hasPersistedColoring {
-            persistedColoringByTemplateID[templateID] = true
-        } else {
-            persistedColoringByTemplateID.removeValue(forKey: templateID)
-        }
+        persistedColoringByTemplateID[templateID] = hasPersistedColoring
         return hasPersistedColoring
     }
 
