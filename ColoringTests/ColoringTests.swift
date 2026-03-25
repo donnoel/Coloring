@@ -356,6 +356,242 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testUndoRemainsSingleStepWhenStrokeGestureIsInterrupted() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            // Simulate interrupted lifecycle: began + drawing updates, but no ended callback.
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(sampleDrawing)
+
+            // Another edit action should force-finalize the pending stroke snapshot.
+            viewModel.clearDrawing()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            // Undo should step back only one edit (the clear), not multiple edits.
+            viewModel.undoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing, sampleDrawing)
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, sampleDrawing.strokes.count)
+
+            // Second undo removes the stroke itself.
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
+    }
+
+    func testUndoRedoMixedStrokeFillTimelineOrder() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+        }
+
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay to be applied.")
+
+        await MainActor.run {
+            viewModel.undoLastEdit()
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertEqual(viewModel.currentDrawing, sampleDrawing)
+
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.redoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing, sampleDrawing)
+            XCTAssertNil(viewModel.currentFillImage)
+
+            viewModel.redoLastEdit()
+            XCTAssertNotNil(viewModel.currentFillImage)
+        }
+    }
+
+    func testUndoRedoMixedLayerAndStrokeTimelineOrder() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let layerOneStroke = await MainActor.run { makeSampleTemplateDrawing(color: .black) }
+        let layerTwoStroke = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+
+        await MainActor.run {
+            let baseLayerID = viewModel.currentLayerStack.activeLayerID
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 1)
+
+            viewModel.updateDrawing(layerOneStroke)
+            viewModel.addLayer()
+            let topLayerID = viewModel.currentLayerStack.activeLayerID
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 2)
+            XCTAssertNotEqual(topLayerID, baseLayerID)
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.updateDrawing(layerTwoStroke)
+            XCTAssertEqual(viewModel.currentDrawing, layerTwoStroke)
+
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 2)
+            XCTAssertEqual(viewModel.currentLayerStack.activeLayerID, topLayerID)
+
+            viewModel.undoLastEdit()
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 1)
+            XCTAssertEqual(viewModel.currentLayerStack.activeLayerID, baseLayerID)
+            XCTAssertEqual(viewModel.currentDrawing, layerOneStroke)
+
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.redoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing, layerOneStroke)
+
+            viewModel.redoLastEdit()
+            XCTAssertEqual(viewModel.currentLayerStack.layers.count, 2)
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.redoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing, layerTwoStroke)
+        }
+    }
+
+    func testRedoStackClearsAfterBranchingEditInMixedTimeline() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+        }
+
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay to be applied.")
+
+        await MainActor.run {
+            viewModel.undoLastEdit()
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertTrue(viewModel.canRedoEdit)
+
+            // New branch edit should clear redo history for the undone fill.
+            viewModel.clearDrawing()
+            XCTAssertFalse(viewModel.canRedoEdit)
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.redoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+            XCTAssertNil(viewModel.currentFillImage)
+        }
+    }
+
+    func testInterruptedStrokeThenFillMaintainsUndoOrder() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+        }
+
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay to be applied.")
+
+        await MainActor.run {
+            viewModel.undoLastEdit()
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertEqual(viewModel.currentDrawing, sampleDrawing)
+
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
+    }
+
     func testInProgressCategoryLoadsPersistedColoringForUnselectedTemplate() async throws {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
@@ -1715,7 +1951,12 @@ final class ColoringTests: XCTestCase {
             )
 
             let coordinator = view.makeCoordinator()
-            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+                XCTFail("Expected a window scene for coordinator test host.")
+                return
+            }
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
             window.overrideUserInterfaceStyle = .dark
             let hostController = UIViewController()
             window.rootViewController = hostController
