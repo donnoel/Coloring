@@ -577,46 +577,17 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Template Categories
 
     var filteredTemplates: [ColoringTemplate] {
-        let filterID = selectedCategoryFilter
-        guard filterID != TemplateCategory.allCategory.id else {
-            return templates
-        }
-
-        if filterID == TemplateCategory.inProgressCategory.id {
-            return templates.filter { visibleInProgressTemplateIDs.contains($0.id) }
-        }
-
-        if filterID == TemplateCategory.favoritesCategory.id {
-            return templates.filter { favoriteTemplateIDs.contains($0.id) }
-        }
-
-        if filterID == TemplateCategory.recentCategory.id {
-            let templatesByID = Dictionary(uniqueKeysWithValues: templates.map { ($0.id, $0) })
-            return recentTemplateIDs.compactMap { templatesByID[$0] }
-        }
-
-        if filterID == TemplateCategory.completedCategory.id {
-            return templates.filter { completedTemplateIDs.contains($0.id) }
-        }
-
-        if filterID == TemplateCategory.importedCategory.id {
-            return templates.filter { $0.source == .imported && categoryAssignments[$0.id] == nil }
-        }
-
-        // Check user category assignments first
-        let assignedToCategory = templates.filter { categoryAssignments[$0.id] == filterID }
-        if !assignedToCategory.isEmpty {
-            return assignedToCategory
-        }
-
-        // Built-in category: match by category name
-        if let builtInCat = builtInCategories.first(where: { $0.id == filterID }) {
-            return templates.filter { template in
-                builtInCategoryNamesByTemplateID[template.id]?.contains(builtInCat.name) ?? false
-            }
-        }
-
-        return templates
+        TemplateCategoryViewStateBuilder.filteredTemplates(
+            templates: templates,
+            selectedCategoryFilter: selectedCategoryFilter,
+            visibleInProgressTemplateIDs: visibleInProgressTemplateIDs,
+            favoriteTemplateIDs: favoriteTemplateIDs,
+            recentTemplateIDs: recentTemplateIDs,
+            completedTemplateIDs: completedTemplateIDs,
+            categoryAssignments: categoryAssignments,
+            builtInCategories: builtInCategories,
+            builtInCategoryNamesByTemplateID: builtInCategoryNamesByTemplateID
+        )
     }
 
     func createUserCategory(name: String) {
@@ -823,57 +794,24 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func rebuildCategoryLists() {
-        let availableCategories = builtInCategories + userCategories
-        guard !availableCategories.isEmpty else {
-            assignIfChanged(\.reorderableCategories, to: [])
-            assignIfChanged(\.allCategories, to: [
-                TemplateCategory.allCategory,
-                TemplateCategory.inProgressCategory,
-                TemplateCategory.favoritesCategory,
-                TemplateCategory.recentCategory,
-                TemplateCategory.completedCategory,
-                TemplateCategory.importedCategory
-            ])
-            return
-        }
-
-        let categoriesByID = Dictionary(uniqueKeysWithValues: availableCategories.map { ($0.id, $0) })
-        var ordered: [TemplateCategory] = []
-        var seenCategoryIDs = Set<String>()
-
-        for categoryID in categoryOrder {
-            guard let category = categoriesByID[categoryID] else {
-                continue
-            }
-
-            ordered.append(category)
-            seenCategoryIDs.insert(categoryID)
-        }
-
-        for category in availableCategories where !seenCategoryIDs.contains(category.id) {
-            ordered.append(category)
-        }
-
-        assignIfChanged(\.reorderableCategories, to: ordered)
-        assignIfChanged(\.allCategories, to: [
-            TemplateCategory.allCategory,
-            TemplateCategory.inProgressCategory,
-            TemplateCategory.favoritesCategory,
-            TemplateCategory.recentCategory,
-            TemplateCategory.completedCategory
-        ] + ordered + [TemplateCategory.importedCategory])
+        let computedState = TemplateCategoryViewStateBuilder.computeState(
+            categoryOrder: categoryOrder,
+            builtInCategories: builtInCategories,
+            userCategories: userCategories
+        )
+        assignIfChanged(\.reorderableCategories, to: computedState.reorderableCategories)
+        assignIfChanged(\.allCategories, to: computedState.allCategories)
     }
 
     private func syncCategoryOrderWithAvailableCategories() {
-        let availableCategoryIDs = Set((builtInCategories + userCategories).map(\.id))
-        var updatedCategoryOrder = categoryOrder.filter { availableCategoryIDs.contains($0) }
-
-        for category in builtInCategories + userCategories where !updatedCategoryOrder.contains(category.id) {
-            updatedCategoryOrder.append(category.id)
-        }
-        assignIfChanged(\.categoryOrder, to: updatedCategoryOrder)
-
-        rebuildCategoryLists()
+        let computedState = TemplateCategoryViewStateBuilder.computeState(
+            categoryOrder: categoryOrder,
+            builtInCategories: builtInCategories,
+            userCategories: userCategories
+        )
+        assignIfChanged(\.categoryOrder, to: computedState.categoryOrder)
+        assignIfChanged(\.reorderableCategories, to: computedState.reorderableCategories)
+        assignIfChanged(\.allCategories, to: computedState.allCategories)
     }
 
     // MARK: - Fill Mode
