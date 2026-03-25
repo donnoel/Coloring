@@ -110,6 +110,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillRestoreTask: Task<Void, Never>?
     private var fillRestoreOperationID = 0
     private var pendingPersistTemplateIDs: Set<String> = []
+    private var pendingStrokeSnapshotsByTemplateID: [String: TemplateEditSnapshot] = [:]
     private let maxEditHistorySteps = 100
     private let maxRecentTemplates = 20
 
@@ -287,6 +288,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         persistCurrentDrawing()
         persistCurrentFill()
         cancelPendingFillOverlayWork()
@@ -310,19 +312,40 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Drawing
 
+    func updateStrokeInteraction(isActive: Bool) {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        if isActive {
+            beginPendingStrokeEditChangeIfNeeded(for: selectedTemplateID)
+        } else {
+            finalizePendingStrokeEditChange(for: selectedTemplateID)
+        }
+    }
+
     func updateDrawing(_ drawing: PKDrawing) {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        let templateID = selectedTemplateID
+        let shouldRecordImmediately = pendingStrokeSnapshotsByTemplateID[templateID] == nil
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
-        recordEditChange(from: previousSnapshot, for: selectedTemplateID)
+        if shouldRecordImmediately {
+            recordEditChange(from: previousSnapshot, for: selectedTemplateID)
+        }
         refreshInProgressState(for: selectedTemplateID)
         debouncedPersistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
 
     func clearDrawing() {
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         setCurrentDrawingFromModel(PKDrawing())
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
@@ -864,6 +887,7 @@ final class TemplateStudioViewModel: ObservableObject {
         else {
             return
         }
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         let fillColor = color ?? currentBrushTool.color
 
         cancelPendingFillRestoreWork()
@@ -916,6 +940,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         cancelPendingFillRestoreWork()
         cancelPendingFillOverlayWork()
         let eraseResult = eraseFillOverlayRegion(in: currentFillImage, at: normalizedPoint)
@@ -933,6 +958,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         let currentFillData = fillImagesByTemplateID[selectedTemplateID]
         guard currentFillData != nil else {
             return
@@ -946,6 +972,7 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func undoLastEdit() {
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         guard !selectedTemplateID.isEmpty,
               var history = editHistoryByTemplateID[selectedTemplateID],
               let previousSnapshot = history.undo.popLast(),
@@ -961,6 +988,7 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func redoLastEdit() {
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         guard !selectedTemplateID.isEmpty,
               var history = editHistoryByTemplateID[selectedTemplateID],
               let nextSnapshot = history.redo.popLast(),
@@ -1543,6 +1571,26 @@ final class TemplateStudioViewModel: ObservableObject {
         history.redo.removeAll(keepingCapacity: true)
         editHistoryByTemplateID[templateID] = history
         refreshEditAvailability()
+    }
+
+    private func beginPendingStrokeEditChangeIfNeeded(for templateID: String) {
+        guard !templateID.isEmpty,
+              pendingStrokeSnapshotsByTemplateID[templateID] == nil
+        else {
+            return
+        }
+
+        pendingStrokeSnapshotsByTemplateID[templateID] = snapshot(for: templateID)
+    }
+
+    private func finalizePendingStrokeEditChange(for templateID: String) {
+        guard !templateID.isEmpty,
+              let pendingSnapshot = pendingStrokeSnapshotsByTemplateID.removeValue(forKey: templateID)
+        else {
+            return
+        }
+
+        recordEditChange(from: pendingSnapshot, for: templateID)
     }
 
     private func refreshEditAvailability() {

@@ -305,6 +305,57 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testUndoRemovesOneStrokeWhenStrokeProducesMultipleDrawingUpdates() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        let stroke1Partial = await MainActor.run { makeSampleTemplateDrawing(color: .black) }
+        let stroke1Final = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+        let stroke2Partial = await MainActor.run {
+            let secondStroke = makeSampleTemplateDrawing(color: .red).strokes.first!
+            return PKDrawing(strokes: stroke1Final.strokes + [secondStroke])
+        }
+        let stroke2Final = await MainActor.run {
+            let secondStroke = makeSampleTemplateDrawing(color: .green).strokes.first!
+            return PKDrawing(strokes: stroke1Final.strokes + [secondStroke])
+        }
+
+        await MainActor.run {
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(stroke1Partial)
+            viewModel.updateDrawing(stroke1Final)
+            viewModel.updateStrokeInteraction(isActive: false)
+
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(stroke2Partial)
+            viewModel.updateDrawing(stroke2Final)
+            viewModel.updateStrokeInteraction(isActive: false)
+
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, 2)
+            XCTAssertTrue(viewModel.canUndoEdit)
+
+            viewModel.undoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing, stroke1Final)
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, 1)
+
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
+    }
+
     func testInProgressCategoryLoadsPersistedColoringForUnselectedTemplate() async throws {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")

@@ -931,6 +931,8 @@ struct TemplateStudioView: View {
     }
 
     private func handleStrokeInteractionChanged(_ isActive: Bool) {
+        viewModel.updateStrokeInteraction(isActive: isActive)
+
         guard !viewModel.isFillModeActive else {
             return
         }
