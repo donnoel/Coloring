@@ -84,6 +84,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var recentTemplateIDs: [String] = []
     private let templateLibrary: any TemplateLibraryProviding
+    private let importMutationCoordinator: TemplateImportMutationCoordinator
     private let exportCoordinator: TemplateExportCoordinator
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
@@ -115,6 +116,10 @@ final class TemplateStudioViewModel: ObservableObject {
         galleryStore: any GalleryStoreProviding
     ) {
         self.templateLibrary = templateLibrary
+        self.importMutationCoordinator = TemplateImportMutationCoordinator(
+            templateLibrary: templateLibrary,
+            drawingStore: drawingStore
+        )
         self.exportCoordinator = TemplateExportCoordinator(
             exportService: exportService,
             galleryStore: galleryStore
@@ -996,7 +1001,10 @@ final class TemplateStudioViewModel: ObservableObject {
         importStatusMessage = nil
 
         do {
-            let template = try await templateLibrary.importTemplate(imageData: imageData, preferredName: suggestedName)
+            let template = try await importMutationCoordinator.importTemplate(
+                imageData: imageData,
+                suggestedName: suggestedName
+            )
             await reloadTemplates()
             selectTemplate(template.id)
             importStatusMessage = "Imported drawing is ready to color."
@@ -1010,40 +1018,11 @@ final class TemplateStudioViewModel: ObservableObject {
         importStatusMessage = nil
 
         do {
-            let renamedTemplate = try await templateLibrary.renameImportedTemplate(id: templateID, newTitle: newTitle)
-            try await drawingStore.renameDrawingData(from: templateID, to: renamedTemplate.id)
-            try await drawingStore.renameFillData(from: templateID, to: renamedTemplate.id)
-            try await drawingStore.renameLayerStackData(from: templateID, to: renamedTemplate.id)
-
-            if let drawing = drawingsByTemplateID.removeValue(forKey: templateID) {
-                drawingsByTemplateID[renamedTemplate.id] = drawing
-            }
-
-            if let layerStack = layerStacksByTemplateID.removeValue(forKey: templateID) {
-                layerStacksByTemplateID[renamedTemplate.id] = layerStack
-            }
-
-            fillStateStore.rename(from: templateID, to: renamedTemplate.id)
-
-            editHistoryStore.renameHistory(from: templateID, to: renamedTemplate.id)
-            if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: templateID) {
-                persistedColoringByTemplateID[renamedTemplate.id] = hasPersistedColoring
-            }
-
-            if favoriteTemplateIDs.remove(templateID) != nil {
-                favoriteTemplateIDs.insert(renamedTemplate.id)
-                persistFavoriteTemplateIDs()
-            }
-
-            if completedTemplateIDs.remove(templateID) != nil {
-                completedTemplateIDs.insert(renamedTemplate.id)
-                persistCompletedTemplateIDs()
-            }
-
-            if let recentIndex = recentTemplateIDs.firstIndex(of: templateID) {
-                recentTemplateIDs[recentIndex] = renamedTemplate.id
-                persistRecentTemplateIDs()
-            }
+            let renamedTemplate = try await importMutationCoordinator.renameTemplate(
+                templateID: templateID,
+                newTitle: newTitle
+            )
+            renameLocalTemplateState(from: templateID, to: renamedTemplate.id)
 
             await reloadTemplates()
             selectTemplate(renamedTemplate.id)
@@ -1058,18 +1037,8 @@ final class TemplateStudioViewModel: ObservableObject {
         importStatusMessage = nil
 
         do {
-            try await templateLibrary.deleteImportedTemplate(id: templateID)
-            try await drawingStore.deleteDrawingData(for: templateID)
-            try await drawingStore.deleteFillData(for: templateID)
-            try await drawingStore.deleteLayerStackData(for: templateID)
-            drawingsByTemplateID.removeValue(forKey: templateID)
-            layerStacksByTemplateID.removeValue(forKey: templateID)
-            fillStateStore.removeAll(for: templateID)
-            persistedColoringByTemplateID.removeValue(forKey: templateID)
-            editHistoryStore.removeHistory(for: templateID)
-            favoriteTemplateIDs.remove(templateID)
-            completedTemplateIDs.remove(templateID)
-            recentTemplateIDs.removeAll { $0 == templateID }
+            try await importMutationCoordinator.deleteTemplate(templateID: templateID)
+            removeLocalTemplateState(for: templateID)
 
             await reloadTemplates()
             invalidateExport()
@@ -1090,19 +1059,9 @@ final class TemplateStudioViewModel: ObservableObject {
             let importedTemplateIDs = templates
                 .filter(\.isImported)
                 .map(\.id)
-            try await templateLibrary.deleteAllImportedTemplates()
+            try await importMutationCoordinator.deleteAllImportedTemplates(templateIDs: importedTemplateIDs)
             for templateID in importedTemplateIDs {
-                try await drawingStore.deleteDrawingData(for: templateID)
-                try await drawingStore.deleteFillData(for: templateID)
-                try await drawingStore.deleteLayerStackData(for: templateID)
-                drawingsByTemplateID.removeValue(forKey: templateID)
-                layerStacksByTemplateID.removeValue(forKey: templateID)
-                fillStateStore.removeAll(for: templateID)
-                persistedColoringByTemplateID.removeValue(forKey: templateID)
-                editHistoryStore.removeHistory(for: templateID)
-                favoriteTemplateIDs.remove(templateID)
-                completedTemplateIDs.remove(templateID)
-                recentTemplateIDs.removeAll { $0 == templateID }
+                removeLocalTemplateState(for: templateID)
             }
 
             await reloadTemplates()
@@ -1446,6 +1405,53 @@ final class TemplateStudioViewModel: ObservableObject {
     private func invalidateExport() {
         exportCoordinator.invalidate()
         applyExportState(exportCoordinator.state)
+    }
+
+    private func renameLocalTemplateState(from oldTemplateID: String, to newTemplateID: String) {
+        guard oldTemplateID != newTemplateID else {
+            return
+        }
+
+        if let drawing = drawingsByTemplateID.removeValue(forKey: oldTemplateID) {
+            drawingsByTemplateID[newTemplateID] = drawing
+        }
+
+        if let layerStack = layerStacksByTemplateID.removeValue(forKey: oldTemplateID) {
+            layerStacksByTemplateID[newTemplateID] = layerStack
+        }
+
+        fillStateStore.rename(from: oldTemplateID, to: newTemplateID)
+        editHistoryStore.renameHistory(from: oldTemplateID, to: newTemplateID)
+
+        if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: oldTemplateID) {
+            persistedColoringByTemplateID[newTemplateID] = hasPersistedColoring
+        }
+
+        if favoriteTemplateIDs.remove(oldTemplateID) != nil {
+            favoriteTemplateIDs.insert(newTemplateID)
+            persistFavoriteTemplateIDs()
+        }
+
+        if completedTemplateIDs.remove(oldTemplateID) != nil {
+            completedTemplateIDs.insert(newTemplateID)
+            persistCompletedTemplateIDs()
+        }
+
+        if let recentIndex = recentTemplateIDs.firstIndex(of: oldTemplateID) {
+            recentTemplateIDs[recentIndex] = newTemplateID
+            persistRecentTemplateIDs()
+        }
+    }
+
+    private func removeLocalTemplateState(for templateID: String) {
+        drawingsByTemplateID.removeValue(forKey: templateID)
+        layerStacksByTemplateID.removeValue(forKey: templateID)
+        fillStateStore.removeAll(for: templateID)
+        persistedColoringByTemplateID.removeValue(forKey: templateID)
+        editHistoryStore.removeHistory(for: templateID)
+        favoriteTemplateIDs.remove(templateID)
+        completedTemplateIDs.remove(templateID)
+        recentTemplateIDs.removeAll { $0 == templateID }
     }
 
     private func applyExportState(_ state: TemplateExportState) {
