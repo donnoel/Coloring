@@ -1679,6 +1679,77 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testColoringPersistenceCoordinatorSkipsStaleFillRevision() async throws {
+        let templateID = "builtin-1"
+        let store = StubTemplateDrawingStore()
+        let coordinator = TemplateColoringPersistenceCoordinator(drawingStore: store)
+        let newerFill = Data("newer-fill".utf8)
+        let olderFill = Data("older-fill".utf8)
+
+        await coordinator.persistFillData(newerFill, for: templateID, revision: 2)
+        await coordinator.persistFillData(olderFill, for: templateID, revision: 1)
+
+        let persistedFill = try await store.loadFillData(for: templateID)
+        let fillSaveCount = await store.fillSaveCount(for: templateID)
+        XCTAssertEqual(persistedFill, newerFill)
+        XCTAssertEqual(fillSaveCount, 1)
+    }
+
+    func testClearingFillPersistsTombstoneAndDoesNotRestoreOldFillAfterSwitch() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let drawingStore = StubTemplateDrawingStore()
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5))
+        }
+
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill, "Expected fill overlay before clear.")
+
+        await MainActor.run {
+            viewModel.clearFills()
+            viewModel.selectTemplate(secondTemplate.id)
+            viewModel.selectTemplate(firstTemplate.id)
+        }
+
+        let didPersistTombstone = await waitForCondition(timeout: 1.0) {
+            (try? await drawingStore.loadFillData(for: firstTemplate.id)) == Data()
+        }
+        XCTAssertTrue(didPersistTombstone, "Expected cleared fill to persist as an empty-data tombstone.")
+
+        let remainedClearedAfterSwitch = await waitForCondition(timeout: 1.0) {
+            await MainActor.run {
+                viewModel.selectedTemplateID == firstTemplate.id
+                    && viewModel.currentFillImage == nil
+                    && !viewModel.inProgressTemplateIDs.contains(firstTemplate.id)
+            }
+        }
+        XCTAssertTrue(remainedClearedAfterSwitch, "Expected cleared fill to remain cleared after switching templates.")
+        let fillDeleteCount = await drawingStore.fillDeleteCount(for: firstTemplate.id)
+        XCTAssertEqual(fillDeleteCount, 0)
+    }
+
     func testSelectingFilledTemplateRestoresFillFromInMemoryState() async {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
@@ -2618,6 +2689,8 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     private var fillDataByTemplateID: [String: Data] = [:]
     private var layerStackDataByTemplateID: [String: Data] = [:]
     private var fillLoadDelays: [TimeInterval] = []
+    private var fillSaveCountByTemplateID: [String: Int] = [:]
+    private var fillDeleteCountByTemplateID: [String: Int] = [:]
 
     func loadDrawingData(for templateID: String) throws -> Data? {
         drawingDataByTemplateID[templateID]
@@ -2653,6 +2726,7 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func saveFillData(_ fillData: Data, for templateID: String) throws {
         fillDataByTemplateID[templateID] = fillData
+        fillSaveCountByTemplateID[templateID, default: 0] += 1
     }
 
     func renameFillData(from oldTemplateID: String, to newTemplateID: String) throws {
@@ -2667,6 +2741,7 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func deleteFillData(for templateID: String) throws {
         fillDataByTemplateID.removeValue(forKey: templateID)
+        fillDeleteCountByTemplateID[templateID, default: 0] += 1
     }
 
     func loadLayerStackData(for templateID: String) throws -> Data? {
@@ -2697,6 +2772,14 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func enqueueFillLoadDelay(_ delay: TimeInterval) {
         fillLoadDelays.append(delay)
+    }
+
+    func fillSaveCount(for templateID: String) -> Int {
+        fillSaveCountByTemplateID[templateID, default: 0]
+    }
+
+    func fillDeleteCount(for templateID: String) -> Int {
+        fillDeleteCountByTemplateID[templateID, default: 0]
     }
 }
 

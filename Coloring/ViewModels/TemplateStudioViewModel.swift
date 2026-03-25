@@ -86,6 +86,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let templateLibrary: any TemplateLibraryProviding
     private let importMutationCoordinator: TemplateImportMutationCoordinator
     private let exportCoordinator: TemplateExportCoordinator
+    private let persistenceCoordinator: TemplateColoringPersistenceCoordinator
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
@@ -102,6 +103,8 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillRestoreTask: Task<Void, Never>?
     private var fillRestoreOperationID = 0
     private var pendingPersistTemplateIDs: Set<String> = []
+    private var layerPersistRevisionByTemplateID: [String: Int] = [:]
+    private var fillPersistRevisionByTemplateID: [String: Int] = [:]
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
     private let maxRecentTemplates = 20
 
@@ -123,6 +126,9 @@ final class TemplateStudioViewModel: ObservableObject {
         self.exportCoordinator = TemplateExportCoordinator(
             exportService: exportService,
             galleryStore: galleryStore
+        )
+        self.persistenceCoordinator = TemplateColoringPersistenceCoordinator(
+            drawingStore: drawingStore
         )
         self.drawingStore = drawingStore
         self.floodFillService = floodFillService
@@ -233,6 +239,8 @@ final class TemplateStudioViewModel: ObservableObject {
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillStateStore.retainEntries(for: validTemplateIDs)
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            layerPersistRevisionByTemplateID = layerPersistRevisionByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            fillPersistRevisionByTemplateID = fillPersistRevisionByTemplateID.filter { validTemplateIDs.contains($0.key) }
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
             assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
@@ -1426,6 +1434,12 @@ final class TemplateStudioViewModel: ObservableObject {
         if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: oldTemplateID) {
             persistedColoringByTemplateID[newTemplateID] = hasPersistedColoring
         }
+        if let layerPersistRevision = layerPersistRevisionByTemplateID.removeValue(forKey: oldTemplateID) {
+            layerPersistRevisionByTemplateID[newTemplateID] = layerPersistRevision
+        }
+        if let fillPersistRevision = fillPersistRevisionByTemplateID.removeValue(forKey: oldTemplateID) {
+            fillPersistRevisionByTemplateID[newTemplateID] = fillPersistRevision
+        }
 
         if favoriteTemplateIDs.remove(oldTemplateID) != nil {
             favoriteTemplateIDs.insert(newTemplateID)
@@ -1441,6 +1455,10 @@ final class TemplateStudioViewModel: ObservableObject {
             recentTemplateIDs[recentIndex] = newTemplateID
             persistRecentTemplateIDs()
         }
+
+        Task { [persistenceCoordinator] in
+            await persistenceCoordinator.renameTracking(from: oldTemplateID, to: newTemplateID)
+        }
     }
 
     private func removeLocalTemplateState(for templateID: String) {
@@ -1448,10 +1466,16 @@ final class TemplateStudioViewModel: ObservableObject {
         layerStacksByTemplateID.removeValue(forKey: templateID)
         fillStateStore.removeAll(for: templateID)
         persistedColoringByTemplateID.removeValue(forKey: templateID)
+        layerPersistRevisionByTemplateID.removeValue(forKey: templateID)
+        fillPersistRevisionByTemplateID.removeValue(forKey: templateID)
         editHistoryStore.removeHistory(for: templateID)
         favoriteTemplateIDs.remove(templateID)
         completedTemplateIDs.remove(templateID)
         recentTemplateIDs.removeAll { $0 == templateID }
+
+        Task { [persistenceCoordinator] in
+            await persistenceCoordinator.removeTracking(for: templateID)
+        }
     }
 
     private func applyExportState(_ state: TemplateExportState) {
@@ -1615,10 +1639,13 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let layerStack = layerStacksByTemplateID[templateID] ?? currentLayerStack
-        Task { [drawingStore, templateID, layerStack] in
-            if let data = try? JSONEncoder().encode(layerStack) {
-                try? await drawingStore.saveLayerStackData(data, for: templateID)
-            }
+        guard let data = try? JSONEncoder().encode(layerStack) else {
+            return
+        }
+
+        let revision = nextLayerPersistRevision(for: templateID)
+        Task { [persistenceCoordinator, templateID, data, revision] in
+            await persistenceCoordinator.persistLayerStackData(data, for: templateID, revision: revision)
         }
     }
 
@@ -1820,12 +1847,9 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let fillData = fillStateStore.fillData(for: templateID)
-        Task { [drawingStore, templateID, fillData] in
-            if let fillData {
-                try? await drawingStore.saveFillData(fillData, for: templateID)
-            } else {
-                try? await drawingStore.deleteFillData(for: templateID)
-            }
+        let revision = nextFillPersistRevision(for: templateID)
+        Task { [persistenceCoordinator, templateID, fillData, revision] in
+            await persistenceCoordinator.persistFillData(fillData, for: templateID, revision: revision)
         }
     }
 
@@ -1841,7 +1865,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
-            guard let fillData = try await drawingStore.loadFillData(for: templateID) else {
+            guard let persistedFillData = try await drawingStore.loadFillData(for: templateID) else {
                 return
             }
             guard !Task.isCancelled else {
@@ -1855,6 +1879,17 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
+            if persistedFillData.isEmpty {
+                fillStateStore.setFillData(nil, for: templateID)
+                clearCachedFillImage(for: templateID)
+                if selectedTemplateID == templateID {
+                    currentFillImage = nil
+                }
+                refreshInProgressState(for: templateID)
+                return
+            }
+
+            let fillData = persistedFillData
             fillStateStore.setFillData(fillData, for: templateID)
             persistedColoringByTemplateID[templateID] = true
             if selectedTemplateID == templateID {
@@ -1871,6 +1906,18 @@ final class TemplateStudioViewModel: ObservableObject {
         } catch {
             // Keep existing fill state if persistence read fails.
         }
+    }
+
+    private func nextLayerPersistRevision(for templateID: String) -> Int {
+        let nextRevision = (layerPersistRevisionByTemplateID[templateID] ?? 0) + 1
+        layerPersistRevisionByTemplateID[templateID] = nextRevision
+        return nextRevision
+    }
+
+    private func nextFillPersistRevision(for templateID: String) -> Int {
+        let nextRevision = (fillPersistRevisionByTemplateID[templateID] ?? 0) + 1
+        fillPersistRevisionByTemplateID[templateID] = nextRevision
+        return nextRevision
     }
 
     private func eraseFillOverlayRegion(in fillImage: UIImage, at normalizedPoint: CGPoint) -> FillEraseResult {
