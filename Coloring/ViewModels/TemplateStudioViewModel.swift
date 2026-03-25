@@ -79,9 +79,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
-    private var fillImagesByTemplateID: [String: Data] = [:]
-    private var fillImageCacheByTemplateID: [String: UIImage] = [:]
-    private var fillImageCacheDataByTemplateID: [String: Data] = [:]
+    private let fillStateStore = TemplateFillStateStore()
     private var persistedColoringByTemplateID: [String: Bool] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var recentTemplateIDs: [String] = []
@@ -227,9 +225,7 @@ final class TemplateStudioViewModel: ObservableObject {
             let validTemplateIDs = Set(loadedTemplates.map(\.id))
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            fillImagesByTemplateID = fillImagesByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            fillImageCacheDataByTemplateID = fillImageCacheDataByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            fillStateStore.retainEntries(for: validTemplateIDs)
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
@@ -885,7 +881,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         cancelPendingFillRestoreWork()
         let templateID = selectedTemplateID
-        let currentFillData = fillImagesByTemplateID[templateID]
+        let currentFillData = fillStateStore.fillData(for: templateID)
         let request = FillOverlayRequest(
             templateImage: templateImage,
             existingFillImage: currentFillImage,
@@ -952,7 +948,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         finalizePendingStrokeEditChange(for: selectedTemplateID)
-        let currentFillData = fillImagesByTemplateID[selectedTemplateID]
+        let currentFillData = fillStateStore.fillData(for: selectedTemplateID)
         guard currentFillData != nil else {
             return
         }
@@ -1026,17 +1022,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 layerStacksByTemplateID[renamedTemplate.id] = layerStack
             }
 
-            if let fillData = fillImagesByTemplateID.removeValue(forKey: templateID) {
-                fillImagesByTemplateID[renamedTemplate.id] = fillData
-            }
-
-            if let fillImage = fillImageCacheByTemplateID.removeValue(forKey: templateID) {
-                fillImageCacheByTemplateID[renamedTemplate.id] = fillImage
-            }
-
-            if let cachedFillData = fillImageCacheDataByTemplateID.removeValue(forKey: templateID) {
-                fillImageCacheDataByTemplateID[renamedTemplate.id] = cachedFillData
-            }
+            fillStateStore.rename(from: templateID, to: renamedTemplate.id)
 
             editHistoryStore.renameHistory(from: templateID, to: renamedTemplate.id)
             if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: templateID) {
@@ -1077,9 +1063,8 @@ final class TemplateStudioViewModel: ObservableObject {
             try await drawingStore.deleteLayerStackData(for: templateID)
             drawingsByTemplateID.removeValue(forKey: templateID)
             layerStacksByTemplateID.removeValue(forKey: templateID)
-            fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillStateStore.removeAll(for: templateID)
             persistedColoringByTemplateID.removeValue(forKey: templateID)
-            clearCachedFillImage(for: templateID)
             editHistoryStore.removeHistory(for: templateID)
             favoriteTemplateIDs.remove(templateID)
             completedTemplateIDs.remove(templateID)
@@ -1111,9 +1096,8 @@ final class TemplateStudioViewModel: ObservableObject {
                 try await drawingStore.deleteLayerStackData(for: templateID)
                 drawingsByTemplateID.removeValue(forKey: templateID)
                 layerStacksByTemplateID.removeValue(forKey: templateID)
-                fillImagesByTemplateID.removeValue(forKey: templateID)
+                fillStateStore.removeAll(for: templateID)
                 persistedColoringByTemplateID.removeValue(forKey: templateID)
-                clearCachedFillImage(for: templateID)
                 editHistoryStore.removeHistory(for: templateID)
                 favoriteTemplateIDs.remove(templateID)
                 completedTemplateIDs.remove(templateID)
@@ -1347,7 +1331,7 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func hasFillColoring(for templateID: String) -> Bool {
-        guard let fillData = fillImagesByTemplateID[templateID] else {
+        guard let fillData = fillStateStore.fillData(for: templateID) else {
             return false
         }
 
@@ -1537,7 +1521,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         return TemplateEditSnapshot(
             layerStack: layerStack,
-            fillData: fillImagesByTemplateID[templateID]
+            fillData: fillStateStore.fillData(for: templateID)
         )
     }
 
@@ -1587,21 +1571,15 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func cachedFillImage(for templateID: String, matching fillData: Data) -> UIImage? {
-        guard fillImageCacheDataByTemplateID[templateID] == fillData else {
-            return nil
-        }
-
-        return fillImageCacheByTemplateID[templateID]
+        fillStateStore.cachedImage(for: templateID, matching: fillData)
     }
 
     private func storeCachedFillImage(_ image: UIImage, data: Data, for templateID: String) {
-        fillImageCacheByTemplateID[templateID] = image
-        fillImageCacheDataByTemplateID[templateID] = data
+        fillStateStore.cacheImage(image, data: data, for: templateID)
     }
 
     private func clearCachedFillImage(for templateID: String) {
-        fillImageCacheByTemplateID.removeValue(forKey: templateID)
-        fillImageCacheDataByTemplateID.removeValue(forKey: templateID)
+        fillStateStore.clearCachedImage(for: templateID)
     }
 
     private func cancelPendingFillOverlayWork() {
@@ -1633,12 +1611,12 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if let fillData = snapshot.fillData {
-            fillImagesByTemplateID[templateID] = fillData
+            fillStateStore.setFillData(fillData, for: templateID)
             if selectedTemplateID != templateID {
                 clearCachedFillImage(for: templateID)
             }
         } else {
-            fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillStateStore.setFillData(nil, for: templateID)
             clearCachedFillImage(for: templateID)
         }
 
@@ -1803,14 +1781,14 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if let fillData {
-            fillImagesByTemplateID[templateID] = fillData
+            fillStateStore.setFillData(fillData, for: templateID)
             if let cachedImage {
                 storeCachedFillImage(cachedImage, data: fillData, for: templateID)
             } else if selectedTemplateID != templateID {
                 clearCachedFillImage(for: templateID)
             }
         } else {
-            fillImagesByTemplateID.removeValue(forKey: templateID)
+            fillStateStore.setFillData(nil, for: templateID)
             clearCachedFillImage(for: templateID)
         }
 
@@ -1840,11 +1818,11 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        if fillImagesByTemplateID[selectedTemplateID] == nil,
+        if fillStateStore.fillData(for: selectedTemplateID) == nil,
            let fillImage = currentFillImage,
            let fillData = fillImage.pngData()
         {
-            fillImagesByTemplateID[selectedTemplateID] = fillData
+            fillStateStore.setFillData(fillData, for: selectedTemplateID)
             storeCachedFillImage(fillImage, data: fillData, for: selectedTemplateID)
         }
         persistFill(for: selectedTemplateID)
@@ -1857,7 +1835,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        if let fillData = fillImagesByTemplateID[selectedTemplateID] {
+        if let fillData = fillStateStore.fillData(for: selectedTemplateID) {
             cancelPendingFillRestoreWork()
             currentFillImage = cachedFillImage(for: selectedTemplateID, matching: fillData)
                 ?? {
@@ -1884,7 +1862,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        let fillData = fillImagesByTemplateID[templateID]
+        let fillData = fillStateStore.fillData(for: templateID)
         Task { [drawingStore, templateID, fillData] in
             if let fillData {
                 try? await drawingStore.saveFillData(fillData, for: templateID)
@@ -1916,11 +1894,11 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
-            guard fillImagesByTemplateID[templateID] == nil else {
+            guard fillStateStore.fillData(for: templateID) == nil else {
                 return
             }
 
-            fillImagesByTemplateID[templateID] = fillData
+            fillStateStore.setFillData(fillData, for: templateID)
             persistedColoringByTemplateID[templateID] = true
             if selectedTemplateID == templateID {
                 currentFillImage = cachedFillImage(for: templateID, matching: fillData)
