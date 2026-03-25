@@ -85,7 +85,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
     private let brushPresetStore: any BrushPresetStoreProviding
-    private let categoryStore: any TemplateCategoryStoreProviding
+    private let categoryPersistenceCoordinator: TemplateCategoryPersistenceCoordinator
     private var hasLoadedTemplates = false
     private var loadedTemplateImageID: String?
     private var templateImageLoadTask: Task<Void, Never>?
@@ -128,7 +128,9 @@ final class TemplateStudioViewModel: ObservableObject {
         self.floodFillService = floodFillService
         self.layerCompositor = layerCompositor
         self.brushPresetStore = brushPresetStore
-        self.categoryStore = categoryStore
+        self.categoryPersistenceCoordinator = TemplateCategoryPersistenceCoordinator(
+            categoryStore: categoryStore
+        )
         self.currentDrawing = PKDrawing()
     }
 
@@ -695,17 +697,15 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func loadCategoriesIfNeeded() {
-        Task { [categoryStore] in
+        Task { [categoryPersistenceCoordinator] in
             do {
-                let categories = try await categoryStore.loadUserCategories()
-                self.assignIfChanged(\.userCategories, to: categories)
-                let assignments = try await categoryStore.loadCategoryAssignments()
-                self.assignIfChanged(\.categoryAssignments, to: assignments)
-                let storedOrder = try await categoryStore.loadCategoryOrder()
-                self.assignIfChanged(\.categoryOrder, to: storedOrder)
-                self.assignIfChanged(\.favoriteTemplateIDs, to: try await categoryStore.loadFavoriteTemplateIDs())
-                self.assignIfChanged(\.completedTemplateIDs, to: try await categoryStore.loadCompletedTemplateIDs())
-                self.recentTemplateIDs = try await categoryStore.loadRecentTemplateIDs()
+                let storedState = try await categoryPersistenceCoordinator.loadState()
+                self.assignIfChanged(\.userCategories, to: storedState.userCategories)
+                self.assignIfChanged(\.categoryAssignments, to: storedState.categoryAssignments)
+                self.assignIfChanged(\.categoryOrder, to: storedState.categoryOrder)
+                self.assignIfChanged(\.favoriteTemplateIDs, to: storedState.favoriteTemplateIDs)
+                self.assignIfChanged(\.completedTemplateIDs, to: storedState.completedTemplateIDs)
+                self.recentTemplateIDs = storedState.recentTemplateIDs
                 self.filterStoredTemplateStateToAvailableTemplates()
                 self.syncCategoryOrderWithAvailableCategories()
                 self.markTemplateAsRecent(self.selectedTemplateID)
@@ -720,45 +720,27 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func persistUserCategories() {
-        let categories = userCategories
-        Task { [categoryStore, categories] in
-            try? await categoryStore.saveUserCategories(categories)
-        }
+        categoryPersistenceCoordinator.persistUserCategories(userCategories)
     }
 
     private func persistCategoryAssignments() {
-        let assignments = categoryAssignments
-        Task { [categoryStore, assignments] in
-            try? await categoryStore.saveCategoryAssignments(assignments)
-        }
+        categoryPersistenceCoordinator.persistCategoryAssignments(categoryAssignments)
     }
 
     private func persistCategoryOrder() {
-        let categoryOrder = categoryOrder
-        Task { [categoryStore, categoryOrder] in
-            try? await categoryStore.saveCategoryOrder(categoryOrder)
-        }
+        categoryPersistenceCoordinator.persistCategoryOrder(categoryOrder)
     }
 
     private func persistFavoriteTemplateIDs() {
-        let templateIDs = favoriteTemplateIDs
-        Task { [categoryStore, templateIDs] in
-            try? await categoryStore.saveFavoriteTemplateIDs(templateIDs)
-        }
+        categoryPersistenceCoordinator.persistFavoriteTemplateIDs(favoriteTemplateIDs)
     }
 
     private func persistCompletedTemplateIDs() {
-        let templateIDs = completedTemplateIDs
-        Task { [categoryStore, templateIDs] in
-            try? await categoryStore.saveCompletedTemplateIDs(templateIDs)
-        }
+        categoryPersistenceCoordinator.persistCompletedTemplateIDs(completedTemplateIDs)
     }
 
     private func persistRecentTemplateIDs() {
-        let templateIDs = recentTemplateIDs
-        Task { [categoryStore, templateIDs] in
-            try? await categoryStore.saveRecentTemplateIDs(templateIDs)
-        }
+        categoryPersistenceCoordinator.persistRecentTemplateIDs(recentTemplateIDs)
     }
 
     private func markTemplateAsRecent(_ templateID: String) {
