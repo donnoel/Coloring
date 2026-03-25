@@ -1843,6 +1843,34 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue((saveRequest?.imageData.isEmpty ?? true) == false)
     }
 
+    func testExportCurrentTemplateWithoutSelectionSetsError() async {
+        let exportService = CapturingTemplateExportService()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: []),
+                exportService: exportService,
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await viewModel.exportCurrentTemplate()
+
+        let lastCanvasSize = await exportService.lastCanvasSize
+        XCTAssertNil(lastCanvasSize)
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.exportErrorMessage, "No template selected to export.")
+            XCTAssertFalse(viewModel.isExporting)
+            XCTAssertNil(viewModel.exportedFileURL)
+        }
+    }
+
     func testTemplateArtworkExportServiceRejectsInvalidTemplateData() async {
         let service = TemplateArtworkExportService()
 

@@ -84,13 +84,12 @@ final class TemplateStudioViewModel: ObservableObject {
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var recentTemplateIDs: [String] = []
     private let templateLibrary: any TemplateLibraryProviding
-    private let exportService: any TemplateArtworkExporting
+    private let exportCoordinator: TemplateExportCoordinator
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
     private let brushPresetStore: any BrushPresetStoreProviding
     private let categoryStore: any TemplateCategoryStoreProviding
-    private let galleryStore: any GalleryStoreProviding
     private var hasLoadedTemplates = false
     private var loadedTemplateImageID: String?
     private var templateImageLoadTask: Task<Void, Never>?
@@ -116,13 +115,15 @@ final class TemplateStudioViewModel: ObservableObject {
         galleryStore: any GalleryStoreProviding
     ) {
         self.templateLibrary = templateLibrary
-        self.exportService = exportService
+        self.exportCoordinator = TemplateExportCoordinator(
+            exportService: exportService,
+            galleryStore: galleryStore
+        )
         self.drawingStore = drawingStore
         self.floodFillService = floodFillService
         self.layerCompositor = layerCompositor
         self.brushPresetStore = brushPresetStore
         self.categoryStore = categoryStore
-        self.galleryStore = galleryStore
         self.currentDrawing = PKDrawing()
     }
 
@@ -180,7 +181,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         hasLoadedTemplates = await reloadTemplates()
         scheduleDeferredCloudRestoreIfNeeded()
-        cleanUpStaleExportFiles()
+        exportCoordinator.cleanUpStaleExportFiles()
     }
 
     func refreshTemplatesFromStorage() async {
@@ -1123,19 +1124,10 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Export
 
     func exportCurrentTemplate() async {
-        guard !isExporting else {
+        let startResult = exportCoordinator.beginExport(selectedTemplate: selectedTemplate)
+        applyExportState(exportCoordinator.state)
+        guard case let .started(selectedTemplate) = startResult else {
             return
-        }
-
-        guard let selectedTemplate else {
-            exportErrorMessage = "No template selected to export."
-            return
-        }
-
-        isExporting = true
-        exportErrorMessage = nil
-        defer {
-            isExporting = false
         }
 
         do {
@@ -1163,68 +1155,21 @@ final class TemplateStudioViewModel: ObservableObject {
             }
             let drawingData = normalizedExportDrawing.dataRepresentation()
 
-            let exportedURL = try await exportService.exportPNG(
+            let request = TemplateExportRequest(
                 templateData: templateData,
                 drawingData: drawingData,
                 fillLayerData: fillData,
                 compositedLayersImageData: allLayersImageData,
                 canvasSize: canvasSize,
-                templateID: selectedTemplate.id
+                templateID: selectedTemplate.id,
+                templateName: selectedTemplate.title
             )
-
-            exportedFileURL = exportedURL
-            exportStatusMessage = "Template export is ready to share."
-
-            // Also save to gallery.
-            // Read the exported PNG data and hand it to the gallery store.
-            do {
-                let exportImageData = try Data(contentsOf: exportedURL)
-                _ = try await galleryStore.saveArtwork(
-                    imageData: exportImageData,
-                    sourceTemplateID: selectedTemplate.id,
-                    sourceTemplateName: selectedTemplate.title
-                )
-            } catch {
-                // Gallery save is best-effort; don't fail the export.
-            }
+            let exportedURL = try await exportCoordinator.performExport(using: request)
+            exportCoordinator.completeExportSuccess(exportedURL: exportedURL)
+            applyExportState(exportCoordinator.state)
         } catch {
-            exportErrorMessage = error.localizedDescription
-            exportStatusMessage = nil
-            exportedFileURL = nil
-        }
-    }
-
-    // MARK: - Private: Export Cleanup
-
-    /// Remove old template export PNGs from the temp directory to avoid accumulating stale files.
-    private func cleanUpStaleExportFiles() {
-        Task.detached(priority: .utility) {
-            let tempDir = FileManager.default.temporaryDirectory
-            guard let contents = try? FileManager.default.contentsOfDirectory(
-                at: tempDir,
-                includingPropertiesForKeys: [.creationDateKey],
-                options: .skipsHiddenFiles
-            ) else {
-                return
-            }
-
-            let exportPrefix = "template-"
-            let pngSuffix = ".png"
-            let cutoff = Date().addingTimeInterval(-24 * 60 * 60) // 24 hours ago
-
-            for fileURL in contents {
-                let filename = fileURL.lastPathComponent
-                guard filename.hasPrefix(exportPrefix),
-                      filename.hasSuffix(pngSuffix)
-                else {
-                    continue
-                }
-
-                let values = try? fileURL.resourceValues(forKeys: [.creationDateKey])
-                if let createdAt = values?.creationDate, createdAt < cutoff {
-                    try? FileManager.default.removeItem(at: fileURL)
-                }
-            }
+            exportCoordinator.completeExportFailure(error)
+            applyExportState(exportCoordinator.state)
         }
     }
 
@@ -1499,9 +1444,15 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func invalidateExport() {
-        assignIfChanged(\.exportedFileURL, to: nil)
-        assignIfChanged(\.exportStatusMessage, to: nil)
-        assignIfChanged(\.exportErrorMessage, to: nil)
+        exportCoordinator.invalidate()
+        applyExportState(exportCoordinator.state)
+    }
+
+    private func applyExportState(_ state: TemplateExportState) {
+        assignIfChanged(\.isExporting, to: state.isExporting)
+        assignIfChanged(\.exportedFileURL, to: state.exportedFileURL)
+        assignIfChanged(\.exportStatusMessage, to: state.statusMessage)
+        assignIfChanged(\.exportErrorMessage, to: state.errorMessage)
     }
 
     private func snapshot(for templateID: String) -> TemplateEditSnapshot? {
