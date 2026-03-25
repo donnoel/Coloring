@@ -77,11 +77,6 @@ final class TemplateStudioViewModel: ObservableObject {
         let fillData: Data?
     }
 
-    private struct TemplateEditHistory {
-        var undo: [TemplateEditSnapshot] = []
-        var redo: [TemplateEditSnapshot] = []
-    }
-
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private var fillImagesByTemplateID: [String: Data] = [:]
@@ -89,7 +84,6 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillImageCacheDataByTemplateID: [String: Data] = [:]
     private var persistedColoringByTemplateID: [String: Bool] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
-    private var editHistoryByTemplateID: [String: TemplateEditHistory] = [:]
     private var recentTemplateIDs: [String] = []
     private let templateLibrary: any TemplateLibraryProviding
     private let exportService: any TemplateArtworkExporting
@@ -110,8 +104,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillRestoreTask: Task<Void, Never>?
     private var fillRestoreOperationID = 0
     private var pendingPersistTemplateIDs: Set<String> = []
-    private var pendingStrokeSnapshotsByTemplateID: [String: TemplateEditSnapshot] = [:]
-    private let maxEditHistorySteps = 100
+    private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
     private let maxRecentTemplates = 20
 
     init(
@@ -238,7 +231,7 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImageCacheByTemplateID = fillImageCacheByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillImageCacheDataByTemplateID = fillImageCacheDataByTemplateID.filter { validTemplateIDs.contains($0.key) }
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            editHistoryByTemplateID = editHistoryByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
             assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
             let filteredRecentTemplateIDs = recentTemplateIDs.filter { validTemplateIDs.contains($0) }
@@ -330,7 +323,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let templateID = selectedTemplateID
-        let shouldRecordImmediately = pendingStrokeSnapshotsByTemplateID[templateID] == nil
+        let shouldRecordImmediately = !editHistoryStore.hasPendingStroke(for: templateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
@@ -974,15 +967,13 @@ final class TemplateStudioViewModel: ObservableObject {
     func undoLastEdit() {
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         guard !selectedTemplateID.isEmpty,
-              var history = editHistoryByTemplateID[selectedTemplateID],
-              let previousSnapshot = history.undo.popLast(),
-              let currentSnapshot = snapshot(for: selectedTemplateID)
+              let previousSnapshot = editHistoryStore.undo(
+                  for: selectedTemplateID,
+                  currentSnapshot: snapshot(for: selectedTemplateID)
+              )
         else {
             return
         }
-
-        history.redo.append(currentSnapshot)
-        editHistoryByTemplateID[selectedTemplateID] = history
         refreshEditAvailability()
         applyEditSnapshot(previousSnapshot, for: selectedTemplateID)
     }
@@ -990,15 +981,13 @@ final class TemplateStudioViewModel: ObservableObject {
     func redoLastEdit() {
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         guard !selectedTemplateID.isEmpty,
-              var history = editHistoryByTemplateID[selectedTemplateID],
-              let nextSnapshot = history.redo.popLast(),
-              let currentSnapshot = snapshot(for: selectedTemplateID)
+              let nextSnapshot = editHistoryStore.redo(
+                  for: selectedTemplateID,
+                  currentSnapshot: snapshot(for: selectedTemplateID)
+              )
         else {
             return
         }
-
-        history.undo.append(currentSnapshot)
-        editHistoryByTemplateID[selectedTemplateID] = history
         refreshEditAvailability()
         applyEditSnapshot(nextSnapshot, for: selectedTemplateID)
     }
@@ -1049,9 +1038,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImageCacheDataByTemplateID[renamedTemplate.id] = cachedFillData
             }
 
-            if let editHistory = editHistoryByTemplateID.removeValue(forKey: templateID) {
-                editHistoryByTemplateID[renamedTemplate.id] = editHistory
-            }
+            editHistoryStore.renameHistory(from: templateID, to: renamedTemplate.id)
             if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: templateID) {
                 persistedColoringByTemplateID[renamedTemplate.id] = hasPersistedColoring
             }
@@ -1093,7 +1080,7 @@ final class TemplateStudioViewModel: ObservableObject {
             fillImagesByTemplateID.removeValue(forKey: templateID)
             persistedColoringByTemplateID.removeValue(forKey: templateID)
             clearCachedFillImage(for: templateID)
-            editHistoryByTemplateID.removeValue(forKey: templateID)
+            editHistoryStore.removeHistory(for: templateID)
             favoriteTemplateIDs.remove(templateID)
             completedTemplateIDs.remove(templateID)
             recentTemplateIDs.removeAll { $0 == templateID }
@@ -1127,7 +1114,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 fillImagesByTemplateID.removeValue(forKey: templateID)
                 persistedColoringByTemplateID.removeValue(forKey: templateID)
                 clearCachedFillImage(for: templateID)
-                editHistoryByTemplateID.removeValue(forKey: templateID)
+                editHistoryStore.removeHistory(for: templateID)
                 favoriteTemplateIDs.remove(templateID)
                 completedTemplateIDs.remove(templateID)
                 recentTemplateIDs.removeAll { $0 == templateID }
@@ -1563,34 +1550,29 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        var history = editHistoryByTemplateID[templateID] ?? TemplateEditHistory()
-        history.undo.append(previousSnapshot)
-        if history.undo.count > maxEditHistorySteps {
-            history.undo.removeFirst(history.undo.count - maxEditHistorySteps)
+        if editHistoryStore.recordChange(
+            from: previousSnapshot,
+            for: templateID,
+            currentSnapshot: currentSnapshot
+        ) {
+            refreshEditAvailability()
         }
-        history.redo.removeAll(keepingCapacity: true)
-        editHistoryByTemplateID[templateID] = history
-        refreshEditAvailability()
     }
 
     private func beginPendingStrokeEditChangeIfNeeded(for templateID: String) {
-        guard !templateID.isEmpty,
-              pendingStrokeSnapshotsByTemplateID[templateID] == nil
-        else {
-            return
-        }
-
-        pendingStrokeSnapshotsByTemplateID[templateID] = snapshot(for: templateID)
+        editHistoryStore.beginPendingStrokeIfNeeded(
+            for: templateID,
+            snapshot: snapshot(for: templateID)
+        )
     }
 
     private func finalizePendingStrokeEditChange(for templateID: String) {
-        guard !templateID.isEmpty,
-              let pendingSnapshot = pendingStrokeSnapshotsByTemplateID.removeValue(forKey: templateID)
-        else {
-            return
+        if editHistoryStore.finalizePendingStrokeIfNeeded(
+            for: templateID,
+            currentSnapshot: snapshot(for: templateID)
+        ) {
+            refreshEditAvailability()
         }
-
-        recordEditChange(from: pendingSnapshot, for: templateID)
     }
 
     private func refreshEditAvailability() {
@@ -1600,9 +1582,8 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        let history = editHistoryByTemplateID[selectedTemplateID]
-        assignIfChanged(\.canUndoEdit, to: !(history?.undo.isEmpty ?? true))
-        assignIfChanged(\.canRedoEdit, to: !(history?.redo.isEmpty ?? true))
+        assignIfChanged(\.canUndoEdit, to: editHistoryStore.canUndo(for: selectedTemplateID))
+        assignIfChanged(\.canRedoEdit, to: editHistoryStore.canRedo(for: selectedTemplateID))
     }
 
     private func cachedFillImage(for templateID: String, matching fillData: Data) -> UIImage? {
