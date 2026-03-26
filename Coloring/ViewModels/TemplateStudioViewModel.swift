@@ -761,20 +761,13 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func markTemplateAsRecent(_ templateID: String) {
-        guard !templateID.isEmpty,
-              templates.contains(where: { $0.id == templateID })
-        else {
-            return
-        }
-
-        var updatedRecentTemplateIDs = recentTemplateIDs
-        updatedRecentTemplateIDs.removeAll { $0 == templateID }
-        updatedRecentTemplateIDs.insert(templateID, at: 0)
-        if updatedRecentTemplateIDs.count > maxRecentTemplates {
-            updatedRecentTemplateIDs.removeLast(updatedRecentTemplateIDs.count - maxRecentTemplates)
-        }
-
-        guard recentTemplateIDs != updatedRecentTemplateIDs else {
+        let availableTemplateIDs = Set(templates.map(\.id))
+        guard let updatedRecentTemplateIDs = TemplateCategoryStateSanitizer.markedRecentTemplateIDs(
+            templateID: templateID,
+            availableTemplateIDs: availableTemplateIDs,
+            recentTemplateIDs: recentTemplateIDs,
+            maxRecentTemplates: maxRecentTemplates
+        ) else {
             return
         }
 
@@ -784,11 +777,16 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func filterStoredTemplateStateToAvailableTemplates() {
         let validTemplateIDs = Set(templates.map(\.id))
-        assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
-        assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
-        let filteredRecentTemplateIDs = recentTemplateIDs.filter { validTemplateIDs.contains($0) }
-        if recentTemplateIDs != filteredRecentTemplateIDs {
-            recentTemplateIDs = filteredRecentTemplateIDs
+        let sanitizedState = TemplateCategoryStateSanitizer.sanitizeStoredState(
+            favoriteTemplateIDs: favoriteTemplateIDs,
+            completedTemplateIDs: completedTemplateIDs,
+            recentTemplateIDs: recentTemplateIDs,
+            validTemplateIDs: validTemplateIDs
+        )
+        assignIfChanged(\.favoriteTemplateIDs, to: sanitizedState.favoriteTemplateIDs)
+        assignIfChanged(\.completedTemplateIDs, to: sanitizedState.completedTemplateIDs)
+        if recentTemplateIDs != sanitizedState.recentTemplateIDs {
+            recentTemplateIDs = sanitizedState.recentTemplateIDs
         }
     }
 
