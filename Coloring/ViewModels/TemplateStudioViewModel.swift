@@ -209,26 +209,17 @@ final class TemplateStudioViewModel: ObservableObject {
 
         do {
             let loadedTemplates = try await templateLibrary.loadTemplates()
+            let reloadResolution = TemplateReloadStateResolver.resolve(
+                loadedTemplates: loadedTemplates,
+                currentSelectedTemplateID: selectedTemplateID,
+                lastSelectedTemplateID: UserDefaults.standard.string(forKey: DefaultsKey.lastSelectedTemplateID),
+                recentTemplateIDs: recentTemplateIDs
+            )
             assignIfChanged(\.templates, to: loadedTemplates)
-            builtInCategoryNamesByTemplateID = Dictionary(
-                uniqueKeysWithValues: loadedTemplates.map { template in
-                    (template.id, TemplateCategory.builtInCategoryNames(for: template))
-                }
-            )
-            let resolvedBuiltInCategories = Set(
-                builtInCategoryNamesByTemplateID.values.flatMap(\.self)
-            )
-            .sorted()
-            .map { name in
-                TemplateCategory(
-                    id: TemplateCategory.builtInCategoryID(for: name),
-                    name: name,
-                    isUserCreated: false
-                )
-            }
-            assignIfChanged(\.builtInCategories, to: resolvedBuiltInCategories)
+            builtInCategoryNamesByTemplateID = reloadResolution.builtInCategoryNamesByTemplateID
+            assignIfChanged(\.builtInCategories, to: reloadResolution.builtInCategories)
             syncCategoryOrderWithAvailableCategories()
-            let validTemplateIDs = Set(loadedTemplates.map(\.id))
+            let validTemplateIDs = reloadResolution.validTemplateIDs
             drawingsByTemplateID = drawingsByTemplateID.filter { validTemplateIDs.contains($0.key) }
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillStateStore.retainEntries(for: validTemplateIDs)
@@ -237,19 +228,13 @@ final class TemplateStudioViewModel: ObservableObject {
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
             assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
-            let filteredRecentTemplateIDs = recentTemplateIDs.filter { validTemplateIDs.contains($0) }
-            if recentTemplateIDs != filteredRecentTemplateIDs {
-                recentTemplateIDs = filteredRecentTemplateIDs
+            if recentTemplateIDs != reloadResolution.filteredRecentTemplateIDs {
+                recentTemplateIDs = reloadResolution.filteredRecentTemplateIDs
             }
             importErrorMessage = nil
 
-            if selectedTemplateID.isEmpty || !validTemplateIDs.contains(selectedTemplateID) {
-                let lastSelected = UserDefaults.standard.string(forKey: DefaultsKey.lastSelectedTemplateID) ?? ""
-                if !lastSelected.isEmpty, validTemplateIDs.contains(lastSelected) {
-                    selectedTemplateID = lastSelected
-                } else {
-                    selectedTemplateID = templates.first?.id ?? ""
-                }
+            if selectedTemplateID != reloadResolution.selectedTemplateID {
+                selectedTemplateID = reloadResolution.selectedTemplateID
             }
 
             persistLastSelectedTemplateID(selectedTemplateID)
@@ -329,8 +314,11 @@ final class TemplateStudioViewModel: ObservableObject {
         // Fallback boundary detection: if a stroke-end callback is missed, a new
         // stroke still increases the stroke count. Split pending history at that
         // boundary so undo remains one stroke at a time.
-        if editHistoryStore.hasPendingStroke(for: templateID),
-           drawing.strokes.count > currentDrawing.strokes.count
+        if TemplateStrokeBoundaryResolver.shouldSplitPendingStroke(
+            hasPendingStroke: editHistoryStore.hasPendingStroke(for: templateID),
+            previousStrokeCount: currentDrawing.strokes.count,
+            updatedStrokeCount: drawing.strokes.count
+        )
         {
             finalizePendingStrokeEditChange(for: templateID)
             beginPendingStrokeEditChangeIfNeeded(for: templateID)
@@ -466,21 +454,14 @@ final class TemplateStudioViewModel: ObservableObject {
     func mergeDown(_ id: UUID) {
         let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
-        guard let pair = currentLayerStack.mergeDown(id) else {
+        guard let mergedLayerStack = TemplateLayerMergeService.mergeDown(
+            in: currentLayerStack,
+            upperLayerID: id
+        ) else {
             return
         }
 
-        // Composite upper onto lower by combining their drawings.
-        if let upperDrawing = try? PKDrawing(data: pair.upper.drawingData),
-           let lowerDrawing = try? PKDrawing(data: pair.lower.drawingData)
-        {
-            var mergedStrokes = lowerDrawing.strokes
-            mergedStrokes.append(contentsOf: upperDrawing.strokes)
-            let mergedDrawing = PKDrawing(strokes: mergedStrokes)
-            currentLayerStack.updateDrawingData(mergedDrawing.dataRepresentation(), for: pair.lower.id)
-        }
-
-        currentLayerStack.removeLayer(id)
+        currentLayerStack = mergedLayerStack
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         restoreActiveLayerDrawing()
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
@@ -501,14 +482,7 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func restoreActiveLayerDrawing() {
-        if let activeLayer = currentLayerStack.activeLayer,
-           !activeLayer.drawingData.isEmpty,
-           let drawing = try? PKDrawing(data: activeLayer.drawingData)
-        {
-            setCurrentDrawingFromModel(drawing)
-        } else {
-            setCurrentDrawingFromModel(PKDrawing())
-        }
+        setCurrentDrawingFromModel(TemplateEditSnapshotResolver.drawing(from: currentLayerStack))
         drawingsByTemplateID[selectedTemplateID] = currentDrawing
     }
 
@@ -1077,30 +1051,26 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        do {
-            let templateData = try await templateLibrary.imageData(for: template)
-            guard !Task.isCancelled else {
-                return
-            }
+        let loadResult = await TemplateSelectedImageLoader.loadImage(
+            for: template,
+            using: templateLibrary
+        )
+        guard !Task.isCancelled else {
+            return
+        }
 
-            guard selectedTemplateID == templateID else {
-                return
-            }
+        guard selectedTemplateID == templateID else {
+            return
+        }
 
-            selectedTemplateImage = UIImage(data: templateData)?.stableDisplayImage()
+        switch loadResult {
+        case let .success(image):
+            selectedTemplateImage = image
             loadedTemplateImageID = templateID
-        } catch {
-            guard !Task.isCancelled else {
-                return
-            }
-
-            guard selectedTemplateID == templateID else {
-                return
-            }
-
+        case let .failure(message):
             selectedTemplateImage = nil
             loadedTemplateImageID = nil
-            importErrorMessage = "Could not load selected template image."
+            importErrorMessage = message
         }
     }
 
@@ -1400,6 +1370,23 @@ final class TemplateStudioViewModel: ObservableObject {
         fillStateStore.clearCachedImage(for: templateID)
     }
 
+    private func resolveFillImage(
+        for templateID: String,
+        fillData: Data,
+        cachedImage: UIImage?
+    ) -> UIImage? {
+        TemplateFillImageResolver.resolveDisplayImage(
+            fillData: fillData,
+            cachedImage: cachedImage,
+            decodeImage: { data in
+                UIImage(data: data)?.stableDisplayImage()
+            },
+            cacheImage: { decodedImage in
+                storeCachedFillImage(decodedImage, data: fillData, for: templateID)
+            }
+        )
+    }
+
     private func cancelPendingFillOverlayWork() {
         fillOverlayTask?.cancel()
         fillOverlayTask = nil
@@ -1436,14 +1423,11 @@ final class TemplateStudioViewModel: ObservableObject {
             restoreActiveLayerDrawing()
             recompositeLayerOverlays()
             if let fillData = snapshot.fillData {
-                currentFillImage = cachedFillImage(for: templateID, matching: fillData)
-                    ?? {
-                        let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
-                        if let decodedImage {
-                            storeCachedFillImage(decodedImage, data: fillData, for: templateID)
-                        }
-                        return decodedImage
-                    }()
+                currentFillImage = resolveFillImage(
+                    for: templateID,
+                    fillData: fillData,
+                    cachedImage: cachedFillImage(for: templateID, matching: fillData)
+                )
             } else {
                 currentFillImage = nil
             }
@@ -1507,62 +1491,48 @@ final class TemplateStudioViewModel: ObservableObject {
     private func loadPersistedDrawing(for templateID: String) async {
         drawingRestoreErrorMessage = nil
 
-        // Try layer stack first.
-        do {
-            if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID) {
-                guard let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData) else {
-                    drawingRestoreErrorMessage = "Drawing data for this template appears to be corrupted. Your strokes may not have been restored."
-                    return
-                }
-
-                guard !Task.isCancelled else { return }
-                guard layerStacksByTemplateID[templateID] == nil else { return }
-
-                layerStacksByTemplateID[templateID] = layerStack
-                if hasStrokeColoring(for: templateID) {
-                    persistedColoringByTemplateID[templateID] = true
-                } else {
-                    persistedColoringByTemplateID.removeValue(forKey: templateID)
-                }
-                if selectedTemplateID == templateID {
-                    currentLayerStack = layerStack
-                    restoreActiveLayerDrawing()
-                    recompositeLayerOverlays()
-                }
-                refreshInProgressState(for: templateID)
-                return
-            }
-        } catch {
-            // Fall through to legacy loading.
+        let persistedDrawing = await TemplatePersistedDrawingLoader.load(
+            for: templateID,
+            drawingStore: drawingStore
+        )
+        guard !Task.isCancelled else {
+            return
         }
 
-        // Fall back to legacy single-drawing persistence.
-        do {
-            guard let drawingData = try await drawingStore.loadDrawingData(for: templateID) else {
-                return
-            }
-            guard !Task.isCancelled else {
-                return
-            }
-
-            let drawing: PKDrawing
-            do {
-                drawing = try PKDrawing(data: drawingData)
-            } catch {
-                drawingRestoreErrorMessage = "Could not restore drawing strokes — the saved data may be corrupted."
-                return
-            }
-
-            guard !Task.isCancelled else {
+        switch persistedDrawing {
+        case .none:
+            return
+        case .corruptedLayerStack:
+            drawingRestoreErrorMessage = "Drawing data for this template appears to be corrupted. Your strokes may not have been restored."
+            return
+        case .corruptedLegacyDrawing:
+            drawingRestoreErrorMessage = "Could not restore drawing strokes — the saved data may be corrupted."
+            return
+        case .drawingReadFailed:
+            drawingRestoreErrorMessage = "Could not read saved drawing data. Your previous strokes may not have been restored."
+            return
+        case let .layerStack(layerStack):
+            guard layerStacksByTemplateID[templateID] == nil else {
                 return
             }
 
+            layerStacksByTemplateID[templateID] = layerStack
+            if hasStrokeColoring(for: templateID) {
+                persistedColoringByTemplateID[templateID] = true
+            } else {
+                persistedColoringByTemplateID.removeValue(forKey: templateID)
+            }
+            if selectedTemplateID == templateID {
+                currentLayerStack = layerStack
+                restoreActiveLayerDrawing()
+                recompositeLayerOverlays()
+            }
+            refreshInProgressState(for: templateID)
+        case let .migratedLegacyDrawing(drawing, layerStack):
             guard drawingsByTemplateID[templateID] == nil else {
                 return
             }
 
-            // Migrate to layer stack.
-            let layerStack = LayerStack.singleLayer(drawingData: drawingData)
             drawingsByTemplateID[templateID] = drawing
             layerStacksByTemplateID[templateID] = layerStack
             if hasStrokeColoring(for: templateID) {
@@ -1579,11 +1549,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             refreshInProgressState(for: templateID)
-
-            // Persist the migrated layer stack.
             persistLayerStack(for: templateID)
-        } catch {
-            drawingRestoreErrorMessage = "Could not read saved drawing data. Your previous strokes may not have been restored."
         }
     }
 
@@ -1608,15 +1574,13 @@ final class TemplateStudioViewModel: ObservableObject {
 
         if selectedTemplateID == templateID {
             if let fillData {
-                currentFillImage = cachedImage
+                let resolvedCachedImage = cachedImage
                     ?? cachedFillImage(for: templateID, matching: fillData)
-                    ?? {
-                        let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
-                        if let decodedImage {
-                            storeCachedFillImage(decodedImage, data: fillData, for: templateID)
-                        }
-                        return decodedImage
-                    }()
+                currentFillImage = resolveFillImage(
+                    for: templateID,
+                    fillData: fillData,
+                    cachedImage: resolvedCachedImage
+                )
             } else {
                 currentFillImage = nil
             }
@@ -1651,14 +1615,11 @@ final class TemplateStudioViewModel: ObservableObject {
 
         if let fillData = fillStateStore.fillData(for: selectedTemplateID) {
             cancelPendingFillRestoreWork()
-            currentFillImage = cachedFillImage(for: selectedTemplateID, matching: fillData)
-                ?? {
-                    let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
-                    if let decodedImage {
-                        storeCachedFillImage(decodedImage, data: fillData, for: selectedTemplateID)
-                    }
-                    return decodedImage
-                }()
+            currentFillImage = resolveFillImage(
+                for: selectedTemplateID,
+                fillData: fillData,
+                cachedImage: cachedFillImage(for: selectedTemplateID, matching: fillData)
+            )
             return
         }
 
@@ -1723,14 +1684,11 @@ final class TemplateStudioViewModel: ObservableObject {
             fillStateStore.setFillData(fillData, for: templateID)
             persistedColoringByTemplateID[templateID] = true
             if selectedTemplateID == templateID {
-                currentFillImage = cachedFillImage(for: templateID, matching: fillData)
-                    ?? {
-                        let decodedImage = UIImage(data: fillData)?.stableDisplayImage()
-                        if let decodedImage {
-                            storeCachedFillImage(decodedImage, data: fillData, for: templateID)
-                        }
-                        return decodedImage
-                    }()
+                currentFillImage = resolveFillImage(
+                    for: templateID,
+                    fillData: fillData,
+                    cachedImage: cachedFillImage(for: templateID, matching: fillData)
+                )
             }
             refreshInProgressState(for: templateID)
         } catch {
@@ -1752,17 +1710,16 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func performDeferredCloudRestore() async {
-        let retryDelays: [UInt64] = [1_000_000_000, 2_000_000_000, 4_000_000_000]
-        for delay in retryDelays {
-            try? await Task.sleep(nanoseconds: delay)
-            if Task.isCancelled {
-                return
+        await TemplateDeferredCloudRestoreRunner.performDeferredCloudRestore(
+            reloadTemplates: { [weak self] in
+                guard let self else {
+                    return false
+                }
+                return await self.reloadTemplates()
+            },
+            hasImportedTemplates: { [weak self] in
+                self?.hasImportedTemplates ?? false
             }
-
-            let didReload = await reloadTemplates()
-            if !didReload || hasImportedTemplates {
-                return
-            }
-        }
+        )
     }
 }

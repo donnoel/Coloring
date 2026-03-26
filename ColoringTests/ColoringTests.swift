@@ -1303,6 +1303,242 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(store.nextFillRevision(for: renamedTemplateID), 1)
     }
 
+    @MainActor
+    func testDeferredCloudRestoreRunnerStopsWhenReloadFails() async {
+        var observedDelays: [UInt64] = []
+        var reloadCount = 0
+
+        await TemplateDeferredCloudRestoreRunner.performDeferredCloudRestore(
+            retryDelays: [10, 20, 30],
+            sleep: { delay in
+                observedDelays.append(delay)
+            },
+            isCancelled: { false },
+            reloadTemplates: {
+                reloadCount += 1
+                return false
+            },
+            hasImportedTemplates: { false }
+        )
+
+        XCTAssertEqual(observedDelays, [10])
+        XCTAssertEqual(reloadCount, 1)
+    }
+
+    @MainActor
+    func testDeferredCloudRestoreRunnerStopsWhenImportedTemplatesAppear() async {
+        var observedDelays: [UInt64] = []
+        var reloadCount = 0
+
+        await TemplateDeferredCloudRestoreRunner.performDeferredCloudRestore(
+            retryDelays: [10, 20, 30],
+            sleep: { delay in
+                observedDelays.append(delay)
+            },
+            isCancelled: { false },
+            reloadTemplates: {
+                reloadCount += 1
+                return true
+            },
+            hasImportedTemplates: { reloadCount >= 2 }
+        )
+
+        XCTAssertEqual(observedDelays, [10, 20])
+        XCTAssertEqual(reloadCount, 2)
+    }
+
+    func testReloadStateResolverKeepsCurrentSelectionWhenStillValid() {
+        let templates = [
+            Self.makeTemplate(id: "builtin-1", title: "Template One"),
+            Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        ]
+
+        let resolution = TemplateReloadStateResolver.resolve(
+            loadedTemplates: templates,
+            currentSelectedTemplateID: "builtin-2",
+            lastSelectedTemplateID: "builtin-1",
+            recentTemplateIDs: ["builtin-2", "missing-template"]
+        )
+
+        XCTAssertEqual(resolution.selectedTemplateID, "builtin-2")
+        XCTAssertEqual(resolution.filteredRecentTemplateIDs, ["builtin-2"])
+        XCTAssertEqual(resolution.validTemplateIDs, Set(["builtin-1", "builtin-2"]))
+    }
+
+    func testReloadStateResolverFallsBackToLastSelectedTemplate() {
+        let templates = [
+            Self.makeTemplate(id: "builtin-1", title: "Template One"),
+            Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        ]
+
+        let resolution = TemplateReloadStateResolver.resolve(
+            loadedTemplates: templates,
+            currentSelectedTemplateID: "missing-template",
+            lastSelectedTemplateID: "builtin-1",
+            recentTemplateIDs: []
+        )
+
+        XCTAssertEqual(resolution.selectedTemplateID, "builtin-1")
+    }
+
+    func testFillImageResolverUsesCachedImageWithoutDecoding() {
+        let cachedImage = UIImage(data: sampleTemplateImageData)
+        XCTAssertNotNil(cachedImage)
+
+        var decodeCallCount = 0
+        var cacheCallCount = 0
+        let resolvedImage = TemplateFillImageResolver.resolveDisplayImage(
+            fillData: Data("ignored".utf8),
+            cachedImage: cachedImage,
+            decodeImage: { _ in
+                decodeCallCount += 1
+                return nil
+            },
+            cacheImage: { _ in
+                cacheCallCount += 1
+            }
+        )
+
+        XCTAssertNotNil(resolvedImage)
+        XCTAssertEqual(decodeCallCount, 0)
+        XCTAssertEqual(cacheCallCount, 0)
+    }
+
+    func testFillImageResolverDecodesAndCachesWhenCacheIsEmpty() {
+        var cacheCallCount = 0
+        let resolvedImage = TemplateFillImageResolver.resolveDisplayImage(
+            fillData: sampleTemplateImageData,
+            cachedImage: nil,
+            decodeImage: { data in
+                UIImage(data: data)
+            },
+            cacheImage: { _ in
+                cacheCallCount += 1
+            }
+        )
+
+        XCTAssertNotNil(resolvedImage)
+        XCTAssertEqual(cacheCallCount, 1)
+    }
+
+    func testBuiltInCategoryNamesMatchLakeComoAlias() {
+        let template = Self.makeTemplate(id: "builtin-lake-como", title: "Lake Como")
+        let categoryNames = TemplateCategory.builtInCategoryNames(for: template)
+        XCTAssertTrue(categoryNames.contains("Nature & Outdoors"))
+    }
+
+    func testPersistedDrawingLoaderReturnsLayerStackWhenAvailable() async throws {
+        let drawingStore = StubTemplateDrawingStore()
+        let templateID = "layer-template"
+        let layerStack = LayerStack.singleLayer(drawingData: Data("layer-data".utf8))
+        let encodedLayerStack = try JSONEncoder().encode(layerStack)
+        try await drawingStore.saveLayerStackData(encodedLayerStack, for: templateID)
+
+        let result = await TemplatePersistedDrawingLoader.load(
+            for: templateID,
+            drawingStore: drawingStore
+        )
+
+        guard case let .layerStack(restoredLayerStack) = result else {
+            XCTFail("Expected layer-stack load result.")
+            return
+        }
+        XCTAssertEqual(restoredLayerStack, layerStack)
+    }
+
+    func testPersistedDrawingLoaderFallsBackToLegacyDrawingData() async throws {
+        let drawingStore = StubTemplateDrawingStore()
+        let templateID = "legacy-template"
+        let legacyDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        let drawingData = legacyDrawing.dataRepresentation()
+        try await drawingStore.saveDrawingData(drawingData, for: templateID)
+
+        let result = await TemplatePersistedDrawingLoader.load(
+            for: templateID,
+            drawingStore: drawingStore
+        )
+
+        guard case let .migratedLegacyDrawing(restoredDrawing, restoredLayerStack) = result else {
+            XCTFail("Expected legacy drawing migration result.")
+            return
+        }
+        XCTAssertEqual(restoredDrawing.strokes.count, legacyDrawing.strokes.count)
+        XCTAssertEqual(restoredLayerStack.activeLayer?.drawingData, drawingData)
+    }
+
+    func testPersistedDrawingLoaderStopsOnCorruptedLayerStackData() async throws {
+        let drawingStore = StubTemplateDrawingStore()
+        let templateID = "corrupted-layer-stack-template"
+        try await drawingStore.saveLayerStackData(Data("invalid-json".utf8), for: templateID)
+
+        let result = await TemplatePersistedDrawingLoader.load(
+            for: templateID,
+            drawingStore: drawingStore
+        )
+
+        guard case .corruptedLayerStack = result else {
+            XCTFail("Expected corrupted layer-stack result.")
+            return
+        }
+    }
+
+    func testStrokeBoundaryResolverOnlySplitsWhenPendingStrokeCountIncreases() {
+        XCTAssertTrue(
+            TemplateStrokeBoundaryResolver.shouldSplitPendingStroke(
+                hasPendingStroke: true,
+                previousStrokeCount: 2,
+                updatedStrokeCount: 3
+            )
+        )
+        XCTAssertFalse(
+            TemplateStrokeBoundaryResolver.shouldSplitPendingStroke(
+                hasPendingStroke: false,
+                previousStrokeCount: 2,
+                updatedStrokeCount: 3
+            )
+        )
+        XCTAssertFalse(
+            TemplateStrokeBoundaryResolver.shouldSplitPendingStroke(
+                hasPendingStroke: true,
+                previousStrokeCount: 3,
+                updatedStrokeCount: 3
+            )
+        )
+    }
+
+    func testLayerMergeServiceMergesUpperStrokesIntoLowerLayer() async {
+        let lowerDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .black) }
+        let upperDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .red) }
+        var layerStack = LayerStack.singleLayer(drawingData: lowerDrawing.dataRepresentation())
+        let upperLayer = layerStack.addLayer(name: "Layer 2")
+        layerStack.updateDrawingData(upperDrawing.dataRepresentation(), for: upperLayer.id)
+        guard let mergeSourceLayerID = layerStack.sortedLayers.first?.id else {
+            XCTFail("Expected merge source layer.")
+            return
+        }
+
+        guard let mergedLayerStack = TemplateLayerMergeService.mergeDown(
+            in: layerStack,
+            upperLayerID: mergeSourceLayerID
+        ) else {
+            XCTFail("Expected merge result.")
+            return
+        }
+
+        XCTAssertEqual(mergedLayerStack.layers.count, 1)
+        guard let mergedDrawingData = mergedLayerStack.activeLayer?.drawingData,
+              let mergedDrawing = try? PKDrawing(data: mergedDrawingData)
+        else {
+            XCTFail("Expected merged drawing data.")
+            return
+        }
+
+        XCTAssertEqual(
+            mergedDrawing.strokes.count,
+            lowerDrawing.strokes.count + upperDrawing.strokes.count
+        )
+    }
+
     func testTemplateLibraryServiceImportsRenamesAndDeletesTemplateLocally() async throws {
         let documentsURL = try makeTemporaryDocumentsDirectory()
         let service = TemplateLibraryService(

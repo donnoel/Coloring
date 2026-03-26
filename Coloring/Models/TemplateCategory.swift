@@ -41,6 +41,7 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             "glacier park",
             "half dome",
             "lack como",
+            "lake como",
             "lake and mountain",
             "lake stroll",
             "mountain view",
