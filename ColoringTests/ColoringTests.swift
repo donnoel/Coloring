@@ -356,6 +356,45 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testUndoRemainsSingleStepWhenStrokeEndCallbackIsMissedAcrossStrokes() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        let stroke1Final = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+        let stroke2Final = await MainActor.run {
+            let secondStroke = makeSampleTemplateDrawing(color: .green).strokes.first!
+            return PKDrawing(strokes: stroke1Final.strokes + [secondStroke])
+        }
+
+        await MainActor.run {
+            // Simulate rapid drawing where the gesture-end callback is not delivered.
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(stroke1Final)
+            viewModel.updateDrawing(stroke2Final)
+
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, 2)
+
+            viewModel.undoLastEdit()
+            XCTAssertEqual(viewModel.currentDrawing, stroke1Final)
+
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
+    }
+
     func testUndoRemainsSingleStepWhenStrokeGestureIsInterrupted() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let viewModel = await MainActor.run {

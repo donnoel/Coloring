@@ -329,6 +329,16 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let templateID = selectedTemplateID
+        // Fallback boundary detection: if a stroke-end callback is missed, a new
+        // stroke still increases the stroke count. Split pending history at that
+        // boundary so undo remains one stroke at a time.
+        if editHistoryStore.hasPendingStroke(for: templateID),
+           drawing.strokes.count > currentDrawing.strokes.count
+        {
+            finalizePendingStrokeEditChange(for: templateID)
+            beginPendingStrokeEditChangeIfNeeded(for: templateID)
+        }
+
         let shouldRecordImmediately = !editHistoryStore.hasPendingStroke(for: templateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
