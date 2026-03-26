@@ -93,8 +93,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillRestoreTask: Task<Void, Never>?
     private var fillRestoreOperationID = 0
     private var pendingPersistTemplateIDs: Set<String> = []
-    private var layerPersistRevisionByTemplateID: [String: Int] = [:]
-    private var fillPersistRevisionByTemplateID: [String: Int] = [:]
+    private var persistenceRevisionStore = TemplatePersistenceRevisionStore()
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
     private let maxRecentTemplates = 20
 
@@ -234,8 +233,7 @@ final class TemplateStudioViewModel: ObservableObject {
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillStateStore.retainEntries(for: validTemplateIDs)
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            layerPersistRevisionByTemplateID = layerPersistRevisionByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            fillPersistRevisionByTemplateID = fillPersistRevisionByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            persistenceRevisionStore.retainRevisions(for: validTemplateIDs)
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
             assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
@@ -1288,12 +1286,7 @@ final class TemplateStudioViewModel: ObservableObject {
         if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: oldTemplateID) {
             persistedColoringByTemplateID[newTemplateID] = hasPersistedColoring
         }
-        if let layerPersistRevision = layerPersistRevisionByTemplateID.removeValue(forKey: oldTemplateID) {
-            layerPersistRevisionByTemplateID[newTemplateID] = layerPersistRevision
-        }
-        if let fillPersistRevision = fillPersistRevisionByTemplateID.removeValue(forKey: oldTemplateID) {
-            fillPersistRevisionByTemplateID[newTemplateID] = fillPersistRevision
-        }
+        persistenceRevisionStore.renameRevisions(from: oldTemplateID, to: newTemplateID)
 
         if favoriteTemplateIDs.remove(oldTemplateID) != nil {
             favoriteTemplateIDs.insert(newTemplateID)
@@ -1320,8 +1313,7 @@ final class TemplateStudioViewModel: ObservableObject {
         layerStacksByTemplateID.removeValue(forKey: templateID)
         fillStateStore.removeAll(for: templateID)
         persistedColoringByTemplateID.removeValue(forKey: templateID)
-        layerPersistRevisionByTemplateID.removeValue(forKey: templateID)
-        fillPersistRevisionByTemplateID.removeValue(forKey: templateID)
+        persistenceRevisionStore.removeRevisions(for: templateID)
         editHistoryStore.removeHistory(for: templateID)
         favoriteTemplateIDs.remove(templateID)
         completedTemplateIDs.remove(templateID)
@@ -1481,7 +1473,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        let revision = nextLayerPersistRevision(for: templateID)
+        let revision = persistenceRevisionStore.nextLayerRevision(for: templateID)
         Task { [persistenceCoordinator, templateID, data, revision] in
             await persistenceCoordinator.persistLayerStackData(data, for: templateID, revision: revision)
         }
@@ -1685,7 +1677,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let fillData = fillStateStore.fillData(for: templateID)
-        let revision = nextFillPersistRevision(for: templateID)
+        let revision = persistenceRevisionStore.nextFillRevision(for: templateID)
         Task { [persistenceCoordinator, templateID, fillData, revision] in
             await persistenceCoordinator.persistFillData(fillData, for: templateID, revision: revision)
         }
@@ -1744,18 +1736,6 @@ final class TemplateStudioViewModel: ObservableObject {
         } catch {
             // Keep existing fill state if persistence read fails.
         }
-    }
-
-    private func nextLayerPersistRevision(for templateID: String) -> Int {
-        let nextRevision = (layerPersistRevisionByTemplateID[templateID] ?? 0) + 1
-        layerPersistRevisionByTemplateID[templateID] = nextRevision
-        return nextRevision
-    }
-
-    private func nextFillPersistRevision(for templateID: String) -> Int {
-        let nextRevision = (fillPersistRevisionByTemplateID[templateID] ?? 0) + 1
-        fillPersistRevisionByTemplateID[templateID] = nextRevision
-        return nextRevision
     }
 
     // MARK: - Private: Cloud Restore

@@ -1267,6 +1267,42 @@ final class ColoringTests: XCTestCase {
         XCTAssertNil(originalData)
     }
 
+    func testPersistenceRevisionStoreTracksLayerAndFillIndependently() {
+        var store = TemplatePersistenceRevisionStore()
+        let templateID = "template-1"
+
+        XCTAssertEqual(store.nextLayerRevision(for: templateID), 1)
+        XCTAssertEqual(store.nextLayerRevision(for: templateID), 2)
+        XCTAssertEqual(store.nextFillRevision(for: templateID), 1)
+        XCTAssertEqual(store.nextFillRevision(for: templateID), 2)
+        XCTAssertEqual(store.nextLayerRevision(for: templateID), 3)
+    }
+
+    func testPersistenceRevisionStoreRenameRetainAndRemoveState() {
+        var store = TemplatePersistenceRevisionStore()
+        let oldTemplateID = "old-template"
+        let renamedTemplateID = "renamed-template"
+        let retainedTemplateID = "retained-template"
+        let removedTemplateID = "removed-template"
+
+        _ = store.nextLayerRevision(for: oldTemplateID)
+        _ = store.nextFillRevision(for: oldTemplateID)
+        _ = store.nextLayerRevision(for: retainedTemplateID)
+        _ = store.nextFillRevision(for: removedTemplateID)
+
+        store.renameRevisions(from: oldTemplateID, to: renamedTemplateID)
+        XCTAssertEqual(store.nextLayerRevision(for: renamedTemplateID), 2)
+        XCTAssertEqual(store.nextFillRevision(for: renamedTemplateID), 2)
+
+        store.retainRevisions(for: Set([renamedTemplateID, retainedTemplateID]))
+        XCTAssertEqual(store.nextLayerRevision(for: retainedTemplateID), 2)
+        XCTAssertEqual(store.nextFillRevision(for: removedTemplateID), 1)
+
+        store.removeRevisions(for: renamedTemplateID)
+        XCTAssertEqual(store.nextLayerRevision(for: renamedTemplateID), 1)
+        XCTAssertEqual(store.nextFillRevision(for: renamedTemplateID), 1)
+    }
+
     func testTemplateLibraryServiceImportsRenamesAndDeletesTemplateLocally() async throws {
         let documentsURL = try makeTemporaryDocumentsDirectory()
         let service = TemplateLibraryService(
