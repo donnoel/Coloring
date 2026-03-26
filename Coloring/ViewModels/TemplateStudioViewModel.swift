@@ -376,7 +376,10 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let normalizedDrawing = currentDrawing.stableColorDrawing(using: traitCollection)
-        let normalizedLayerStack = normalizedColorLayerStack(currentLayerStack, using: traitCollection)
+        let normalizedLayerStack = TemplateColorNormalization.normalizedLayerStack(
+            currentLayerStack,
+            using: traitCollection
+        )
 
         guard normalizedDrawing != currentDrawing || normalizedLayerStack != currentLayerStack else {
             return
@@ -1035,7 +1038,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
             // Sync the active layer before export.
             syncActiveLayerDrawingToStack()
-            let normalizedExportLayerStack = normalizedColorLayerStack(
+            let normalizedExportLayerStack = TemplateColorNormalization.normalizedLayerStack(
                 currentLayerStack,
                 using: exportTraitCollection
             )
@@ -1195,40 +1198,6 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         return drawing.dataRepresentation()
-    }
-
-    private func normalizedDrawingData(_ drawingData: Data, using traitCollection: UITraitCollection?) -> Data {
-        guard !drawingData.isEmpty,
-              let drawing = try? PKDrawing(data: drawingData)
-        else {
-            return drawingData
-        }
-
-        let normalizedDrawing = drawing.stableColorDrawing(using: traitCollection)
-        guard normalizedDrawing != drawing else {
-            return drawingData
-        }
-
-        return normalizedDrawing.dataRepresentation()
-    }
-
-    private func normalizedColorLayerStack(_ layerStack: LayerStack, using traitCollection: UITraitCollection?) -> LayerStack {
-        var normalizedLayerStack = layerStack
-        var didChange = false
-
-        normalizedLayerStack.layers = layerStack.layers.map { layer in
-            let normalizedDrawingData = normalizedDrawingData(layer.drawingData, using: traitCollection)
-            guard normalizedDrawingData != layer.drawingData else {
-                return layer
-            }
-
-            didChange = true
-            var normalizedLayer = layer
-            normalizedLayer.drawingData = normalizedDrawingData
-            return normalizedLayer
-        }
-
-        return didChange ? normalizedLayerStack : layerStack
     }
 
     private func persistCurrentDrawing() {
