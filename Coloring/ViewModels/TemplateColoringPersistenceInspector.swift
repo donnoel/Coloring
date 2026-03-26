@@ -11,7 +11,7 @@ actor TemplateColoringPersistenceInspector {
     func hasPersistedColoring(for templateID: String) async -> Bool {
         do {
             if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID),
-               let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData),
+               let layerStack = await Self.decodeLayerStack(from: layerStackData),
                Self.hasStrokeColoring(layerStack: layerStack, drawing: nil)
             {
                 return true
@@ -31,6 +31,12 @@ actor TemplateColoringPersistenceInspector {
         }
 
         return false
+    }
+
+    private static func decodeLayerStack(from data: Data) async -> LayerStack? {
+        await MainActor.run {
+            try? JSONDecoder().decode(LayerStack.self, from: data)
+        }
     }
 
     static func hasColoring(

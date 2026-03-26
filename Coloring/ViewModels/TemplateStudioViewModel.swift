@@ -66,11 +66,6 @@ final class TemplateStudioViewModel: ObservableObject {
     ]
     @Published private(set) var reorderableCategories: [TemplateCategory] = []
 
-    private struct TemplateEditSnapshot: Equatable {
-        let layerStack: LayerStack
-        let fillData: Data?
-    }
-
     private var drawingsByTemplateID: [String: PKDrawing] = [:]
     private var layerStacksByTemplateID: [String: LayerStack] = [:]
     private let fillStateStore = TemplateFillStateStore()
@@ -1345,23 +1340,14 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func snapshot(for templateID: String) -> TemplateEditSnapshot? {
-        guard !templateID.isEmpty else {
-            return nil
-        }
-
-        let layerStack = layerStacksByTemplateID[templateID]
-            ?? {
-                if templateID == selectedTemplateID {
-                    return currentLayerStack
-                }
-
-                let drawingData = serializedDrawingData(for: drawingsByTemplateID[templateID] ?? PKDrawing())
-                return LayerStack.singleLayer(drawingData: drawingData)
-            }()
-
-        return TemplateEditSnapshot(
-            layerStack: layerStack,
-            fillData: fillStateStore.fillData(for: templateID)
+        TemplateEditSnapshotResolver.makeSnapshot(
+            templateID: templateID,
+            selectedTemplateID: selectedTemplateID,
+            currentLayerStack: currentLayerStack,
+            layerStacksByTemplateID: layerStacksByTemplateID,
+            drawingsByTemplateID: drawingsByTemplateID,
+            fillData: fillStateStore.fillData(for: templateID),
+            serializeDrawing: serializedDrawingData(for:)
         )
     }
 
@@ -1441,14 +1427,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         layerStacksByTemplateID[templateID] = snapshot.layerStack
 
-        if let activeLayer = snapshot.layerStack.activeLayer,
-           !activeLayer.drawingData.isEmpty,
-           let drawing = try? PKDrawing(data: activeLayer.drawingData)
-        {
-            drawingsByTemplateID[templateID] = drawing
-        } else {
-            drawingsByTemplateID[templateID] = PKDrawing()
-        }
+        drawingsByTemplateID[templateID] = TemplateEditSnapshotResolver.drawing(from: snapshot.layerStack)
 
         if let fillData = snapshot.fillData {
             fillStateStore.setFillData(fillData, for: templateID)

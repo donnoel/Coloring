@@ -942,6 +942,28 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testLayerStackMoveLayerReordersSortedLayersWithoutChangingActiveLayer() {
+        var layerStack = LayerStack.singleLayer(name: "Layer 1")
+        let baseLayerID = layerStack.activeLayerID
+        let secondLayer = layerStack.addLayer(name: "Layer 2")
+        let thirdLayer = layerStack.addLayer(name: "Layer 3")
+
+        XCTAssertEqual(
+            layerStack.sortedLayers.map(\.id),
+            [baseLayerID, secondLayer.id, thirdLayer.id]
+        )
+        XCTAssertEqual(layerStack.activeLayerID, thirdLayer.id)
+
+        layerStack.moveLayer(from: IndexSet(integer: 2), to: 0)
+
+        XCTAssertEqual(
+            layerStack.sortedLayers.map(\.id),
+            [thirdLayer.id, baseLayerID, secondLayer.id]
+        )
+        XCTAssertEqual(layerStack.activeLayerID, thirdLayer.id)
+        XCTAssertEqual(layerStack.sortedLayers.map(\.order), [0, 1, 2])
+    }
+
     func testDeleteUserCategoryClearsAssignmentAndResetsFilter() async {
         let template = Self.makeTemplate(
             id: "imported-1",

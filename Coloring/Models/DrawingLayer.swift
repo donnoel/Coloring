@@ -1,4 +1,3 @@
-import SwiftUI
 import Foundation
 
 struct DrawingLayer: Identifiable, Codable, Sendable, Equatable {
@@ -89,7 +88,7 @@ struct LayerStack: Codable, Sendable, Equatable {
 
     mutating func moveLayer(from source: IndexSet, to destination: Int) {
         var sorted = sortedLayers
-        sorted.move(fromOffsets: source, toOffset: destination)
+        sorted.moveItems(fromOffsets: source, toOffset: destination)
 
         for (index, layer) in sorted.enumerated() {
             if let layerIndex = layers.firstIndex(where: { $0.id == layer.id }) {
@@ -118,5 +117,31 @@ struct LayerStack: Codable, Sendable, Equatable {
                 layers[layerIndex].order = index
             }
         }
+    }
+}
+
+private extension Array {
+    mutating func moveItems(fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard !source.isEmpty else {
+            return
+        }
+
+        let sourceOffsets = source.sorted()
+        let movingItems = sourceOffsets.map { self[$0] }
+        var remainingItems: [Element] = []
+        remainingItems.reserveCapacity(count - sourceOffsets.count)
+
+        for (index, item) in enumerated() where !source.contains(index) {
+            remainingItems.append(item)
+        }
+
+        let offsetsBeforeDestination = sourceOffsets.filter { $0 < destination }.count
+        let adjustedDestination = Swift.max(
+            0,
+            Swift.min(destination - offsetsBeforeDestination, remainingItems.count)
+        )
+
+        remainingItems.insert(contentsOf: movingItems, at: adjustedDestination)
+        self = remainingItems
     }
 }
