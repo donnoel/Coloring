@@ -81,6 +81,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let importMutationCoordinator: TemplateImportMutationCoordinator
     private let exportCoordinator: TemplateExportCoordinator
     private let persistenceCoordinator: TemplateColoringPersistenceCoordinator
+    private let coloringPersistenceInspector: TemplateColoringPersistenceInspector
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
@@ -122,6 +123,9 @@ final class TemplateStudioViewModel: ObservableObject {
             galleryStore: galleryStore
         )
         self.persistenceCoordinator = TemplateColoringPersistenceCoordinator(
+            drawingStore: drawingStore
+        )
+        self.coloringPersistenceInspector = TemplateColoringPersistenceInspector(
             drawingStore: drawingStore
         )
         self.drawingStore = drawingStore
@@ -1151,52 +1155,28 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func hasColoring(for templateID: String) -> Bool {
-        hasStrokeColoring(for: templateID) || hasFillColoring(for: templateID)
+        TemplateColoringPersistenceInspector.hasColoring(
+            layerStack: layerStacksByTemplateID[templateID],
+            drawing: drawingsByTemplateID[templateID],
+            fillData: fillStateStore.fillData(for: templateID)
+        )
     }
 
     private func hasStrokeColoring(for templateID: String) -> Bool {
-        if let layerStack = layerStacksByTemplateID[templateID] {
-            return layerStack.layers.contains { drawingDataContainsVisibleStrokes($0.drawingData) }
-        }
-
-        if let drawing = drawingsByTemplateID[templateID] {
-            return !drawing.strokes.isEmpty
-        }
-
-        return false
+        TemplateColoringPersistenceInspector.hasStrokeColoring(
+            layerStack: layerStacksByTemplateID[templateID],
+            drawing: drawingsByTemplateID[templateID]
+        )
     }
 
     private func hasFillColoring(for templateID: String) -> Bool {
-        guard let fillData = fillStateStore.fillData(for: templateID) else {
-            return false
-        }
-
-        return !fillData.isEmpty
+        TemplateColoringPersistenceInspector.hasFillColoring(
+            fillData: fillStateStore.fillData(for: templateID)
+        )
     }
 
     private func hasPersistedColoring(for templateID: String) async -> Bool {
-        do {
-            if let layerStackData = try await drawingStore.loadLayerStackData(for: templateID),
-               let layerStack = try? JSONDecoder().decode(LayerStack.self, from: layerStackData),
-               layerStack.layers.contains(where: { drawingDataContainsVisibleStrokes($0.drawingData) })
-            {
-                return true
-            }
-
-            if let drawingData = try await drawingStore.loadDrawingData(for: templateID),
-               drawingDataContainsVisibleStrokes(drawingData)
-            {
-                return true
-            }
-
-            if let fillData = try await drawingStore.loadFillData(for: templateID) {
-                return !fillData.isEmpty
-            }
-        } catch {
-            return false
-        }
-
-        return false
+        await coloringPersistenceInspector.hasPersistedColoring(for: templateID)
     }
 
     private func hasColoringOnDiskIfNeeded(for templateID: String) async -> Bool {
@@ -1215,18 +1195,6 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         return drawing.dataRepresentation()
-    }
-
-    private func drawingDataContainsVisibleStrokes(_ drawingData: Data) -> Bool {
-        guard !drawingData.isEmpty else {
-            return false
-        }
-
-        guard let drawing = try? PKDrawing(data: drawingData) else {
-            return true
-        }
-
-        return !drawing.strokes.isEmpty
     }
 
     private func normalizedDrawingData(_ drawingData: Data, using traitCollection: UITraitCollection?) -> Data {
