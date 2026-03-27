@@ -285,42 +285,47 @@ struct TemplateStudioView: View {
                 .disabled(!viewModel.hasImportedTemplates)
             }
 
-            Section {
-                if let importStatusMessage = viewModel.importStatusMessage {
-                    Text(importStatusMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let importErrorMessage = viewModel.importErrorMessage {
-                    Text(importErrorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-
-                if let exportStatusMessage = viewModel.exportStatusMessage {
-                    Text(exportStatusMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let exportErrorMessage = viewModel.exportErrorMessage {
-                    Text(exportErrorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-
-                if let drawingRestoreError = viewModel.drawingRestoreErrorMessage {
-                    Label {
-                        Text(drawingRestoreError)
+            if hasSidebarStatusMessages {
+                Section {
+                    if let importStatusMessage = viewModel.importStatusMessage {
+                        Text(importStatusMessage)
                             .font(.footnote)
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.orange)
-                }
 
+                    if let importErrorMessage = viewModel.importErrorMessage {
+                        Text(importErrorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+
+                    if let exportStatusMessage = viewModel.exportStatusMessage {
+                        Text(exportStatusMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let exportErrorMessage = viewModel.exportErrorMessage {
+                        Text(exportErrorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+
+                    if let drawingRestoreError = viewModel.drawingRestoreErrorMessage {
+                        Label {
+                            Text(drawingRestoreError)
+                                .font(.footnote)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                        }
+                        .foregroundStyle(.orange)
+                    }
+                }
+                .listRowSeparator(.hidden)
+            }
+
+            Section {
                 Text("App Version \(appVersionText)")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -356,6 +361,14 @@ struct TemplateStudioView: View {
         default:
             return "Unavailable"
         }
+    }
+
+    private var hasSidebarStatusMessages: Bool {
+        viewModel.importStatusMessage != nil ||
+            viewModel.importErrorMessage != nil ||
+            viewModel.exportStatusMessage != nil ||
+            viewModel.exportErrorMessage != nil ||
+            viewModel.drawingRestoreErrorMessage != nil
     }
 
     private var importControls: some View {
