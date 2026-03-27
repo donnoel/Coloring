@@ -33,6 +33,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **80 Built-In Templates** | Manifest-driven built-ins across eight shelf categories with orientation metadata for filtering/layout. |
 | **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills and shows a live count badge. |
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
+| **Reversible Hidden Templates** | Long-press any built-in or imported drawing to hide it from normal browsing and recover it later from a dedicated `Hidden` management view. |
 | **Expanded Built-In Folders** | Adds manifest-driven shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`) for built-in drawings. |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
@@ -62,7 +63,8 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
 - **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`); built-in drawings can appear in multiple metadata-driven folders.
 - **Folder Ordering**: Open **Manage Categories** and drag folders to set the order shown in category chips.
-- **Favorites / Completed**: Long-press a drawing in the sidebar to favorite it or mark it completed.
+- **Favorites / Completed / Hide**: Long-press a drawing in the sidebar to favorite it, mark it completed, or hide it.
+- **Hidden Management**: Tap the `eye.slash` button in the Drawings header to open `Hidden`, where you can unhide individual drawings or use `Unhide All`.
 - **Recent**: The `Recent` folder shows the most recently opened drawings first.
 - **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
 - **Sidebar Resize**: Drag the sidebar's trailing handle to set your preferred library width.
@@ -94,13 +96,14 @@ Coloring follows a predictable persistence and rendering pipeline:
 1. Load built-in templates from bundled manifest/resources.
 2. Load imported template metadata from local storage.
 3. Attempt imported template recovery from iCloud when local files are unavailable.
-4. Restore saved folder state (favorites, completed, recent order) for available templates.
-5. Load selected template image into the studio.
-6. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
-7. Persist drawing, fill, and layer-stack updates per template locally.
-8. Mirror drawing/fill/imported-template data to iCloud when available.
-9. Restore drawing/fill/layer state for the selected template on reload/reinstall.
-10. Export template image + fills + layer composites + active strokes into a composited PNG.
+4. Restore saved folder state (favorites, completed, recent order, hidden template IDs) for available templates.
+5. Filter hidden template IDs out of normal library browsing and metadata-driven built-in folder counts.
+6. Load selected template image into the studio.
+7. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
+8. Persist drawing, fill, and layer-stack updates per template locally.
+9. Mirror drawing/fill/imported-template data to iCloud when available.
+10. Restore drawing/fill/layer state for the selected template on reload/reinstall.
+11. Export template image + fills + layer composites + active strokes into a composited PNG.
 
 ---
 
@@ -109,10 +112,14 @@ Coloring follows a predictable persistence and rendering pipeline:
 ### **TemplateStudioViewModel (`@MainActor`)**
 - Coordinates template selection, drawing state, import/export actions, and user-facing status messages.
 - Triggers drawing persistence and restoration by template identifier.
+- Applies hidden-template filtering before rendering normal library lists/categories.
 
 ### **TemplateLibraryService (actor)**
 - Owns built-in/imported template catalog loading.
 - Handles atomic imported template writes and iCloud mirror/restore behavior.
+
+### **TemplateCategoryStoreService (actor)**
+- Persists lightweight template library state such as favorites/completed/recent ordering and hidden template IDs.
 
 ### **TemplateDrawingStoreService (actor)**
 - Owns per-template drawing persistence.
