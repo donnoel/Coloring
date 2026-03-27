@@ -504,12 +504,125 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
     }
 
-    private struct ManifestEntry: Decodable {
-        let fileName: String
+    struct ManifestEntry: Decodable {
+        let id: String?
+        let file: String?
+        let fileName: String?
         let title: String
         let category: String
+        let complexity: String?
         let orientation: ColoringTemplate.CanvasOrientation?
+        let mood: [String]?
+        let session: String?
+        let lineWeight: String?
+        let featured: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case file
+            case fileName
+            case title
+            case category
+            case complexity
+            case orientation
+            case mood
+            case session
+            case lineWeight
+            case featured
+        }
+
+        var resolvedFileName: String? {
+            let value = (file ?? fileName)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (value?.isEmpty == false) ? value : nil
+        }
+
+        var resolvedTemplateID: String? {
+            if let normalizedID = normalizedIdentifier(id) {
+                return normalizedID
+            }
+
+            guard let fileName = resolvedFileName else {
+                return nil
+            }
+
+            return normalizedIdentifier(
+                URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
+            )
+        }
+
+        var resolvedShelfCategory: String {
+            let normalized = normalizedKey(category)
+            if TemplateLibraryService.shelfCategoryDisplayNameByKey.keys.contains(normalized) {
+                return normalized
+            }
+            return normalized
+        }
+
+        var resolvedComplexity: String {
+            let normalized = normalizedKey(complexity)
+            if TemplateLibraryService.complexityDisplayNameByKey.keys.contains(normalized) {
+                return normalized
+            }
+            return "medium"
+        }
+
+        var resolvedMood: [String] {
+            (mood ?? [])
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        var resolvedSession: String {
+            let normalized = normalizedKey(session)
+            return normalized.isEmpty ? "standard" : normalized
+        }
+
+        var resolvedLineWeight: String {
+            let normalized = normalizedKey(lineWeight)
+            return normalized.isEmpty ? "balanced" : normalized
+        }
+
+        var resolvedFeatured: Bool {
+            featured ?? false
+        }
+
+        private func normalizedKey(_ value: String?) -> String {
+            guard let value else {
+                return ""
+            }
+            return value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        }
+
+        private func normalizedIdentifier(_ value: String?) -> String? {
+            let normalized = normalizedKey(value)
+            guard !normalized.isEmpty else {
+                return nil
+            }
+            return normalized.replacingOccurrences(
+                of: "[^a-z0-9._-]+",
+                with: "-",
+                options: .regularExpression
+            )
+        }
     }
+
+    private static let shelfCategoryDisplayNameByKey: [String: String] = [
+        "cozy": "Cozy",
+        "nature": "Nature",
+        "animals": "Animals",
+        "fantasy": "Fantasy",
+        "patterns": "Patterns",
+        "seasonal": "Seasonal"
+    ]
+
+    private static let complexityDisplayNameByKey: [String: String] = [
+        "easy": "Easy",
+        "medium": "Medium",
+        "detailed": "Detailed"
+    ]
 
     private let bundle: Bundle
     private let fileManager: FileManager
@@ -649,18 +762,32 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let entries = try JSONDecoder().decode([ManifestEntry].self, from: data)
 
         return entries.compactMap { entry -> ColoringTemplate? in
-            guard let fileURL = builtInTemplateResourceURL(fileName: entry.fileName) else {
-                logger.error("Missing built-in template file \(entry.fileName, privacy: .public)")
+            guard let fileName = entry.resolvedFileName else {
+                logger.error("Skipping built-in template with missing file name: \(entry.title, privacy: .public)")
                 return nil
             }
 
+            guard let fileURL = builtInTemplateResourceURL(fileName: fileName) else {
+                logger.error("Missing built-in template file \(fileName, privacy: .public)")
+                return nil
+            }
+
+            let shelfCategory = entry.resolvedShelfCategory
+            let categoryDisplayName = Self.shelfCategoryDisplayNameByKey[shelfCategory] ?? entry.category
+
             return ColoringTemplate(
-                id: "builtin-\(entry.fileName)",
+                id: "builtin-\(entry.resolvedTemplateID ?? fileName)",
                 title: entry.title,
-                category: entry.category,
+                category: categoryDisplayName,
                 source: .builtIn,
                 filePath: fileURL.path,
-                canvasOrientation: entry.orientation ?? .any
+                canvasOrientation: entry.orientation ?? .any,
+                shelfCategory: shelfCategory,
+                complexity: entry.resolvedComplexity,
+                mood: entry.resolvedMood,
+                session: entry.resolvedSession,
+                lineWeight: entry.resolvedLineWeight,
+                featured: entry.resolvedFeatured
             )
         }
     }

@@ -102,13 +102,32 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(imageDidUpdate)
     }
 
-    func testTitleBasedBuiltInCategoriesAppearFromTemplateTitles() async {
+    func testManifestDrivenBuiltInCategoriesAppearFromTemplateMetadata() async {
         let templates = [
-            Self.makeTemplate(id: "builtin-cats", title: "Cats"),
-            Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge"),
-            Self.makeTemplate(id: "builtin-ocean", title: "Ocean"),
-            Self.makeTemplate(id: "builtin-wheelie", title: "Wheelie"),
-            Self.makeTemplate(id: "builtin-mother", title: "Loving Mother")
+            Self.makeTemplate(
+                id: "builtin-cats",
+                title: "Cats",
+                category: "Animals",
+                shelfCategory: "animals",
+                complexity: "easy",
+                canvasOrientation: .landscape
+            ),
+            Self.makeTemplate(
+                id: "builtin-forest",
+                title: "Forest Trail",
+                category: "Nature",
+                shelfCategory: "nature",
+                complexity: "medium",
+                canvasOrientation: .landscape
+            ),
+            Self.makeTemplate(
+                id: "builtin-neon",
+                title: "Neon Rush",
+                category: "Fantasy",
+                shelfCategory: "fantasy",
+                complexity: "detailed",
+                canvasOrientation: .portrait
+            )
         ]
         let library = StubTemplateLibrary(templates: templates)
         let viewModel = await MainActor.run {
@@ -128,19 +147,44 @@ final class ColoringTests: XCTestCase {
 
         await MainActor.run {
             let categoryNames = Set(viewModel.builtInCategories.map(\.name))
-            XCTAssertTrue(categoryNames.contains("Cities & Landmarks"))
-            XCTAssertTrue(categoryNames.contains("Nature & Outdoors"))
-            XCTAssertTrue(categoryNames.contains("People & Portraits"))
-            XCTAssertTrue(categoryNames.contains("Animals & Wildlife"))
-            XCTAssertTrue(categoryNames.contains("Action & Motion"))
+            XCTAssertTrue(categoryNames.contains("Animals"))
+            XCTAssertTrue(categoryNames.contains("Nature"))
+            XCTAssertTrue(categoryNames.contains("Fantasy"))
+            XCTAssertTrue(categoryNames.contains("Easy"))
+            XCTAssertTrue(categoryNames.contains("Medium"))
+            XCTAssertTrue(categoryNames.contains("Detailed"))
+            XCTAssertTrue(categoryNames.contains("Landscape"))
+            XCTAssertTrue(categoryNames.contains("Portrait"))
+            XCTAssertFalse(categoryNames.contains("Action & Motion"))
         }
     }
 
-    func testTitleBasedBuiltInCategoriesAllowMultipleFolderMembership() async {
-        let neon = Self.makeTemplate(id: "builtin-neon", title: "Neon City Racing")
-        let bridge = Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge")
-        let wheelie = Self.makeTemplate(id: "builtin-wheelie", title: "Wheelie")
-        let library = StubTemplateLibrary(templates: [neon, bridge, wheelie])
+    func testManifestDrivenBuiltInCategoriesAllowMultipleFolderMembership() async {
+        let neon = Self.makeTemplate(
+            id: "builtin-neon",
+            title: "Neon City Racing",
+            category: "Fantasy",
+            shelfCategory: "fantasy",
+            complexity: "detailed",
+            canvasOrientation: .portrait
+        )
+        let bridge = Self.makeTemplate(
+            id: "builtin-bridge",
+            title: "Brooklyn Bridge",
+            category: "Cozy",
+            shelfCategory: "cozy",
+            complexity: "detailed",
+            canvasOrientation: .landscape
+        )
+        let ocean = Self.makeTemplate(
+            id: "builtin-ocean",
+            title: "Ocean View",
+            category: "Nature",
+            shelfCategory: "nature",
+            complexity: "medium",
+            canvasOrientation: .portrait
+        )
+        let library = StubTemplateLibrary(templates: [neon, bridge, ocean])
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: library,
@@ -157,28 +201,56 @@ final class ColoringTests: XCTestCase {
         await viewModel.loadTemplatesIfNeeded()
 
         await MainActor.run {
-            guard let cityCategoryID = viewModel.allCategories.first(where: { $0.name == "Cities & Landmarks" })?.id else {
-                XCTFail("Expected Cities & Landmarks category.")
+            guard let fantasyCategoryID = viewModel.allCategories.first(where: { $0.name == "Fantasy" })?.id else {
+                XCTFail("Expected Fantasy category.")
                 return
             }
-            guard let actionCategoryID = viewModel.allCategories.first(where: { $0.name == "Action & Motion" })?.id else {
-                XCTFail("Expected Action & Motion category.")
+            guard let detailedCategoryID = viewModel.allCategories.first(where: { $0.name == "Detailed" })?.id else {
+                XCTFail("Expected Detailed category.")
+                return
+            }
+            guard let portraitCategoryID = viewModel.allCategories.first(where: { $0.name == "Portrait" })?.id else {
+                XCTFail("Expected Portrait category.")
                 return
             }
 
-            viewModel.selectedCategoryFilter = cityCategoryID
+            viewModel.selectedCategoryFilter = fantasyCategoryID
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([neon.id]))
+
+            viewModel.selectedCategoryFilter = detailedCategoryID
             XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([neon.id, bridge.id]))
 
-            viewModel.selectedCategoryFilter = actionCategoryID
-            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([neon.id, wheelie.id]))
+            viewModel.selectedCategoryFilter = portraitCategoryID
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([neon.id, ocean.id]))
         }
     }
 
     func testMoveCategoriesReordersFolderChips() async {
         let templates = [
-            Self.makeTemplate(id: "builtin-bridge", title: "Brooklyn Bridge"),
-            Self.makeTemplate(id: "builtin-cats", title: "Cats"),
-            Self.makeTemplate(id: "builtin-wheelie", title: "Wheelie")
+            Self.makeTemplate(
+                id: "builtin-bridge",
+                title: "Brooklyn Bridge",
+                category: "Cozy",
+                shelfCategory: "cozy",
+                complexity: "detailed",
+                canvasOrientation: .landscape
+            ),
+            Self.makeTemplate(
+                id: "builtin-cats",
+                title: "Cats",
+                category: "Animals",
+                shelfCategory: "animals",
+                complexity: "easy",
+                canvasOrientation: .landscape
+            ),
+            Self.makeTemplate(
+                id: "builtin-wheelie",
+                title: "Wheelie",
+                category: "Fantasy",
+                shelfCategory: "fantasy",
+                complexity: "medium",
+                canvasOrientation: .landscape
+            )
         ]
         let library = StubTemplateLibrary(templates: templates)
         let viewModel = await MainActor.run {
@@ -198,19 +270,19 @@ final class ColoringTests: XCTestCase {
 
         await MainActor.run {
             let folderNames = viewModel.reorderableCategories.map(\.name)
-            guard let sourceIndex = folderNames.firstIndex(of: "Action & Motion") else {
-                XCTFail("Expected Action & Motion folder.")
+            guard let sourceIndex = folderNames.firstIndex(of: "Landscape") else {
+                XCTFail("Expected Landscape folder.")
                 return
             }
 
             viewModel.moveCategories(from: IndexSet(integer: sourceIndex), to: 0)
 
-            XCTAssertEqual(viewModel.reorderableCategories.first?.name, "Action & Motion")
+            XCTAssertEqual(viewModel.reorderableCategories.first?.name, "Landscape")
             XCTAssertEqual(viewModel.allCategories[1], TemplateCategory.inProgressCategory)
             XCTAssertEqual(viewModel.allCategories[2], TemplateCategory.favoritesCategory)
             XCTAssertEqual(viewModel.allCategories[3], TemplateCategory.recentCategory)
             XCTAssertEqual(viewModel.allCategories[4], TemplateCategory.completedCategory)
-            XCTAssertEqual(viewModel.allCategories[5].name, "Action & Motion")
+            XCTAssertEqual(viewModel.allCategories[5].name, "Landscape")
         }
     }
 
@@ -1421,10 +1493,18 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(cacheCallCount, 1)
     }
 
-    func testBuiltInCategoryNamesMatchLakeComoAlias() {
-        let template = Self.makeTemplate(id: "builtin-lake-como", title: "Lake Como")
+    func testBuiltInCategoryNamesComeFromManifestMetadataInsteadOfTitleHeuristics() {
+        let template = Self.makeTemplate(
+            id: "builtin-lake-como",
+            title: "Lake Como",
+            category: "Patterns",
+            shelfCategory: "patterns",
+            complexity: "detailed",
+            canvasOrientation: .portrait
+        )
         let categoryNames = TemplateCategory.builtInCategoryNames(for: template)
-        XCTAssertTrue(categoryNames.contains("Nature & Outdoors"))
+        XCTAssertEqual(categoryNames, Set(["Patterns", "Detailed", "Portrait"]))
+        XCTAssertFalse(categoryNames.contains("Nature"))
     }
 
     func testPersistedDrawingLoaderReturnsLayerStackWhenAvailable() async throws {
@@ -1537,6 +1617,61 @@ final class ColoringTests: XCTestCase {
             mergedDrawing.strokes.count,
             lowerDrawing.strokes.count + upperDrawing.strokes.count
         )
+    }
+
+    func testManifestEntryDecodesNewKeysAndAppliesSafeDefaults() throws {
+        let data = Data(
+            """
+            {
+              "id": "cozy-room",
+              "file": "landscape-99.png",
+              "title": "Cozy Room",
+              "category": "cozy"
+            }
+            """.utf8
+        )
+
+        let entry = try JSONDecoder().decode(TemplateLibraryService.ManifestEntry.self, from: data)
+
+        XCTAssertEqual(entry.resolvedTemplateID, "cozy-room")
+        XCTAssertEqual(entry.resolvedFileName, "landscape-99.png")
+        XCTAssertEqual(entry.resolvedShelfCategory, "cozy")
+        XCTAssertEqual(entry.resolvedComplexity, "medium")
+        XCTAssertNil(entry.orientation)
+        XCTAssertEqual(entry.resolvedMood, [])
+        XCTAssertEqual(entry.resolvedSession, "standard")
+        XCTAssertEqual(entry.resolvedLineWeight, "balanced")
+        XCTAssertFalse(entry.resolvedFeatured)
+    }
+
+    func testManifestEntrySupportsLegacyFileNameAndGeneratedID() throws {
+        let data = Data(
+            """
+            {
+              "fileName": "portrait-24.png",
+              "title": "Legacy Jacks",
+              "category": "patterns",
+              "complexity": "detailed",
+              "orientation": "portrait",
+              "mood": ["playful"],
+              "session": "focus",
+              "lineWeight": "fine",
+              "featured": true
+            }
+            """.utf8
+        )
+
+        let entry = try JSONDecoder().decode(TemplateLibraryService.ManifestEntry.self, from: data)
+
+        XCTAssertEqual(entry.resolvedTemplateID, "portrait-24")
+        XCTAssertEqual(entry.resolvedFileName, "portrait-24.png")
+        XCTAssertEqual(entry.resolvedShelfCategory, "patterns")
+        XCTAssertEqual(entry.resolvedComplexity, "detailed")
+        XCTAssertEqual(entry.orientation, .portrait)
+        XCTAssertEqual(entry.resolvedMood, ["playful"])
+        XCTAssertEqual(entry.resolvedSession, "focus")
+        XCTAssertEqual(entry.resolvedLineWeight, "fine")
+        XCTAssertTrue(entry.resolvedFeatured)
     }
 
     func testTemplateLibraryServiceImportsRenamesAndDeletesTemplateLocally() async throws {
@@ -2711,13 +2846,32 @@ final class ColoringTests: XCTestCase {
         )
     }
 
-    private static func makeTemplate(id: String, title: String, source: ColoringTemplate.Source = .builtIn) -> ColoringTemplate {
-        ColoringTemplate(
+    private static func makeTemplate(
+        id: String,
+        title: String,
+        source: ColoringTemplate.Source = .builtIn,
+        category: String? = nil,
+        shelfCategory: String? = nil,
+        complexity: String? = nil,
+        canvasOrientation: ColoringTemplate.CanvasOrientation = .any
+    ) -> ColoringTemplate {
+        let resolvedCategory = source == .builtIn ? (category ?? "Cozy") : "Imported"
+        let resolvedShelfCategory = source == .builtIn ? (shelfCategory ?? "cozy") : nil
+        let resolvedComplexity = source == .builtIn ? (complexity ?? "medium") : nil
+
+        return ColoringTemplate(
             id: id,
             title: title,
-            category: source == .builtIn ? "Scenery" : "Imported",
+            category: resolvedCategory,
             source: source,
-            filePath: "/tmp/\(id).png"
+            filePath: "/tmp/\(id).png",
+            canvasOrientation: canvasOrientation,
+            shelfCategory: resolvedShelfCategory,
+            complexity: resolvedComplexity,
+            mood: source == .builtIn ? [] : nil,
+            session: source == .builtIn ? "standard" : nil,
+            lineWeight: source == .builtIn ? "balanced" : nil,
+            featured: source == .builtIn ? false : nil
         )
     }
 

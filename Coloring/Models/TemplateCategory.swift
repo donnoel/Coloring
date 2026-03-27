@@ -11,105 +11,18 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
     static let recentCategory = TemplateCategory(id: "recent", name: "Recent", isUserCreated: false)
     static let completedCategory = TemplateCategory(id: "completed", name: "Completed", isUserCreated: false)
     static let importedCategory = TemplateCategory(id: "imported", name: "Imported", isUserCreated: false)
-    private static let titleBasedBuiltInCategoryTitles: [String: Set<String>] = [
-        "Cities & Landmarks": [
-            "alleyway with steps",
-            "arch of constantine",
-            "settlement",
-            "neighborhood",
-            "brooklyn bridge",
-            "manhattan island",
-            "the needle",
-            "city scape",
-            "invasion over seattle",
-            "london city scape",
-            "london cityscape",
-            "manhattan skyline",
-            "portland downtown",
-            "rialto bridge",
-            "rushmore",
-            "space needle",
-            "village by the sea",
-            "gothic courtyard",
-            "futuristic lunar base",
-            "neon city racing"
-        ],
-        "Nature & Outdoors": [
-            "beach",
-            "grand canyon",
-            "future nature",
-            "glacier park",
-            "half dome",
-            "lack como",
-            "lake como",
-            "lake and mountain",
-            "lake stroll",
-            "mountain view",
-            "ocean",
-            "manhattan island",
-            "elephant in savanna",
-            "flower garden",
-            "melancholy at the pool",
-            "mountain hike",
-            "off-roading adventure",
-            "rainforest",
-            "ranch",
-            "redwood forest",
-            "tent time",
-            "the beach",
-            "trailing",
-            "village by the sea"
-        ],
-        "People & Portraits": [
-            "home",
-            "friends",
-            "lovely",
-            "gentle help",
-            "happy",
-            "loving mother",
-            "sad girl",
-            "ai girl",
-            "future alien",
-            "boys and bikes",
-            "boys friend",
-            "girl on the bench",
-            "melancholy at the pool",
-            "stuntman bob",
-            "winning"
-        ],
-        "Animals & Wildlife": [
-            "jacks",
-            "cat and flag",
-            "cats",
-            "dogs",
-            "elephant",
-            "elephant sculpture",
-            "lurking",
-            "future alien",
-            "elephant in savanna",
-            "playful kitten"
-        ],
-        "Action & Motion": [
-            "bikes",
-            "standoff",
-            "4 wheeling",
-            "ice skating in space",
-            "wheelie",
-            "neon city racing",
-            "ai and robotics",
-            "boys and bikes",
-            "invasion over seattle",
-            "motorcycle racers",
-            "mountain hike",
-            "off-roading adventure",
-            "rocket launch",
-            "showdown",
-            "stuntman bob",
-            "truck and bike",
-            "voyage through space",
-            "vroom vroom",
-            "winning"
-        ]
+    private static let shelfDisplayNameByKey: [String: String] = [
+        "cozy": "Cozy",
+        "nature": "Nature",
+        "animals": "Animals",
+        "fantasy": "Fantasy",
+        "patterns": "Patterns",
+        "seasonal": "Seasonal"
+    ]
+    private static let complexityDisplayNameByKey: [String: String] = [
+        "easy": "Easy",
+        "medium": "Medium",
+        "detailed": "Detailed"
     ]
 
     static func builtInCategoryNames(for template: ColoringTemplate) -> Set<String> {
@@ -117,12 +30,32 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             return []
         }
 
-        var names: Set<String> = [template.category]
-        let normalizedTitle = normalizeTitle(template.title)
+        var names: Set<String> = []
 
-        for (categoryName, matchingTitles) in titleBasedBuiltInCategoryTitles
-        where matchingTitles.contains(normalizedTitle) {
-            names.insert(categoryName)
+        if let shelfKey = normalizedKey(template.shelfCategory),
+           let shelfDisplayName = shelfDisplayNameByKey[shelfKey]
+        {
+            names.insert(shelfDisplayName)
+        } else {
+            let fallbackCategory = template.category.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !fallbackCategory.isEmpty {
+                names.insert(fallbackCategory)
+            }
+        }
+
+        if let complexityKey = normalizedKey(template.complexity),
+           let complexityDisplayName = complexityDisplayNameByKey[complexityKey]
+        {
+            names.insert(complexityDisplayName)
+        }
+
+        switch template.canvasOrientation {
+        case .landscape:
+            names.insert("Landscape")
+        case .portrait:
+            names.insert("Portrait")
+        case .any:
+            break
         }
 
         return names
@@ -155,9 +88,15 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
         return "builtin-\(resolvedSlug)"
     }
 
-    private static func normalizeTitle(_ title: String) -> String {
-        title
+    private static func normalizedKey(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let normalized = value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+
+        return normalized.isEmpty ? nil : normalized
     }
 }
