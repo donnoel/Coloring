@@ -171,7 +171,7 @@ struct TemplateStudioView: View {
         List {
             Section {
                 libraryHeroCard
-                    .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12))
+                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 6, trailing: 12))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
@@ -327,9 +327,7 @@ struct TemplateStudioView: View {
             ideal: CGFloat(liveSidebarWidth),
             max: Self.sidebarMaxWidth
         )
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var appVersionText: String {
@@ -782,32 +780,53 @@ struct TemplateStudioView: View {
         .accessibilityHint("Drag left or right to adjust the drawing library width.")
     }
 
+    private var libraryCollapseButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                columnVisibility = .detailOnly
+            }
+        } label: {
+            Image(systemName: "sidebar.leading")
+                .font(.subheadline.weight(.semibold))
+                .padding(8)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Hide Library")
+        .accessibilityHint("Collapse the drawing library and focus on the canvas.")
+    }
+
     private var libraryHeroCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "paintpalette.fill")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.12, green: 0.62, blue: 0.97),
-                                Color(red: 0.18, green: 0.82, blue: 0.62)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Drawing Library")
+                HStack(spacing: 10) {
+                    Image(systemName: "paintpalette.fill")
                         .font(.headline.weight(.semibold))
-                    Text("Organize, import, and color with one workspace.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white)
+                        .frame(width: 34, height: 34)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.12, green: 0.62, blue: 0.97),
+                                    Color(red: 0.18, green: 0.82, blue: 0.62)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Drawing Library")
+                            .font(.headline.weight(.semibold))
+                        Text("Organize, import, and color with one workspace.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
+                Spacer(minLength: 8)
+                libraryCollapseButton
             }
 
             HStack(spacing: 8) {
