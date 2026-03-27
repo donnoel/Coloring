@@ -1674,6 +1674,78 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(entry.resolvedFeatured)
     }
 
+    func testBuiltInManifestContainsExpectedReplacement60Pack() throws {
+        let repoRootURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let manifestURL = repoRootURL.appendingPathComponent("Coloring/Resources/Templates/template_manifest.json")
+        let data = try Data(contentsOf: manifestURL)
+
+        let rawManifest = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        XCTAssertEqual(rawManifest?.count, 60)
+
+        let requiredKeys = Set(["id", "title", "category", "complexity", "orientation", "mood", "session", "lineWeight", "featured", "file"])
+        rawManifest?.forEach { entry in
+            XCTAssertEqual(Set(entry.keys), requiredKeys)
+        }
+
+        let decodedEntries = try JSONDecoder().decode([TemplateLibraryService.ManifestEntry].self, from: data)
+        XCTAssertEqual(decodedEntries.count, 60)
+        XCTAssertEqual(decodedEntries.first?.id, "cozy_001")
+        XCTAssertEqual(decodedEntries.last?.id, "seasonal_010")
+
+        let categoryCounts = Dictionary(grouping: decodedEntries, by: \.category).mapValues(\.count)
+        XCTAssertEqual(categoryCounts["cozy"], 10)
+        XCTAssertEqual(categoryCounts["nature"], 10)
+        XCTAssertEqual(categoryCounts["animals"], 10)
+        XCTAssertEqual(categoryCounts["fantasy"], 10)
+        XCTAssertEqual(categoryCounts["patterns"], 10)
+        XCTAssertEqual(categoryCounts["seasonal"], 10)
+    }
+
+    func testTemplateLibraryServiceResolvesManifestFilePathWhenBundleResourcesAreFlattened() async throws {
+        let manifestData = Data(
+            """
+            [
+              {
+                "id": "fantasy_001",
+                "title": "Mushroom Cottage",
+                "category": "fantasy",
+                "complexity": "easy",
+                "orientation": "portrait",
+                "mood": [],
+                "session": "standard",
+                "lineWeight": "balanced",
+                "featured": false,
+                "file": "Templates/BuiltIn/fantasy/fantasy_mushroom_cottage_easy_portrait.png"
+              }
+            ]
+            """.utf8
+        )
+        let bundleURL = try makeTemporaryResourceBundle(
+            resources: [
+                ("template_manifest.json", manifestData),
+                ("fantasy_mushroom_cottage_easy_portrait.png", sampleTemplateImageData)
+            ]
+        )
+        guard let bundle = Bundle(url: bundleURL) else {
+            XCTFail("Expected temporary test bundle.")
+            return
+        }
+
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let service = TemplateLibraryService(
+            bundle: bundle,
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+
+        let templates = try await service.loadTemplates()
+        XCTAssertEqual(templates.count, 1)
+        XCTAssertEqual(templates.first?.id, "builtin-fantasy_001")
+        XCTAssertEqual(templates.first?.title, "Mushroom Cottage")
+    }
+
     func testTemplateLibraryServiceImportsRenamesAndDeletesTemplateLocally() async throws {
         let documentsURL = try makeTemporaryDocumentsDirectory()
         let service = TemplateLibraryService(
@@ -3056,6 +3128,37 @@ final class ColoringTests: XCTestCase {
             try? FileManager.default.removeItem(at: directoryURL)
         }
         return directoryURL
+    }
+
+    private func makeTemporaryResourceBundle(resources: [(String, Data)]) throws -> URL {
+        let rootDirectoryURL = try makeTemporaryDocumentsDirectory()
+        let bundleURL = rootDirectoryURL.appendingPathComponent("TestResources.bundle", isDirectory: true)
+        try FileManager.default.createDirectory(at: bundleURL, withIntermediateDirectories: true)
+
+        let infoPlist: [String: Any] = [
+            "CFBundleIdentifier": "dn.coloring.tests.resources",
+            "CFBundleName": "TestResources",
+            "CFBundlePackageType": "BNDL",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1"
+        ]
+        let plistData = try PropertyListSerialization.data(
+            fromPropertyList: infoPlist,
+            format: .xml,
+            options: 0
+        )
+        try plistData.write(to: bundleURL.appendingPathComponent("Info.plist"), options: [.atomic])
+
+        for (relativePath, data) in resources {
+            let destinationURL = bundleURL.appendingPathComponent(relativePath)
+            try FileManager.default.createDirectory(
+                at: destinationURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: destinationURL, options: [.atomic])
+        }
+
+        return bundleURL
     }
 
     private func makeRealTemplateDrawingStore(documentsURL: URL) -> TemplateDrawingStoreService {

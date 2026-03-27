@@ -4,7 +4,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift">
   <img src="https://img.shields.io/badge/Platform-iPadOS-blue">
-  <img src="https://img.shields.io/badge/Templates-72%20Built--In-purple">
+  <img src="https://img.shields.io/badge/Templates-60%20Built--In-purple">
   <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud">
 </p>
 
@@ -30,7 +30,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
-| **72 Built-In Orientation Packs** | Includes 54 landscape and 18 portrait built-in drawings. |
+| **60 Built-In Orientation Packs** | Includes 30 landscape and 30 portrait built-in drawings across six shelf categories. |
 | **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills and shows a live count badge. |
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
 | **Expanded Built-In Folders** | Adds manifest-driven shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`), complexity folders (`Easy`, `Medium`, `Detailed`), and orientation folders (`Landscape`, `Portrait`) for built-in drawings. |

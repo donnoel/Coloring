@@ -799,22 +799,74 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private func builtInTemplateResourceURL(fileName: String) -> URL? {
-        if let url = bundle.url(forResource: fileName, withExtension: nil, subdirectory: "Templates/BuiltIn") {
-            return url
+        let normalizedPath = fileName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalizedPath.isEmpty else {
+            return nil
         }
 
-        if let url = bundle.url(forResource: fileName, withExtension: nil, subdirectory: "Resources/Templates/BuiltIn") {
-            return url
-        }
-
-        if let url = bundle.url(forResource: fileName, withExtension: nil, subdirectory: "BuiltIn") {
-            return url
-        }
-
-        let nsFileName = fileName as NSString
-        let resourceName = nsFileName.deletingPathExtension
-        let resourceExtension = nsFileName.pathExtension
+        let normalizedPathNSString = normalizedPath as NSString
+        let leafFileName = normalizedPathNSString.lastPathComponent
+        let directoryPath = normalizedPathNSString.deletingLastPathComponent
+        let leafFileNameNSString = leafFileName as NSString
+        let resourceName = leafFileNameNSString.deletingPathExtension
+        let resourceExtension = leafFileNameNSString.pathExtension
         let resolvedExtension: String? = resourceExtension.isEmpty ? nil : resourceExtension
+
+        if let resourceRootURL = bundle.resourceURL {
+            let directResourceURL = resourceRootURL.appendingPathComponent(normalizedPath)
+            if fileManager.fileExists(atPath: directResourceURL.path) {
+                return directResourceURL
+            }
+
+            let resourcesPrefixedURL = resourceRootURL.appendingPathComponent("Resources").appendingPathComponent(normalizedPath)
+            if fileManager.fileExists(atPath: resourcesPrefixedURL.path) {
+                return resourcesPrefixedURL
+            }
+
+            // Some bundle copy phases flatten resources to bundle root.
+            let flattenedResourceURL = resourceRootURL.appendingPathComponent(leafFileName)
+            if fileManager.fileExists(atPath: flattenedResourceURL.path) {
+                return flattenedResourceURL
+            }
+
+            let flattenedResourcesPrefixedURL = resourceRootURL.appendingPathComponent("Resources").appendingPathComponent(leafFileName)
+            if fileManager.fileExists(atPath: flattenedResourcesPrefixedURL.path) {
+                return flattenedResourcesPrefixedURL
+            }
+        }
+
+        if !directoryPath.isEmpty {
+            if let url = bundle.url(forResource: leafFileName, withExtension: nil, subdirectory: directoryPath) {
+                return url
+            }
+
+            if let url = bundle.url(forResource: resourceName, withExtension: resolvedExtension, subdirectory: directoryPath) {
+                return url
+            }
+
+            let resourcesDirectoryPath = "Resources/\(directoryPath)"
+            if let url = bundle.url(forResource: leafFileName, withExtension: nil, subdirectory: resourcesDirectoryPath) {
+                return url
+            }
+
+            if let url = bundle.url(forResource: resourceName, withExtension: resolvedExtension, subdirectory: resourcesDirectoryPath) {
+                return url
+            }
+        }
+
+        if let url = bundle.url(forResource: leafFileName, withExtension: nil, subdirectory: "Templates/BuiltIn") {
+            return url
+        }
+
+        if let url = bundle.url(forResource: leafFileName, withExtension: nil, subdirectory: "Resources/Templates/BuiltIn") {
+            return url
+        }
+
+        if let url = bundle.url(forResource: leafFileName, withExtension: nil, subdirectory: "BuiltIn") {
+            return url
+        }
 
         if let url = bundle.url(forResource: resourceName, withExtension: resolvedExtension, subdirectory: "Templates/BuiltIn") {
             return url
@@ -832,7 +884,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             return url
         }
 
-        return bundle.url(forResource: fileName, withExtension: nil)
+        return bundle.url(forResource: leafFileName, withExtension: nil)
     }
 
     private func loadImportedTemplates() throws -> [ColoringTemplate] {
