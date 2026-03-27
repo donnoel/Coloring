@@ -28,6 +28,7 @@ struct TemplateStudioView: View {
     @State private var isClearFillsConfirmationPresented = false
     @State private var isLayerPanelPresented = false
     @State private var isCategoryManagementPresented = false
+    @State private var isHiddenManagementPresented = false
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
     @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
@@ -154,6 +155,9 @@ struct TemplateStudioView: View {
         .sheet(isPresented: $isLayerPanelPresented) {
             LayerPanelView(viewModel: viewModel)
         }
+        .sheet(isPresented: $isHiddenManagementPresented) {
+            HiddenTemplatesView(viewModel: viewModel)
+        }
         .onAppear {
             let clampedWidth = clampedSidebarWidth(storedSidebarWidth)
             liveSidebarWidth = clampedWidth
@@ -204,6 +208,14 @@ struct TemplateStudioView: View {
                 HStack {
                     Text("Drawings")
                     Spacer()
+                    Button {
+                        isHiddenManagementPresented = true
+                    } label: {
+                        Image(systemName: "eye.slash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+
                     Button {
                         isCategoryManagementPresented = true
                     } label: {
@@ -505,6 +517,12 @@ struct TemplateStudioView: View {
                 viewModel.toggleCompleted(for: template.id)
             } label: {
                 Label(isCompleted ? "Mark Incomplete" : "Mark Completed", systemImage: isCompleted ? "arrow.uturn.backward.circle" : "checkmark.seal")
+            }
+
+            Button {
+                viewModel.hideTemplate(template.id)
+            } label: {
+                Label("Hide", systemImage: "eye.slash")
             }
 
             if template.isImported {
@@ -831,7 +849,7 @@ struct TemplateStudioView: View {
 
             HStack(spacing: 8) {
                 sidebarMetricPill(value: sortedTemplates.count, label: "Visible")
-                sidebarMetricPill(value: viewModel.templates.filter(\.isImported).count, label: "Imported")
+                sidebarMetricPill(value: viewModel.visibleImportedTemplateCount, label: "Imported")
             }
         }
         .padding(14)
@@ -1143,6 +1161,66 @@ struct TemplateStudioView: View {
             } catch {
                 await MainActor.run {
                     viewModel.reportImportFailure("Could not import the selected file.")
+                }
+            }
+        }
+    }
+}
+
+private struct HiddenTemplatesView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: TemplateStudioViewModel
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if viewModel.hiddenTemplates.isEmpty {
+                    ContentUnavailableView(
+                        "No Hidden Templates",
+                        systemImage: "eye",
+                        description: Text("Long-press a drawing and choose Hide to manage it here.")
+                    )
+                } else {
+                    ForEach(viewModel.hiddenTemplates) { template in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(template.title)
+                                    .font(.body.weight(.semibold))
+                                Text(template.source == .imported ? "Imported" : template.category)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Button("Unhide") {
+                                viewModel.unhideTemplate(template.id)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .contextMenu {
+                            Button {
+                                viewModel.unhideTemplate(template.id)
+                            } label: {
+                                Label("Unhide", systemImage: "eye")
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Hidden")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Unhide All") {
+                        viewModel.unhideAllTemplates()
+                    }
+                    .disabled(viewModel.hiddenTemplates.isEmpty)
                 }
             }
         }

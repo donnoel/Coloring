@@ -17,12 +17,15 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
         "animals": "Animals",
         "fantasy": "Fantasy",
         "patterns": "Patterns",
-        "seasonal": "Seasonal"
+        "seasonal": "Seasonal",
+        "motorsport": "Motorsport",
+        "scifi": "Sci-Fi"
     ]
     private static let complexityDisplayNameByKey: [String: String] = [
         "easy": "Easy",
         "medium": "Medium",
-        "detailed": "Detailed"
+        "detailed": "Detailed",
+        "dense": "Dense"
     ]
 
     static func builtInCategoryNames(for template: ColoringTemplate) -> Set<String> {

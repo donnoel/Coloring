@@ -7,6 +7,7 @@ struct TemplateCategoryStoredState {
     let favoriteTemplateIDs: Set<String>
     let completedTemplateIDs: Set<String>
     let recentTemplateIDs: [String]
+    let hiddenTemplateIDs: Set<String>
 }
 
 final class TemplateCategoryPersistenceCoordinator {
@@ -23,6 +24,7 @@ final class TemplateCategoryPersistenceCoordinator {
         let favoriteTemplateIDs = try await categoryStore.loadFavoriteTemplateIDs()
         let completedTemplateIDs = try await categoryStore.loadCompletedTemplateIDs()
         let recentTemplateIDs = try await categoryStore.loadRecentTemplateIDs()
+        let hiddenTemplateIDs = try await categoryStore.loadHiddenTemplateIDs()
 
         return TemplateCategoryStoredState(
             userCategories: userCategories,
@@ -30,7 +32,8 @@ final class TemplateCategoryPersistenceCoordinator {
             categoryOrder: categoryOrder,
             favoriteTemplateIDs: favoriteTemplateIDs,
             completedTemplateIDs: completedTemplateIDs,
-            recentTemplateIDs: recentTemplateIDs
+            recentTemplateIDs: recentTemplateIDs,
+            hiddenTemplateIDs: hiddenTemplateIDs
         )
     }
 
@@ -67,6 +70,12 @@ final class TemplateCategoryPersistenceCoordinator {
     func persistRecentTemplateIDs(_ templateIDs: [String]) {
         Task { [categoryStore, templateIDs] in
             try? await categoryStore.saveRecentTemplateIDs(templateIDs)
+        }
+    }
+
+    func persistHiddenTemplateIDs(_ templateIDs: Set<String>) {
+        Task { [categoryStore, templateIDs] in
+            try? await categoryStore.saveHiddenTemplateIDs(templateIDs)
         }
     }
 }

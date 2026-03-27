@@ -127,6 +127,22 @@ final class ColoringTests: XCTestCase {
                 shelfCategory: "fantasy",
                 complexity: "detailed",
                 canvasOrientation: .portrait
+            ),
+            Self.makeTemplate(
+                id: "builtin-gp",
+                title: "Grand Prix",
+                category: "Motorsport",
+                shelfCategory: "motorsport",
+                complexity: "dense",
+                canvasOrientation: .landscape
+            ),
+            Self.makeTemplate(
+                id: "builtin-orbit",
+                title: "Orbital Dock",
+                category: "Sci-Fi",
+                shelfCategory: "scifi",
+                complexity: "dense",
+                canvasOrientation: .portrait
             )
         ]
         let library = StubTemplateLibrary(templates: templates)
@@ -150,9 +166,12 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(categoryNames.contains("Animals"))
             XCTAssertTrue(categoryNames.contains("Nature"))
             XCTAssertTrue(categoryNames.contains("Fantasy"))
+            XCTAssertTrue(categoryNames.contains("Motorsport"))
+            XCTAssertTrue(categoryNames.contains("Sci-Fi"))
             XCTAssertTrue(categoryNames.contains("Easy"))
             XCTAssertTrue(categoryNames.contains("Medium"))
             XCTAssertTrue(categoryNames.contains("Detailed"))
+            XCTAssertTrue(categoryNames.contains("Dense"))
             XCTAssertTrue(categoryNames.contains("Landscape"))
             XCTAssertTrue(categoryNames.contains("Portrait"))
             XCTAssertFalse(categoryNames.contains("Action & Motion"))
@@ -320,6 +339,134 @@ final class ColoringTests: XCTestCase {
             viewModel.selectedCategoryFilter = TemplateCategory.recentCategory.id
             XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [thirdTemplate.id, secondTemplate.id])
         }
+    }
+
+    func testHideTemplateRemovesItFromMainLibraryAndBuiltInCategories() async {
+        let scifiTemplate = Self.makeTemplate(
+            id: "builtin-scifi",
+            title: "Orbital Lab",
+            category: "Sci-Fi",
+            shelfCategory: "scifi",
+            complexity: "dense",
+            canvasOrientation: .landscape
+        )
+        let natureTemplate = Self.makeTemplate(
+            id: "builtin-nature",
+            title: "Forest Path",
+            category: "Nature",
+            shelfCategory: "nature",
+            complexity: "medium",
+            canvasOrientation: .portrait
+        )
+        let library = StubTemplateLibrary(templates: [scifiTemplate, natureTemplate])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([scifiTemplate.id, natureTemplate.id]))
+            XCTAssertTrue(Set(viewModel.builtInCategories.map(\.name)).contains("Sci-Fi"))
+
+            viewModel.hideTemplate(scifiTemplate.id)
+
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([natureTemplate.id]))
+            XCTAssertEqual(Set(viewModel.hiddenTemplates.map(\.id)), Set([scifiTemplate.id]))
+            XCTAssertFalse(Set(viewModel.builtInCategories.map(\.name)).contains("Sci-Fi"))
+        }
+    }
+
+    func testUnhideTemplateAndUnhideAllRestoreVisibility() async {
+        let builtInTemplate = Self.makeTemplate(
+            id: "builtin-1",
+            title: "Built In",
+            shelfCategory: "motorsport",
+            complexity: "dense"
+        )
+        let importedTemplate = Self.makeTemplate(
+            id: "imported-1",
+            title: "Imported One",
+            source: .imported
+        )
+        let library = StubTemplateLibrary(templates: [builtInTemplate, importedTemplate])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: library,
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.hideTemplate(builtInTemplate.id)
+            viewModel.hideTemplate(importedTemplate.id)
+
+            XCTAssertTrue(viewModel.filteredTemplates.isEmpty)
+            XCTAssertEqual(Set(viewModel.hiddenTemplates.map(\.id)), Set([builtInTemplate.id, importedTemplate.id]))
+
+            viewModel.unhideTemplate(importedTemplate.id)
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([importedTemplate.id]))
+            XCTAssertEqual(Set(viewModel.hiddenTemplates.map(\.id)), Set([builtInTemplate.id]))
+
+            viewModel.unhideAllTemplates()
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set([builtInTemplate.id, importedTemplate.id]))
+            XCTAssertTrue(viewModel.hiddenTemplates.isEmpty)
+        }
+    }
+
+    func testPersistedHiddenTemplateIDsAreAppliedOnLoad() async throws {
+        let hiddenTemplate = Self.makeTemplate(
+            id: "builtin-hidden",
+            title: "Hidden Template",
+            shelfCategory: "scifi",
+            complexity: "dense"
+        )
+        let visibleTemplate = Self.makeTemplate(id: "builtin-visible", title: "Visible Template")
+        let categoryStore = StubCategoryStore()
+        try await categoryStore.saveHiddenTemplateIDs([hiddenTemplate.id])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [hiddenTemplate, visibleTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: categoryStore,
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.loadCategoriesIfNeeded()
+        }
+
+        let didApplyHiddenState = await waitForCondition(timeout: 3.0) {
+            await MainActor.run {
+                Set(viewModel.filteredTemplates.map(\.id)) == Set([visibleTemplate.id]) &&
+                Set(viewModel.hiddenTemplates.map(\.id)) == Set([hiddenTemplate.id])
+            }
+        }
+        XCTAssertTrue(didApplyHiddenState)
     }
 
     func testUndoRedoRestoresStrokeAndFillChanges() async {
@@ -1427,6 +1574,7 @@ final class ColoringTests: XCTestCase {
 
         let resolution = TemplateReloadStateResolver.resolve(
             loadedTemplates: templates,
+            hiddenTemplateIDs: [],
             currentSelectedTemplateID: "builtin-2",
             lastSelectedTemplateID: "builtin-1",
             recentTemplateIDs: ["builtin-2", "missing-template"]
@@ -1445,6 +1593,7 @@ final class ColoringTests: XCTestCase {
 
         let resolution = TemplateReloadStateResolver.resolve(
             loadedTemplates: templates,
+            hiddenTemplateIDs: [],
             currentSelectedTemplateID: "missing-template",
             lastSelectedTemplateID: "builtin-1",
             recentTemplateIDs: []
@@ -1497,13 +1646,13 @@ final class ColoringTests: XCTestCase {
         let template = Self.makeTemplate(
             id: "builtin-lake-como",
             title: "Lake Como",
-            category: "Patterns",
-            shelfCategory: "patterns",
-            complexity: "detailed",
+            category: "Sci-Fi",
+            shelfCategory: "scifi",
+            complexity: "dense",
             canvasOrientation: .portrait
         )
         let categoryNames = TemplateCategory.builtInCategoryNames(for: template)
-        XCTAssertEqual(categoryNames, Set(["Patterns", "Detailed", "Portrait"]))
+        XCTAssertEqual(categoryNames, Set(["Sci-Fi", "Dense", "Portrait"]))
         XCTAssertFalse(categoryNames.contains("Nature"))
     }
 
@@ -1674,7 +1823,28 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(entry.resolvedFeatured)
     }
 
-    func testBuiltInManifestContainsExpectedReplacement60Pack() throws {
+    func testManifestEntryPreservesDenseComplexity() throws {
+        let data = Data(
+            """
+            {
+              "id": "scifi-test",
+              "file": "Templates/BuiltIn/scifi/example.png",
+              "title": "Sci-Fi Dense",
+              "category": "scifi",
+              "complexity": "dense"
+            }
+            """.utf8
+        )
+
+        let entry = try JSONDecoder().decode(TemplateLibraryService.ManifestEntry.self, from: data)
+
+        XCTAssertEqual(entry.resolvedTemplateID, "scifi-test")
+        XCTAssertEqual(entry.resolvedFileName, "Templates/BuiltIn/scifi/example.png")
+        XCTAssertEqual(entry.resolvedShelfCategory, "scifi")
+        XCTAssertEqual(entry.resolvedComplexity, "dense")
+    }
+
+    func testBuiltInManifestContainsExpectedExpanded80Pack() throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -1682,7 +1852,7 @@ final class ColoringTests: XCTestCase {
         let data = try Data(contentsOf: manifestURL)
 
         let rawManifest = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-        XCTAssertEqual(rawManifest?.count, 60)
+        XCTAssertEqual(rawManifest?.count, 80)
 
         let requiredKeys = Set(["id", "title", "category", "complexity", "orientation", "mood", "session", "lineWeight", "featured", "file"])
         rawManifest?.forEach { entry in
@@ -1690,9 +1860,9 @@ final class ColoringTests: XCTestCase {
         }
 
         let decodedEntries = try JSONDecoder().decode([TemplateLibraryService.ManifestEntry].self, from: data)
-        XCTAssertEqual(decodedEntries.count, 60)
+        XCTAssertEqual(decodedEntries.count, 80)
         XCTAssertEqual(decodedEntries.first?.id, "cozy_001")
-        XCTAssertEqual(decodedEntries.last?.id, "seasonal_010")
+        XCTAssertEqual(decodedEntries.last?.id, "scifi_010")
 
         let categoryCounts = Dictionary(grouping: decodedEntries, by: \.category).mapValues(\.count)
         XCTAssertEqual(categoryCounts["cozy"], 10)
@@ -1701,6 +1871,8 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(categoryCounts["fantasy"], 10)
         XCTAssertEqual(categoryCounts["patterns"], 10)
         XCTAssertEqual(categoryCounts["seasonal"], 10)
+        XCTAssertEqual(categoryCounts["motorsport"], 10)
+        XCTAssertEqual(categoryCounts["scifi"], 10)
     }
 
     func testTemplateLibraryServiceResolvesManifestFilePathWhenBundleResourcesAreFlattened() async throws {
@@ -3478,6 +3650,7 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
     private var favorites: Set<String> = []
     private var completed: Set<String> = []
     private var recent: [String] = []
+    private var hidden: Set<String> = []
 
     func loadUserCategories() throws -> [TemplateCategory] {
         categories
@@ -3525,6 +3698,14 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
 
     func saveRecentTemplateIDs(_ templateIDs: [String]) throws {
         recent = templateIDs
+    }
+
+    func loadHiddenTemplateIDs() throws -> Set<String> {
+        hidden
+    }
+
+    func saveHiddenTemplateIDs(_ templateIDs: Set<String>) throws {
+        hidden = templateIDs
     }
 }
 
