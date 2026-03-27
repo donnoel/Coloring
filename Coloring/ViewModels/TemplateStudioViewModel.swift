@@ -53,8 +53,11 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var inProgressTemplateIDs: Set<String> = []
     @Published private(set) var favoriteTemplateIDs: Set<String> = []
     @Published private(set) var completedTemplateIDs: Set<String> = []
+    @Published private(set) var hiddenTemplateIDs: Set<String> = []
     var visibleInProgressTemplateIDs: Set<String> {
-        inProgressTemplateIDs.subtracting(completedTemplateIDs)
+        inProgressTemplateIDs
+            .subtracting(completedTemplateIDs)
+            .subtracting(hiddenTemplateIDs)
     }
     @Published private(set) var allCategories: [TemplateCategory] = [
         TemplateCategory.allCategory,
@@ -149,6 +152,20 @@ final class TemplateStudioViewModel: ObservableObject {
         templates.first { $0.id == selectedTemplateID }
     }
 
+    var visibleTemplates: [ColoringTemplate] {
+        templates.filter { !hiddenTemplateIDs.contains($0.id) }
+    }
+
+    var hiddenTemplates: [ColoringTemplate] {
+        templates
+            .filter { hiddenTemplateIDs.contains($0.id) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    var visibleImportedTemplateCount: Int {
+        visibleTemplates.filter(\.isImported).count
+    }
+
     var hasImportedTemplates: Bool {
         templates.contains(where: \.isImported)
     }
@@ -211,6 +228,7 @@ final class TemplateStudioViewModel: ObservableObject {
             let loadedTemplates = try await templateLibrary.loadTemplates()
             let reloadResolution = TemplateReloadStateResolver.resolve(
                 loadedTemplates: loadedTemplates,
+                hiddenTemplateIDs: hiddenTemplateIDs,
                 currentSelectedTemplateID: selectedTemplateID,
                 lastSelectedTemplateID: UserDefaults.standard.string(forKey: DefaultsKey.lastSelectedTemplateID),
                 recentTemplateIDs: recentTemplateIDs
@@ -228,6 +246,7 @@ final class TemplateStudioViewModel: ObservableObject {
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
             assignIfChanged(\.completedTemplateIDs, to: completedTemplateIDs.intersection(validTemplateIDs))
+            assignIfChanged(\.hiddenTemplateIDs, to: hiddenTemplateIDs.intersection(validTemplateIDs))
             if recentTemplateIDs != reloadResolution.filteredRecentTemplateIDs {
                 recentTemplateIDs = reloadResolution.filteredRecentTemplateIDs
             }
@@ -564,7 +583,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
     var filteredTemplates: [ColoringTemplate] {
         TemplateCategoryViewStateBuilder.filteredTemplates(
-            templates: templates,
+            templates: visibleTemplates,
             selectedCategoryFilter: selectedCategoryFilter,
             visibleInProgressTemplateIDs: visibleInProgressTemplateIDs,
             favoriteTemplateIDs: favoriteTemplateIDs,
@@ -672,12 +691,48 @@ final class TemplateStudioViewModel: ObservableObject {
         persistCompletedTemplateIDs()
     }
 
+    func hideTemplate(_ templateID: String) {
+        guard templates.contains(where: { $0.id == templateID }),
+              !hiddenTemplateIDs.contains(templateID)
+        else {
+            return
+        }
+
+        hiddenTemplateIDs.insert(templateID)
+        persistHiddenTemplateIDs()
+        refreshBuiltInCategoriesFromVisibleTemplates()
+    }
+
+    func unhideTemplate(_ templateID: String) {
+        guard hiddenTemplateIDs.contains(templateID) else {
+            return
+        }
+
+        hiddenTemplateIDs.remove(templateID)
+        persistHiddenTemplateIDs()
+        refreshBuiltInCategoriesFromVisibleTemplates()
+    }
+
+    func unhideAllTemplates() {
+        guard !hiddenTemplateIDs.isEmpty else {
+            return
+        }
+
+        hiddenTemplateIDs.removeAll()
+        persistHiddenTemplateIDs()
+        refreshBuiltInCategoriesFromVisibleTemplates()
+    }
+
     func isFavorite(_ templateID: String) -> Bool {
         favoriteTemplateIDs.contains(templateID)
     }
 
     func isCompleted(_ templateID: String) -> Bool {
         completedTemplateIDs.contains(templateID)
+    }
+
+    func isHidden(_ templateID: String) -> Bool {
+        hiddenTemplateIDs.contains(templateID)
     }
 
     func loadCategoriesIfNeeded() {
@@ -689,17 +744,18 @@ final class TemplateStudioViewModel: ObservableObject {
                 self.assignIfChanged(\.categoryOrder, to: storedState.categoryOrder)
                 self.assignIfChanged(\.favoriteTemplateIDs, to: storedState.favoriteTemplateIDs)
                 self.assignIfChanged(\.completedTemplateIDs, to: storedState.completedTemplateIDs)
+                self.assignIfChanged(\.hiddenTemplateIDs, to: storedState.hiddenTemplateIDs)
                 self.recentTemplateIDs = storedState.recentTemplateIDs
                 self.filterStoredTemplateStateToAvailableTemplates()
-                self.syncCategoryOrderWithAvailableCategories()
+                self.refreshBuiltInCategoriesFromVisibleTemplates()
                 self.markTemplateAsRecent(self.selectedTemplateID)
             } catch {
                 // Silently ignore - starts with empty user categories
-                self.syncCategoryOrderWithAvailableCategories()
+                self.refreshBuiltInCategoriesFromVisibleTemplates()
                 self.markTemplateAsRecent(self.selectedTemplateID)
             }
         }
-        assignIfChanged(\.builtInCategories, to: TemplateCategory.builtInCategories(from: templates))
+        assignIfChanged(\.builtInCategories, to: TemplateCategory.builtInCategories(from: visibleTemplates))
         syncCategoryOrderWithAvailableCategories()
     }
 
@@ -727,6 +783,10 @@ final class TemplateStudioViewModel: ObservableObject {
         categoryPersistenceCoordinator.persistRecentTemplateIDs(recentTemplateIDs)
     }
 
+    private func persistHiddenTemplateIDs() {
+        categoryPersistenceCoordinator.persistHiddenTemplateIDs(hiddenTemplateIDs)
+    }
+
     private func markTemplateAsRecent(_ templateID: String) {
         let availableTemplateIDs = Set(templates.map(\.id))
         guard let updatedRecentTemplateIDs = TemplateCategoryStateSanitizer.markedRecentTemplateIDs(
@@ -748,10 +808,12 @@ final class TemplateStudioViewModel: ObservableObject {
             favoriteTemplateIDs: favoriteTemplateIDs,
             completedTemplateIDs: completedTemplateIDs,
             recentTemplateIDs: recentTemplateIDs,
+            hiddenTemplateIDs: hiddenTemplateIDs,
             validTemplateIDs: validTemplateIDs
         )
         assignIfChanged(\.favoriteTemplateIDs, to: sanitizedState.favoriteTemplateIDs)
         assignIfChanged(\.completedTemplateIDs, to: sanitizedState.completedTemplateIDs)
+        assignIfChanged(\.hiddenTemplateIDs, to: sanitizedState.hiddenTemplateIDs)
         if recentTemplateIDs != sanitizedState.recentTemplateIDs {
             recentTemplateIDs = sanitizedState.recentTemplateIDs
         }
@@ -776,6 +838,40 @@ final class TemplateStudioViewModel: ObservableObject {
         assignIfChanged(\.categoryOrder, to: computedState.categoryOrder)
         assignIfChanged(\.reorderableCategories, to: computedState.reorderableCategories)
         assignIfChanged(\.allCategories, to: computedState.allCategories)
+    }
+
+    private func refreshBuiltInCategoriesFromVisibleTemplates() {
+        assignIfChanged(\.builtInCategories, to: TemplateCategory.builtInCategories(from: visibleTemplates))
+        syncCategoryOrderWithAvailableCategories()
+        if !allCategories.contains(where: { $0.id == selectedCategoryFilter }) {
+            selectedCategoryFilter = TemplateCategory.allCategory.id
+        }
+        reconcileSelectionAfterVisibilityChange()
+    }
+
+    private func reconcileSelectionAfterVisibilityChange() {
+        guard hiddenTemplateIDs.contains(selectedTemplateID) else {
+            return
+        }
+
+        if let fallbackTemplateID = visibleTemplates.first?.id {
+            selectTemplate(fallbackTemplateID)
+            return
+        }
+
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
+        persistCurrentDrawing()
+        persistCurrentFill()
+        selectedTemplateID = ""
+        persistLastSelectedTemplateID("")
+        selectedTemplateImage = nil
+        loadedTemplateImageID = nil
+        setCurrentDrawingFromModel(PKDrawing())
+        currentLayerStack = .singleLayer()
+        currentFillImage = nil
+        belowLayerImage = nil
+        aboveLayerImage = nil
+        refreshEditAvailability()
     }
 
     // MARK: - Fill Mode
@@ -1273,6 +1369,12 @@ final class TemplateStudioViewModel: ObservableObject {
             persistRecentTemplateIDs()
         }
 
+        if hiddenTemplateIDs.remove(oldTemplateID) != nil {
+            hiddenTemplateIDs.insert(newTemplateID)
+            persistHiddenTemplateIDs()
+            refreshBuiltInCategoriesFromVisibleTemplates()
+        }
+
         Task { [persistenceCoordinator] in
             await persistenceCoordinator.renameTracking(from: oldTemplateID, to: newTemplateID)
         }
@@ -1287,6 +1389,9 @@ final class TemplateStudioViewModel: ObservableObject {
         editHistoryStore.removeHistory(for: templateID)
         favoriteTemplateIDs.remove(templateID)
         completedTemplateIDs.remove(templateID)
+        if hiddenTemplateIDs.remove(templateID) != nil {
+            persistHiddenTemplateIDs()
+        }
         recentTemplateIDs.removeAll { $0 == templateID }
 
         Task { [persistenceCoordinator] in

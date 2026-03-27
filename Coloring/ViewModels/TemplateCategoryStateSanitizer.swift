@@ -4,6 +4,7 @@ struct TemplateCategorySanitizedState {
     let favoriteTemplateIDs: Set<String>
     let completedTemplateIDs: Set<String>
     let recentTemplateIDs: [String]
+    let hiddenTemplateIDs: Set<String>
 }
 
 enum TemplateCategoryStateSanitizer {
@@ -11,12 +12,14 @@ enum TemplateCategoryStateSanitizer {
         favoriteTemplateIDs: Set<String>,
         completedTemplateIDs: Set<String>,
         recentTemplateIDs: [String],
+        hiddenTemplateIDs: Set<String>,
         validTemplateIDs: Set<String>
     ) -> TemplateCategorySanitizedState {
         TemplateCategorySanitizedState(
             favoriteTemplateIDs: favoriteTemplateIDs.intersection(validTemplateIDs),
             completedTemplateIDs: completedTemplateIDs.intersection(validTemplateIDs),
-            recentTemplateIDs: recentTemplateIDs.filter { validTemplateIDs.contains($0) }
+            recentTemplateIDs: recentTemplateIDs.filter { validTemplateIDs.contains($0) },
+            hiddenTemplateIDs: hiddenTemplateIDs.intersection(validTemplateIDs)
         )
     }
 

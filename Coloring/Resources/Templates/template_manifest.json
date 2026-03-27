@@ -1,416 +1,962 @@
 [
   {
-    "fileName": "landscape-01.png",
-    "title": "Settlement",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-02.png",
-    "title": "Neighborhood",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-03.png",
-    "title": "Beach",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-04.png",
-    "title": "Cats",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-05.png",
-    "title": "Dogs",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-06.png",
-    "title": "Home",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-07.png",
-    "title": "Bikes",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-08.png",
-    "title": "Elephant",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-09.png",
-    "title": "Friends",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-10.png",
-    "title": "Future Nature",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-11.png",
-    "title": "Lovely",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-12.png",
-    "title": "Standoff",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-13.png",
-    "title": "4 Wheeling",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-14.png",
-    "title": "Brooklyn Bridge",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-15.png",
-    "title": "Gentle Help",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-16.png",
-    "title": "Glacier Park",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-18.png",
-    "title": "Ice Skating in Space",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-19.png",
-    "title": "Loving Mother",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-20.png",
-    "title": "Lurking",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-21.png",
-    "title": "Manhattan Island",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-22.png",
-    "title": "The Needle",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-23.png",
-    "title": "AI and Robotics",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-24.png",
-    "title": "Elephant in Savanna",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-25.png",
-    "title": "Invasion over Seattle",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-26.png",
-    "title": "London Cityscape",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-27.png",
-    "title": "Manhattan Skyline",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-28.png",
-    "title": "Motorcycle Racers",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-29.png",
-    "title": "Mountain Hike",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-30.png",
-    "title": "Off-Roading Adventure",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-31.png",
-    "title": "Playful Kitten",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-32.png",
-    "title": "Redwood Forest",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-33.png",
-    "title": "Rocket Launch",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-34.png",
-    "title": "Showdown",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-35.png",
-    "title": "The Beach",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-37.png",
-    "title": "Arch of Constantine",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-38.png",
-    "title": "Elephant Sculpture",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-39.png",
-    "title": "Grand Canyon",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-40.png",
-    "title": "Half Dome",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-41.png",
-    "title": "Lake Como",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-42.png",
-    "title": "Lake and Mountain",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-43.png",
-    "title": "Lake Stroll",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-44.png",
-    "title": "Mountain View",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-45.png",
-    "title": "Portland Downtown",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-46.png",
-    "title": "Rainforest",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-47.png",
-    "title": "Ranch",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-48.png",
-    "title": "Rialto Bridge",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-50.png",
-    "title": "Space Needle",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-51.png",
-    "title": "Tent Time",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-52.png",
-    "title": "Trailing",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-53.png",
-    "title": "Truck and Bike",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-54.png",
-    "title": "Village by the Sea",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "landscape-55.png",
-    "title": "Vroom Vroom",
-    "category": "Landscape",
-    "orientation": "landscape"
-  },
-  {
-    "fileName": "portrait-01.png",
-    "title": "City Scape",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-02.png",
-    "title": "Sad Girl",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-03.png",
-    "title": "Futuristic Lunar Base",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-04.png",
-    "title": "Neon City Racing",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-05.png",
-    "title": "AI Girl",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-06.png",
-    "title": "Future Alien",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-07.png",
-    "title": "Ocean",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-08.png",
-    "title": "Wheelie",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-11.png",
-    "title": "Boys Friend",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-14.png",
-    "title": "Melancholy at the Pool",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-16.png",
-    "title": "Girl on the Bench",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-18.png",
-    "title": "Stuntman Bob",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-19.png",
-    "title": "Flower Garden",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-21.png",
-    "title": "Alleyway with Steps",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-22.png",
-    "title": "Cat and Flag",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-23.png",
-    "title": "Gothic Courtyard",
-    "category": "Portrait",
-    "orientation": "portrait"
-  },
-  {
-    "fileName": "portrait-24.png",
-    "title": "Jacks",
-    "category": "Portrait",
-    "orientation": "portrait"
+    "id": "cozy_001",
+    "title": "Rainy Window Cat",
+    "category": "cozy",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_rainy_window_cat_easy_portrait.png"
+  },
+  {
+    "id": "cozy_002",
+    "title": "Reading Nook with Chair and Blanket",
+    "category": "cozy",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_reading_nook_with_chair_and_blanket_medium_landscape.png"
+  },
+  {
+    "id": "cozy_003",
+    "title": "Tea Shelf with Mugs and Plants",
+    "category": "cozy",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_tea_shelf_with_mugs_and_plants_easy_portrait.png"
+  },
+  {
+    "id": "cozy_004",
+    "title": "Fireplace with Books",
+    "category": "cozy",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_fireplace_with_books_medium_landscape.png"
+  },
+  {
+    "id": "cozy_005",
+    "title": "Cottage Kitchen Scene",
+    "category": "cozy",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_cottage_kitchen_scene_detailed_landscape.png"
+  },
+  {
+    "id": "cozy_006",
+    "title": "Cozy Bedroom with Fairy Lights",
+    "category": "cozy",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_cozy_bedroom_with_fairy_lights_medium_portrait.png"
+  },
+  {
+    "id": "cozy_007",
+    "title": "Autumn Porch with Rocking Chair",
+    "category": "cozy",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_autumn_porch_with_rocking_chair_medium_landscape.png"
+  },
+  {
+    "id": "cozy_008",
+    "title": "Baking Scene with Pie",
+    "category": "cozy",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_baking_scene_with_pie_easy_portrait.png"
+  },
+  {
+    "id": "cozy_009",
+    "title": "Greenhouse Interior",
+    "category": "cozy",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_greenhouse_interior_detailed_landscape.png"
+  },
+  {
+    "id": "cozy_010",
+    "title": "Desk with Journal and Candle",
+    "category": "cozy",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/cozy/cozy_desk_with_journal_and_candle_detailed_portrait.png"
+  },
+  {
+    "id": "nature_001",
+    "title": "Sunflower Path",
+    "category": "nature",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_sunflower_path_easy_portrait.png"
+  },
+  {
+    "id": "nature_002",
+    "title": "Wildflower Meadow",
+    "category": "nature",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_wildflower_meadow_medium_landscape.png"
+  },
+  {
+    "id": "nature_003",
+    "title": "Mountain Lake",
+    "category": "nature",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_mountain_lake_detailed_landscape.png"
+  },
+  {
+    "id": "nature_004",
+    "title": "Moonlit Forest Trail",
+    "category": "nature",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_moonlit_forest_trail_detailed_landscape.png"
+  },
+  {
+    "id": "nature_005",
+    "title": "Ocean Waves",
+    "category": "nature",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_ocean_waves_easy_portrait.png"
+  },
+  {
+    "id": "nature_006",
+    "title": "Butterflies and Blossoms",
+    "category": "nature",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_butterflies_and_blossoms_medium_portrait.png"
+  },
+  {
+    "id": "nature_007",
+    "title": "Birdhouse Garden",
+    "category": "nature",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_birdhouse_garden_medium_portrait.png"
+  },
+  {
+    "id": "nature_008",
+    "title": "Mushroom Grove",
+    "category": "nature",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_mushroom_grove_easy_portrait.png"
+  },
+  {
+    "id": "nature_009",
+    "title": "Desert Cactus Scene",
+    "category": "nature",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_desert_cactus_scene_medium_landscape.png"
+  },
+  {
+    "id": "nature_010",
+    "title": "Waterfall Valley",
+    "category": "nature",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/nature/nature_waterfall_valley_detailed_landscape.png"
+  },
+  {
+    "id": "animals_001",
+    "title": "Fox in Flowers",
+    "category": "animals",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_fox_in_flowers_medium_portrait.png"
+  },
+  {
+    "id": "animals_002",
+    "title": "Owl on Branch",
+    "category": "animals",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_owl_on_branch_medium_landscape.png"
+  },
+  {
+    "id": "animals_003",
+    "title": "Hummingbird and Flowers",
+    "category": "animals",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_hummingbird_and_flowers_easy_portrait.png"
+  },
+  {
+    "id": "animals_004",
+    "title": "Sea Turtle Coral Scene",
+    "category": "animals",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_sea_turtle_coral_scene_detailed_landscape.png"
+  },
+  {
+    "id": "animals_005",
+    "title": "Cat in Window Box",
+    "category": "animals",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_cat_in_window_box_easy_portrait.png"
+  },
+  {
+    "id": "animals_006",
+    "title": "Horse Portrait with Floral Frame",
+    "category": "animals",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_horse_portrait_with_floral_frame_detailed_portrait.png"
+  },
+  {
+    "id": "animals_007",
+    "title": "Rabbits in Garden",
+    "category": "animals",
+    "complexity": "easy",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_rabbits_in_garden_easy_landscape.png"
+  },
+  {
+    "id": "animals_008",
+    "title": "Frog on Lily Pad",
+    "category": "animals",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_frog_on_lily_pad_medium_portrait.png"
+  },
+  {
+    "id": "animals_009",
+    "title": "Butterfly Swarm",
+    "category": "animals",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_butterfly_swarm_detailed_landscape.png"
+  },
+  {
+    "id": "animals_010",
+    "title": "Sleeping Bear",
+    "category": "animals",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/animals/animals_sleeping_bear_medium_landscape.png"
+  },
+  {
+    "id": "fantasy_001",
+    "title": "Mushroom Cottage",
+    "category": "fantasy",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_mushroom_cottage_easy_portrait.png"
+  },
+  {
+    "id": "fantasy_002",
+    "title": "Fairy Door in Tree",
+    "category": "fantasy",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_fairy_door_in_tree_medium_portrait.png"
+  },
+  {
+    "id": "fantasy_003",
+    "title": "Enchanted Library",
+    "category": "fantasy",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_enchanted_library_detailed_landscape.png"
+  },
+  {
+    "id": "fantasy_004",
+    "title": "Witchy Apothecary Shelf",
+    "category": "fantasy",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_witchy_apothecary_shelf_medium_portrait.png"
+  },
+  {
+    "id": "fantasy_005",
+    "title": "Moon and Stars Scene",
+    "category": "fantasy",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_moon_and_stars_scene_easy_portrait.png"
+  },
+  {
+    "id": "fantasy_006",
+    "title": "Castle at Night",
+    "category": "fantasy",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_castle_at_night_medium_landscape.png"
+  },
+  {
+    "id": "fantasy_007",
+    "title": "Secret Garden Gate",
+    "category": "fantasy",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_secret_garden_gate_detailed_portrait.png"
+  },
+  {
+    "id": "fantasy_008",
+    "title": "Dragon with Crystals",
+    "category": "fantasy",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_dragon_with_crystals_detailed_landscape.png"
+  },
+  {
+    "id": "fantasy_009",
+    "title": "Floating Lanterns",
+    "category": "fantasy",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_floating_lanterns_medium_landscape.png"
+  },
+  {
+    "id": "fantasy_010",
+    "title": "Spellbook and Candles",
+    "category": "fantasy",
+    "complexity": "easy",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/fantasy/fantasy_spellbook_and_candles_easy_landscape.png"
+  },
+  {
+    "id": "patterns_001",
+    "title": "Floral Mandala",
+    "category": "patterns",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_floral_mandala_medium_portrait.png"
+  },
+  {
+    "id": "patterns_002",
+    "title": "Geometric Tiles",
+    "category": "patterns",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_geometric_tiles_easy_portrait.png"
+  },
+  {
+    "id": "patterns_003",
+    "title": "Sun and Moon Symmetry",
+    "category": "patterns",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_sun_and_moon_symmetry_medium_landscape.png"
+  },
+  {
+    "id": "patterns_004",
+    "title": "Leaf Repeat Pattern",
+    "category": "patterns",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_leaf_repeat_pattern_easy_portrait.png"
+  },
+  {
+    "id": "patterns_005",
+    "title": "Art Nouveau Floral Frame",
+    "category": "patterns",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_art_nouveau_floral_frame_detailed_portrait.png"
+  },
+  {
+    "id": "patterns_006",
+    "title": "Stained Glass Birds",
+    "category": "patterns",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_stained_glass_birds_medium_landscape.png"
+  },
+  {
+    "id": "patterns_007",
+    "title": "Mosaic Waves",
+    "category": "patterns",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_mosaic_waves_medium_landscape.png"
+  },
+  {
+    "id": "patterns_008",
+    "title": "Butterfly Kaleidoscope",
+    "category": "patterns",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_butterfly_kaleidoscope_detailed_landscape.png"
+  },
+  {
+    "id": "patterns_009",
+    "title": "Large-Shape Relaxation Pattern",
+    "category": "patterns",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_large_shape_relaxation_pattern_easy_portrait.png"
+  },
+  {
+    "id": "patterns_010",
+    "title": "Garden Trellis Pattern",
+    "category": "patterns",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/patterns/patterns_garden_trellis_pattern_detailed_landscape.png"
+  },
+  {
+    "id": "seasonal_001",
+    "title": "Spring Boots and Flowers",
+    "category": "seasonal",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_spring_boots_and_flowers_easy_portrait.png"
+  },
+  {
+    "id": "seasonal_002",
+    "title": "Summer Picnic",
+    "category": "seasonal",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_summer_picnic_medium_landscape.png"
+  },
+  {
+    "id": "seasonal_003",
+    "title": "Beach Sunset",
+    "category": "seasonal",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_beach_sunset_detailed_landscape.png"
+  },
+  {
+    "id": "seasonal_004",
+    "title": "Back-to-School Desk",
+    "category": "seasonal",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_back_to_school_desk_easy_portrait.png"
+  },
+  {
+    "id": "seasonal_005",
+    "title": "Autumn Pumpkins",
+    "category": "seasonal",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_autumn_pumpkins_medium_landscape.png"
+  },
+  {
+    "id": "seasonal_006",
+    "title": "Halloween Porch",
+    "category": "seasonal",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_halloween_porch_detailed_landscape.png"
+  },
+  {
+    "id": "seasonal_007",
+    "title": "Winter Cabin",
+    "category": "seasonal",
+    "complexity": "medium",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_winter_cabin_medium_landscape.png"
+  },
+  {
+    "id": "seasonal_008",
+    "title": "Holiday Tree and Gifts",
+    "category": "seasonal",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_holiday_tree_and_gifts_detailed_portrait.png"
+  },
+  {
+    "id": "seasonal_009",
+    "title": "New Year Journal Page",
+    "category": "seasonal",
+    "complexity": "easy",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_new_year_journal_page_easy_portrait.png"
+  },
+  {
+    "id": "seasonal_010",
+    "title": "Valentine Hearts and Florals",
+    "category": "seasonal",
+    "complexity": "medium",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/seasonal/seasonal_valentine_hearts_and_florals_medium_portrait.png"
+  },
+  {
+    "id": "motorsport_001",
+    "title": "Formula Car on Grand Prix Straight",
+    "category": "motorsport",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_formula_car_on_grand_prix_straight_dense_landscape.png"
+  },
+  {
+    "id": "motorsport_002",
+    "title": "Formula Driver Helmet and Cockpit",
+    "category": "motorsport",
+    "complexity": "dense",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_formula_driver_helmet_and_cockpit_dense_portrait.png"
+  },
+  {
+    "id": "motorsport_003",
+    "title": "Formula Pit Lane Setup",
+    "category": "motorsport",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_formula_pit_lane_setup_dense_landscape.png"
+  },
+  {
+    "id": "motorsport_004",
+    "title": "Formula Car Cornering Through Curbs",
+    "category": "motorsport",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_formula_car_cornering_through_curbs_detailed_landscape.png"
+  },
+  {
+    "id": "motorsport_005",
+    "title": "Formula Race Weekend Garage",
+    "category": "motorsport",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_formula_race_weekend_garage_detailed_portrait.png"
+  },
+  {
+    "id": "motorsport_006",
+    "title": "MotoGP Bike Leaning Through Apex",
+    "category": "motorsport",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_motogp_bike_leaning_through_apex_dense_landscape.png"
+  },
+  {
+    "id": "motorsport_007",
+    "title": "MotoGP Rider Helmet and Front Fairing",
+    "category": "motorsport",
+    "complexity": "dense",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_motogp_rider_helmet_and_front_fairing_dense_portrait.png"
+  },
+  {
+    "id": "motorsport_008",
+    "title": "MotoGP Pit Garage Scene",
+    "category": "motorsport",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_motogp_pit_garage_scene_detailed_landscape.png"
+  },
+  {
+    "id": "motorsport_009",
+    "title": "MotoGP Starting Grid",
+    "category": "motorsport",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_motogp_starting_grid_dense_landscape.png"
+  },
+  {
+    "id": "motorsport_010",
+    "title": "MotoGP Bike in Paddock Detail",
+    "category": "motorsport",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/motorsport/motorsport_motogp_bike_in_paddock_detail_detailed_portrait.png"
+  },
+  {
+    "id": "scifi_001",
+    "title": "Space Station Observation Deck",
+    "category": "scifi",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_space_station_observation_deck_dense_landscape.png"
+  },
+  {
+    "id": "scifi_002",
+    "title": "Astronaut on Alien Planet",
+    "category": "scifi",
+    "complexity": "dense",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_astronaut_on_alien_planet_dense_portrait.png"
+  },
+  {
+    "id": "scifi_003",
+    "title": "Alien Marketplace on a Space Colony",
+    "category": "scifi",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_alien_marketplace_on_a_space_colony_dense_landscape.png"
+  },
+  {
+    "id": "scifi_004",
+    "title": "Starship Cockpit",
+    "category": "scifi",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_starship_cockpit_dense_landscape.png"
+  },
+  {
+    "id": "scifi_005",
+    "title": "Alien Creature in Crystal Cavern",
+    "category": "scifi",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_alien_creature_in_crystal_cavern_detailed_portrait.png"
+  },
+  {
+    "id": "scifi_006",
+    "title": "Orbital Repair Scene",
+    "category": "scifi",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_orbital_repair_scene_dense_landscape.png"
+  },
+  {
+    "id": "scifi_007",
+    "title": "Futuristic Robot Lab",
+    "category": "scifi",
+    "complexity": "detailed",
+    "orientation": "portrait",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_futuristic_robot_lab_detailed_portrait.png"
+  },
+  {
+    "id": "scifi_008",
+    "title": "Deep Space Fleet Above a Ringed Planet",
+    "category": "scifi",
+    "complexity": "dense",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_deep_space_fleet_above_a_ringed_planet_dense_landscape.png"
+  },
+  {
+    "id": "scifi_009",
+    "title": "Alien Ruins Under Twin Moons",
+    "category": "scifi",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_alien_ruins_under_twin_moons_detailed_landscape.png"
+  },
+  {
+    "id": "scifi_010",
+    "title": "Explorer Rover on a Mars-Like World",
+    "category": "scifi",
+    "complexity": "detailed",
+    "orientation": "landscape",
+    "mood": [],
+    "session": "standard",
+    "lineWeight": "balanced",
+    "featured": false,
+    "file": "Templates/BuiltIn/scifi/scifi_explorer_rover_on_a_mars_like_world_detailed_landscape.png"
   }
 ]

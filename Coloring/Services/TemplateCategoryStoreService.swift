@@ -13,6 +13,8 @@ protocol TemplateCategoryStoreProviding {
     func saveCompletedTemplateIDs(_ templateIDs: Set<String>) async throws
     func loadRecentTemplateIDs() async throws -> [String]
     func saveRecentTemplateIDs(_ templateIDs: [String]) async throws
+    func loadHiddenTemplateIDs() async throws -> Set<String>
+    func saveHiddenTemplateIDs(_ templateIDs: Set<String>) async throws
 }
 
 actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
@@ -61,6 +63,10 @@ actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
 
     private func recentFileURL() throws -> URL {
         try storeDirectory().appendingPathComponent("recent_template_ids.json")
+    }
+
+    private func hiddenFileURL() throws -> URL {
+        try storeDirectory().appendingPathComponent("hidden_template_ids.json")
     }
 
     func loadUserCategories() throws -> [TemplateCategory] {
@@ -161,6 +167,23 @@ actor TemplateCategoryStoreService: TemplateCategoryStoreProviding {
 
     func saveRecentTemplateIDs(_ templateIDs: [String]) throws {
         let fileURL = try recentFileURL()
+        let data = try JSONEncoder().encode(templateIDs)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    func loadHiddenTemplateIDs() throws -> Set<String> {
+        let fileManager = FileManager.default
+        let fileURL = try hiddenFileURL()
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            return []
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        return try JSONDecoder().decode(Set<String>.self, from: data)
+    }
+
+    func saveHiddenTemplateIDs(_ templateIDs: Set<String>) throws {
+        let fileURL = try hiddenFileURL()
         let data = try JSONEncoder().encode(templateIDs)
         try data.write(to: fileURL, options: .atomic)
     }
