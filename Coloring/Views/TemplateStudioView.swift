@@ -232,7 +232,7 @@ struct TemplateStudioView: View {
                         await viewModel.exportCurrentTemplate()
                     }
                 } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Send to Gallery", systemImage: "square.and.arrow.up")
                 }
                 .disabled(viewModel.selectedTemplateImage == nil || viewModel.isExporting)
 

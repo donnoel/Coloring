@@ -56,7 +56,7 @@ final class TemplateExportCoordinator {
     func completeExportSuccess(exportedURL: URL) {
         state.isExporting = false
         state.exportedFileURL = exportedURL
-        state.statusMessage = "Template export is ready to share."
+        state.statusMessage = "Drawing is ready to share."
         state.errorMessage = nil
     }
 
