@@ -23,14 +23,12 @@ struct ContentView: View {
                     viewModel: templateViewModel,
                     onColoringInteractionChanged: handleStudioColoringInteractionChanged
                 )
-                    .toolbar(.visible, for: .tabBar)
                     .tabItem {
                         Label("Studio", systemImage: "paintbrush.pointed")
                     }
                     .tag(RootTab.studio)
 
                 GalleryView(viewModel: galleryViewModel)
-                    .toolbar(.visible, for: .tabBar)
                     .tabItem {
                         Label("Gallery", systemImage: "photo.on.rectangle.angled")
                     }
