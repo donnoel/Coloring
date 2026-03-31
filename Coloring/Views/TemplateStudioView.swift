@@ -27,7 +27,6 @@ struct TemplateStudioView: View {
     @State private var isDeleteAllImportedConfirmationPresented = false
     @State private var isClearStrokesConfirmationPresented = false
     @State private var isClearFillsConfirmationPresented = false
-    @State private var isLayerPanelPresented = false
     @State private var isCategoryManagementPresented = false
     @State private var isHiddenManagementPresented = false
     @State private var isPaletteVisible = true
@@ -153,9 +152,6 @@ struct TemplateStudioView: View {
         .sheet(isPresented: $isCategoryManagementPresented) {
             CategoryManagementView(viewModel: viewModel)
         }
-        .sheet(isPresented: $isLayerPanelPresented) {
-            LayerPanelView(viewModel: viewModel)
-        }
         .sheet(isPresented: $isHiddenManagementPresented) {
             HiddenTemplatesView(viewModel: viewModel)
         }
@@ -246,13 +242,6 @@ struct TemplateStudioView: View {
                         Label("Share Export", systemImage: "paperplane")
                     }
                 }
-
-                Button {
-                    isLayerPanelPresented = true
-                } label: {
-                    Label("Layers", systemImage: "square.3.layers.3d")
-                }
-                .disabled(viewModel.selectedTemplateImage == nil)
 
                 Button(role: .destructive) {
                     isClearStrokesConfirmationPresented = true
