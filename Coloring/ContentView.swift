@@ -11,24 +11,41 @@ struct ContentView: View {
     @StateObject private var templateViewModel = TemplateStudioViewModel()
     @StateObject private var galleryViewModel = GalleryViewModel()
     @AppStorage("contentView.selectedTab") private var selectedTabRawValue: String = RootTab.studio.rawValue
+    @State private var isStudioTabPillVisible = true
+    @State private var studioTabPillAutoShowTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
             backgroundGradient
 
             TabView(selection: selectedTabBinding) {
-                TemplateStudioView(viewModel: templateViewModel)
+                TemplateStudioView(
+                    viewModel: templateViewModel,
+                    onColoringInteractionChanged: handleStudioColoringInteractionChanged
+                )
+                    .toolbar(isStudioTabPillVisible ? .visible : .hidden, for: .tabBar)
                     .tabItem {
                         Label("Studio", systemImage: "paintbrush.pointed")
                     }
                     .tag(RootTab.studio)
 
                 GalleryView(viewModel: galleryViewModel)
+                    .toolbar(.visible, for: .tabBar)
                     .tabItem {
                         Label("Gallery", systemImage: "photo.on.rectangle.angled")
                     }
                     .tag(RootTab.gallery)
             }
+        }
+        .onChange(of: selectedTabRawValue) { _, newValue in
+            if newValue != RootTab.studio.rawValue {
+                showStudioTabPillImmediately()
+            }
+        }
+        .onDisappear {
+            studioTabPillAutoShowTask?.cancel()
+            studioTabPillAutoShowTask = nil
+            isStudioTabPillVisible = true
         }
     }
 
@@ -98,6 +115,52 @@ struct ContentView: View {
                 .frame(width: 500, height: 500)
                 .blur(radius: 62)
                 .offset(x: 350, y: 210)
+        }
+    }
+
+    private func handleStudioColoringInteractionChanged(_ isActive: Bool) {
+        guard selectedTabRawValue == RootTab.studio.rawValue else {
+            showStudioTabPillImmediately()
+            return
+        }
+
+        if isActive {
+            studioTabPillAutoShowTask?.cancel()
+            studioTabPillAutoShowTask = nil
+
+            if isStudioTabPillVisible {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isStudioTabPillVisible = false
+                }
+            }
+            return
+        }
+
+        studioTabPillAutoShowTask?.cancel()
+        studioTabPillAutoShowTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isStudioTabPillVisible = true
+                }
+            }
+        }
+    }
+
+    private func showStudioTabPillImmediately() {
+        studioTabPillAutoShowTask?.cancel()
+        studioTabPillAutoShowTask = nil
+
+        guard !isStudioTabPillVisible else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isStudioTabPillVisible = true
         }
     }
 }

@@ -14,6 +14,7 @@ struct TemplateStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: TemplateStudioViewModel
+    var onColoringInteractionChanged: ((Bool) -> Void)? = nil
 
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isFileImporterPresented = false
@@ -763,6 +764,7 @@ struct TemplateStudioView: View {
         }
 
         if isActive {
+            onColoringInteractionChanged?(true)
             paletteAutoShowTask?.cancel()
             paletteAutoShowTask = nil
 
@@ -774,6 +776,7 @@ struct TemplateStudioView: View {
             return
         }
 
+        onColoringInteractionChanged?(false)
         paletteAutoShowTask?.cancel()
         paletteAutoShowTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
