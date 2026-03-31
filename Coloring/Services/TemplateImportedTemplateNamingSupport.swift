@@ -1,7 +1,7 @@
 import Foundation
 
 enum TemplateImportedTemplateNamingSupport {
-    static func sanitizedFilename(_ title: String) -> String {
+    nonisolated static func sanitizedFilename(_ title: String) -> String {
         let lowered = title.lowercased()
         let allowed = CharacterSet.alphanumerics.union(.whitespaces)
         let filteredScalars = lowered.unicodeScalars.map { allowed.contains($0) ? Character($0) : " " }
@@ -12,7 +12,7 @@ enum TemplateImportedTemplateNamingSupport {
         return normalized.isEmpty ? "imported-drawing" : normalized
     }
 
-    static func uuidSuffix(from fileStem: String) -> String? {
+    nonisolated static func uuidSuffix(from fileStem: String) -> String? {
         let pattern = "-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         guard let range = fileStem.range(of: pattern, options: .regularExpression) else {
             return nil
@@ -20,7 +20,7 @@ enum TemplateImportedTemplateNamingSupport {
         return String(fileStem[range])
     }
 
-    static func humanReadableTitle(from filename: String) -> String {
+    nonisolated static func humanReadableTitle(from filename: String) -> String {
         var stem = filename.replacingOccurrences(of: ".png", with: "")
         if let uuidRange = stem.range(
             of: "-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
