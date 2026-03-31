@@ -3090,6 +3090,107 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    func testDrawingExportSupportSelectedTemplateAspectRatioFallsBackForNilOrInvalidImage() {
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: nil),
+            4.0 / 3.0,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: UIImage()),
+            4.0 / 3.0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testDrawingExportSupportSelectedTemplateAspectRatioUsesImageDimensions() {
+        let image = solidColorTemplateImage(.red, size: CGSize(width: 300, height: 150))
+
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: image),
+            2.0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testDrawingExportSupportSerializedDrawingDataHandlesEmptyAndNonEmptyDrawings() {
+        let emptyDrawing = PKDrawing()
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.serializedDrawingData(for: emptyDrawing),
+            Data()
+        )
+
+        let nonEmptyDrawing = makeSampleTemplateDrawing()
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.serializedDrawingData(for: nonEmptyDrawing),
+            nonEmptyDrawing.dataRepresentation()
+        )
+    }
+
+    func testDrawingExportSupportBestExportSizeFallsBackAndPreservesSmallImages() {
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: nil),
+            CGSize(width: 2048, height: 1536)
+        )
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: UIImage()),
+            CGSize(width: 2048, height: 1536)
+        )
+
+        let smallImage = solidColorTemplateImage(.blue, size: CGSize(width: 1200, height: 900))
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: smallImage),
+            CGSize(width: 1200, height: 900)
+        )
+    }
+
+    func testDrawingExportSupportBestExportSizeScalesDownLargeImagesToMaxLongEdge() {
+        let largeImage = solidColorTemplateImage(.green, size: CGSize(width: 4096, height: 2048))
+
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: largeImage),
+            CGSize(width: 2048, height: 1024)
+        )
+    }
+
+    func testImportedTemplateNamingSupportSanitizedFilenameNormalizesWhitespaceAndSymbols() {
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.sanitizedFilename("  My   Cool*&% Drawing!!  "),
+            "my-cool-drawing"
+        )
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.sanitizedFilename("!!!___"),
+            "imported-drawing"
+        )
+    }
+
+    func testImportedTemplateNamingSupportUUIDSuffixExtractionMatchesTrailingUUIDOnly() {
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.uuidSuffix(
+                from: "my-drawing-123e4567-e89b-12d3-a456-426614174000"
+            ),
+            "-123e4567-e89b-12d3-a456-426614174000"
+        )
+        XCTAssertNil(
+            TemplateImportedTemplateNamingSupport.uuidSuffix(
+                from: "my-drawing-123e4567-e89b-12d3-a456-426614174000-copy"
+            )
+        )
+    }
+
+    func testImportedTemplateNamingSupportHumanReadableTitleStripsUUIDAndExtension() {
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.humanReadableTitle(
+                from: "my-drawing-123e4567-e89b-12d3-a456-426614174000.png"
+            ),
+            "My Drawing"
+        )
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.humanReadableTitle(from: "line-art.png"),
+            "Line Art"
+        )
+    }
+
     private static func makeTemplate(
         id: String,
         title: String,
