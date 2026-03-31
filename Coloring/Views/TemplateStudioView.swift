@@ -16,7 +16,7 @@ struct TemplateStudioView: View {
     @ObservedObject var viewModel: TemplateStudioViewModel
     var onColoringInteractionChanged: ((Bool) -> Void)? = nil
 
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isPhotoPickerPresented = false
     @State private var isFileImporterPresented = false
     // Default to showing the library so the user always has a reliable starting point.
     // We still collapse to the canvas after a template is selected.
@@ -55,15 +55,6 @@ struct TemplateStudioView: View {
 
             Task {
                 await viewModel.refreshTemplatesFromStorage()
-            }
-        }
-        .onChange(of: selectedPhotoItem) { _, newItem in
-            guard let newItem else {
-                return
-            }
-
-            Task {
-                await importPhotoItem(newItem)
             }
         }
         .onChange(of: viewModel.selectedTemplateID) { _, _ in
@@ -154,6 +145,20 @@ struct TemplateStudioView: View {
         }
         .sheet(isPresented: $isHiddenManagementPresented) {
             HiddenTemplatesView(viewModel: viewModel)
+        }
+        .background {
+            TemplateStudioPhotoPickerPresenter(
+                isPresented: $isPhotoPickerPresented,
+                onImagePicked: { data, suggestedName in
+                    Task {
+                        await viewModel.importTemplateImage(data, suggestedName: suggestedName)
+                    }
+                },
+                onImportError: { message in
+                    viewModel.reportImportFailure(message)
+                }
+            )
+            .frame(width: 0, height: 0)
         }
         .onAppear {
             let clampedWidth = clampedSidebarWidth(storedSidebarWidth)
@@ -363,7 +368,9 @@ struct TemplateStudioView: View {
 
     private var importControls: some View {
         TemplateStudioImportControlsCardView(
-            selectedPhotoItem: $selectedPhotoItem,
+            onPhotosTap: {
+                isPhotoPickerPresented = true
+            },
             onFilesTap: {
                 isFileImporterPresented = true
             },
@@ -902,28 +909,6 @@ struct TemplateStudioView: View {
         }
     }
 
-    private func importPhotoItem(_ item: PhotosPickerItem) async {
-        do {
-            guard let imageData = try await item.loadTransferable(type: Data.self) else {
-                await MainActor.run {
-                    viewModel.reportImportFailure("Could not load selected photo data.")
-                    selectedPhotoItem = nil
-                }
-                return
-            }
-
-            await viewModel.importTemplateImage(imageData, suggestedName: item.itemIdentifier)
-            await MainActor.run {
-                selectedPhotoItem = nil
-            }
-        } catch {
-            await MainActor.run {
-                viewModel.reportImportFailure("Could not read selected photo.")
-                selectedPhotoItem = nil
-            }
-        }
-    }
-
     private func handleFileImport(_ result: Result<[URL], Error>) {
         guard case let .success(urls) = result,
               let fileURL = urls.first
@@ -953,6 +938,106 @@ struct TemplateStudioView: View {
                     viewModel.reportImportFailure("Could not import the selected file.")
                 }
             }
+        }
+    }
+}
+
+private struct TemplateStudioPhotoPickerPresenter: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onImagePicked: (Data, String?) -> Void
+    let onImportError: (String) -> Void
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let controller = UIViewController()
+        controller.view.isHidden = true
+        context.coordinator.hostController = controller
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.syncPresentation()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
+        var parent: TemplateStudioPhotoPickerPresenter
+        weak var hostController: UIViewController?
+        weak var pickerController: PHPickerViewController?
+
+        init(parent: TemplateStudioPhotoPickerPresenter) {
+            self.parent = parent
+        }
+
+        func syncPresentation() {
+            if parent.isPresented {
+                presentIfNeeded()
+            } else {
+                dismissIfNeeded()
+            }
+        }
+
+        private func presentIfNeeded() {
+            guard pickerController == nil,
+                  let hostController,
+                  hostController.presentedViewController == nil
+            else {
+                return
+            }
+
+            var configuration = PHPickerConfiguration(photoLibrary: .shared())
+            configuration.filter = .images
+            configuration.selectionLimit = 1
+
+            let picker = PHPickerViewController(configuration: configuration)
+            picker.delegate = self
+            picker.modalPresentationStyle = .pageSheet
+            picker.presentationController?.delegate = self
+            if let sheet = picker.sheetPresentationController {
+                sheet.detents = [.large()]
+                sheet.prefersGrabberVisible = false
+            }
+
+            hostController.present(picker, animated: true)
+            pickerController = picker
+        }
+
+        private func dismissIfNeeded() {
+            guard let pickerController else {
+                return
+            }
+
+            pickerController.dismiss(animated: true)
+            self.pickerController = nil
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            pickerController = nil
+            picker.dismiss(animated: true)
+            parent.isPresented = false
+
+            guard let provider = results.first?.itemProvider else {
+                return
+            }
+
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                Task { @MainActor in
+                    guard let data else {
+                        self.parent.onImportError("Could not load selected photo data.")
+                        return
+                    }
+
+                    self.parent.onImagePicked(data, provider.suggestedName)
+                }
+            }
+        }
+
+        func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+            pickerController = nil
+            parent.isPresented = false
         }
     }
 }

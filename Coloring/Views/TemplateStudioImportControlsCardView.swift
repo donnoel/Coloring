@@ -1,8 +1,7 @@
-import PhotosUI
 import SwiftUI
 
 struct TemplateStudioImportControlsCardView: View {
-    @Binding var selectedPhotoItem: PhotosPickerItem?
+    let onPhotosTap: () -> Void
     let onFilesTap: () -> Void
     let elevatedSidebarFill: AnyShapeStyle
     let controlSidebarFill: AnyShapeStyle
@@ -28,11 +27,7 @@ struct TemplateStudioImportControlsCardView: View {
             }
 
             HStack(spacing: 10) {
-                PhotosPicker(
-                    selection: $selectedPhotoItem,
-                    matching: .images,
-                    preferredItemEncoding: .automatic
-                ) {
+                Button(action: onPhotosTap) {
                     liquidImportButtonLabel(
                         title: "Photos",
                         systemImage: "photo.on.rectangle.angled"
