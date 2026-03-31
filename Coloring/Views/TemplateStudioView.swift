@@ -372,76 +372,16 @@ struct TemplateStudioView: View {
     }
 
     private var importControls: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "paintpalette.fill")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(liquidImportAccent)
-                    .padding(10)
-                    .background(.regularMaterial, in: Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Add New Coloring Page")
-                        .font(.headline.weight(.semibold))
-                    Text("Import line-art from Photos or Files.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            HStack(spacing: 10) {
-                PhotosPicker(
-                    selection: $selectedPhotoItem,
-                    matching: .images,
-                    preferredItemEncoding: .automatic
-                ) {
-                    liquidImportButtonLabel(
-                        title: "Photos",
-                        systemImage: "photo.on.rectangle.angled"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    isFileImporterPresented = true
-                } label: {
-                    liquidImportButtonLabel(
-                        title: "Files",
-                        systemImage: "folder"
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(elevatedSidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(liquidImportAccent.opacity(0.75), lineWidth: 1)
-                )
-        }
-    }
-
-    private func liquidImportButtonLabel(title: String, systemImage: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-        }
-        .foregroundStyle(.primary)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(controlSidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(sidebarControlStroke, lineWidth: 1)
-                )
-        }
+        TemplateStudioImportControlsCardView(
+            selectedPhotoItem: $selectedPhotoItem,
+            onFilesTap: {
+                isFileImporterPresented = true
+            },
+            elevatedSidebarFill: elevatedSidebarFill,
+            controlSidebarFill: controlSidebarFill,
+            sidebarControlStroke: sidebarControlStroke,
+            liquidImportAccent: liquidImportAccent
+        )
     }
 
     private var liquidImportAccent: LinearGradient {
@@ -811,83 +751,19 @@ struct TemplateStudioView: View {
         .accessibilityHint("Drag left or right to adjust the drawing library width.")
     }
 
-    private var libraryCollapseButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                columnVisibility = .detailOnly
-            }
-        } label: {
-            Image(systemName: "sidebar.leading")
-                .font(.subheadline.weight(.semibold))
-                .padding(8)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Hide Library")
-        .accessibilityHint("Collapse the drawing library and focus on the canvas.")
-    }
-
     private var libraryHeroCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "paintpalette.fill")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.12, green: 0.62, blue: 0.97),
-                                    Color(red: 0.18, green: 0.82, blue: 0.62)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Drawing Library")
-                            .font(.headline.weight(.semibold))
-                        Text("Organize, import, and color with one workspace.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+        TemplateStudioLibraryHeroCardView(
+            visibleCount: sortedTemplates.count,
+            importedCount: viewModel.visibleImportedTemplateCount,
+            onCollapseTap: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    columnVisibility = .detailOnly
                 }
-
-                Spacer(minLength: 8)
-                libraryCollapseButton
-            }
-
-            HStack(spacing: 8) {
-                sidebarMetricPill(value: sortedTemplates.count, label: "Visible")
-                sidebarMetricPill(value: viewModel.visibleImportedTemplateCount, label: "Imported")
-            }
-        }
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(elevatedSidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(sidebarCardStroke, lineWidth: 1)
-                )
-        }
-    }
-
-    private func sidebarMetricPill(value: Int, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("\(value)")
-                .font(.headline.weight(.semibold))
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(controlSidebarFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            },
+            elevatedSidebarFill: elevatedSidebarFill,
+            sidebarCardStroke: sidebarCardStroke,
+            controlSidebarFill: controlSidebarFill
+        )
     }
 
     private var elevatedSidebarFill: AnyShapeStyle {
@@ -1174,66 +1050,6 @@ struct TemplateStudioView: View {
             } catch {
                 await MainActor.run {
                     viewModel.reportImportFailure("Could not import the selected file.")
-                }
-            }
-        }
-    }
-}
-
-private struct HiddenTemplatesView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: TemplateStudioViewModel
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if viewModel.hiddenTemplates.isEmpty {
-                    ContentUnavailableView(
-                        "No Hidden Templates",
-                        systemImage: "eye",
-                        description: Text("Long-press a drawing and choose Hide to manage it here.")
-                    )
-                } else {
-                    ForEach(viewModel.hiddenTemplates) { template in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(template.title)
-                                    .font(.body.weight(.semibold))
-                                Text(template.source == .imported ? "Imported" : template.category)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Button("Unhide") {
-                                viewModel.unhideTemplate(template.id)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .contextMenu {
-                            Button {
-                                viewModel.unhideTemplate(template.id)
-                            } label: {
-                                Label("Unhide", systemImage: "eye")
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Hidden")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Unhide All") {
-                        viewModel.unhideAllTemplates()
-                    }
-                    .disabled(viewModel.hiddenTemplates.isEmpty)
                 }
             }
         }
