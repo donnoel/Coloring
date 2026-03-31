@@ -589,12 +589,11 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func createUserCategory(name: String) {
-        let category = TemplateCategory(
-            id: "user-\(UUID().uuidString)",
+        let category = TemplateCategoryMutationSupport.makeUserCategory(
             name: name,
-            isUserCreated: true
+            id: "user-\(UUID().uuidString)"
         )
-        userCategories.append(category)
+        userCategories = TemplateCategoryMutationSupport.appendingCategory(category, to: userCategories)
         syncCategoryOrderWithAvailableCategories()
         persistUserCategories()
         persistCategoryOrder()
@@ -604,21 +603,27 @@ final class TemplateStudioViewModel: ObservableObject {
         guard let index = userCategories.firstIndex(where: { $0.id == id }) else {
             return
         }
-        userCategories[index].name = name
+        userCategories = TemplateCategoryMutationSupport.renamingCategory(
+            in: userCategories,
+            at: index,
+            to: name
+        )
         rebuildCategoryLists()
         persistUserCategories()
     }
 
     func deleteUserCategory(_ id: String) {
-        userCategories.removeAll { $0.id == id }
-        categoryOrder.removeAll { $0 == id }
-        // Unassign templates from the deleted category
-        for (templateID, catID) in categoryAssignments where catID == id {
-            categoryAssignments.removeValue(forKey: templateID)
-        }
-        if selectedCategoryFilter == id {
-            selectedCategoryFilter = TemplateCategory.allCategory.id
-        }
+        let mutation = TemplateCategoryMutationSupport.deletingCategoryState(
+            categoryID: id,
+            userCategories: userCategories,
+            categoryOrder: categoryOrder,
+            categoryAssignments: categoryAssignments,
+            selectedCategoryFilter: selectedCategoryFilter
+        )
+        userCategories = mutation.userCategories
+        categoryOrder = mutation.categoryOrder
+        categoryAssignments = mutation.categoryAssignments
+        selectedCategoryFilter = mutation.selectedCategoryFilter
         syncCategoryOrderWithAvailableCategories()
         persistUserCategories()
         persistCategoryAssignments()
@@ -626,11 +631,11 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func assignTemplate(_ templateID: String, toCategoryID categoryID: String?) {
-        if let categoryID {
-            categoryAssignments[templateID] = categoryID
-        } else {
-            categoryAssignments.removeValue(forKey: templateID)
-        }
+        categoryAssignments = TemplateCategoryMutationSupport.assigningTemplate(
+            templateID,
+            to: categoryID,
+            in: categoryAssignments
+        )
         persistCategoryAssignments()
     }
 
@@ -639,19 +644,11 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        var updatedCategories = reorderableCategories
-        let sourceIndexes = source.sorted()
-        let movedCategories = sourceIndexes.map { updatedCategories[$0] }
-
-        for index in sourceIndexes.sorted(by: >) {
-            updatedCategories.remove(at: index)
-        }
-
-        let removalsBeforeDestination = sourceIndexes.filter { $0 < destination }.count
-        let adjustedDestination = max(0, min(updatedCategories.count, destination - removalsBeforeDestination))
-        updatedCategories.insert(contentsOf: movedCategories, at: adjustedDestination)
-
-        categoryOrder = updatedCategories.map(\.id)
+        categoryOrder = TemplateCategoryMutationSupport.movedCategoryOrder(
+            reorderableCategories: reorderableCategories,
+            source: source,
+            destination: destination
+        )
         rebuildCategoryLists()
         persistCategoryOrder()
     }
@@ -661,11 +658,10 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        if favoriteTemplateIDs.contains(templateID) {
-            favoriteTemplateIDs.remove(templateID)
-        } else {
-            favoriteTemplateIDs.insert(templateID)
-        }
+        favoriteTemplateIDs = TemplateCategoryMutationSupport.toggledMembership(
+            of: templateID,
+            in: favoriteTemplateIDs
+        )
 
         persistFavoriteTemplateIDs()
     }
@@ -675,11 +671,10 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        if completedTemplateIDs.contains(templateID) {
-            completedTemplateIDs.remove(templateID)
-        } else {
-            completedTemplateIDs.insert(templateID)
-        }
+        completedTemplateIDs = TemplateCategoryMutationSupport.toggledMembership(
+            of: templateID,
+            in: completedTemplateIDs
+        )
 
         persistCompletedTemplateIDs()
     }
@@ -691,7 +686,10 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        hiddenTemplateIDs.insert(templateID)
+        hiddenTemplateIDs = TemplateCategoryMutationSupport.insertingTemplateID(
+            templateID,
+            into: hiddenTemplateIDs
+        )
         persistHiddenTemplateIDs()
         refreshBuiltInCategoriesFromVisibleTemplates()
     }
@@ -701,7 +699,10 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        hiddenTemplateIDs.remove(templateID)
+        hiddenTemplateIDs = TemplateCategoryMutationSupport.removingTemplateID(
+            templateID,
+            from: hiddenTemplateIDs
+        )
         persistHiddenTemplateIDs()
         refreshBuiltInCategoriesFromVisibleTemplates()
     }
@@ -711,7 +712,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        hiddenTemplateIDs.removeAll()
+        hiddenTemplateIDs = TemplateCategoryMutationSupport.clearingTemplateIDs()
         persistHiddenTemplateIDs()
         refreshBuiltInCategoriesFromVisibleTemplates()
     }
