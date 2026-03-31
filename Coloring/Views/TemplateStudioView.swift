@@ -581,18 +581,23 @@ struct TemplateStudioView: View {
 
             VStack(spacing: 0) {
                 if isPaletteAtTop {
-                    paletteBar
-                        .padding(.top, 56)
+                    if isPaletteChromeVisible {
+                        paletteBar
+                            .padding(.top, 56)
+                            .transition(paletteHiddenTransition)
+                    }
                 }
 
                 Spacer(minLength: 0)
 
                 if !isPaletteAtTop {
-                    paletteBar
-                        .padding(.bottom, 20)
+                    if isPaletteChromeVisible {
+                        paletteBar
+                            .padding(.bottom, 20)
+                            .transition(paletteHiddenTransition)
+                    }
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: isPaletteVisible)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
@@ -617,9 +622,6 @@ struct TemplateStudioView: View {
             onRedo: { viewModel.redoLastEdit() }
         )
         .padding(.horizontal, 20)
-        .opacity((isPaletteVisible || viewModel.isFillModeActive) ? 1 : 0)
-        .offset(y: (isPaletteVisible || viewModel.isFillModeActive) ? 0 : paletteHiddenOffset)
-        .allowsHitTesting(isPaletteVisible || viewModel.isFillModeActive)
     }
 
     private var sidebarBackground: some View {
@@ -815,6 +817,14 @@ struct TemplateStudioView: View {
 
     private var paletteHiddenOffset: CGFloat {
         isPaletteAtTop ? -24 : 24
+    }
+
+    private var isPaletteChromeVisible: Bool {
+        isPaletteVisible || viewModel.isFillModeActive
+    }
+
+    private var paletteHiddenTransition: AnyTransition {
+        .offset(y: paletteHiddenOffset).combined(with: .opacity)
     }
 
     private func togglePalettePlacement() {
