@@ -9,8 +9,11 @@ final class GalleryViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let galleryStore: any GalleryStoreProviding
+    private let imageLoader = GalleryImageLoader()
     private var thumbnailCache: [String: UIImage] = [:]
     private var fullImageCache: [String: UIImage] = [:]
+    private var loadingThumbnailPaths: Set<String> = []
+    private var loadingFullImagePaths: Set<String> = []
 
     init(galleryStore: any GalleryStoreProviding) {
         self.galleryStore = galleryStore
@@ -57,12 +60,8 @@ final class GalleryViewModel: ObservableObject {
             return cachedImage
         }
 
-        guard let image = UIImage(contentsOfFile: entry.thumbnailPath) else {
-            return nil
-        }
-
-        thumbnailCache[entry.thumbnailPath] = image
-        return image
+        scheduleThumbnailLoadIfNeeded(atPath: entry.thumbnailPath)
+        return nil
     }
 
     func fullImage(for entry: ArtworkEntry) -> UIImage? {
@@ -70,11 +69,55 @@ final class GalleryViewModel: ObservableObject {
             return cachedImage
         }
 
-        guard let image = UIImage(contentsOfFile: entry.fullImagePath) else {
-            return nil
+        scheduleFullImageLoadIfNeeded(atPath: entry.fullImagePath)
+        return nil
+    }
+
+    private func scheduleThumbnailLoadIfNeeded(atPath path: String) {
+        guard !loadingThumbnailPaths.contains(path) else {
+            return
         }
 
-        fullImageCache[entry.fullImagePath] = image
-        return image
+        loadingThumbnailPaths.insert(path)
+        Task {
+            let image = await imageLoader.loadImage(atPath: path)
+            loadingThumbnailPaths.remove(path)
+
+            guard let image else {
+                return
+            }
+
+            thumbnailCache[path] = image
+            objectWillChange.send()
+        }
+    }
+
+    private func scheduleFullImageLoadIfNeeded(atPath path: String) {
+        guard !loadingFullImagePaths.contains(path) else {
+            return
+        }
+
+        loadingFullImagePaths.insert(path)
+        Task {
+            let image = await imageLoader.loadImage(atPath: path)
+            loadingFullImagePaths.remove(path)
+
+            guard let image else {
+                return
+            }
+
+            fullImageCache[path] = image
+            objectWillChange.send()
+        }
+    }
+}
+
+private actor GalleryImageLoader {
+    func loadImage(atPath path: String) -> UIImage? {
+        let fileURL = URL(fileURLWithPath: path)
+        guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else {
+            return nil
+        }
+        return UIImage(data: data)
     }
 }
