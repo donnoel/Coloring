@@ -3191,6 +3191,101 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    func testCategoryMutationSupportDeletingCategoryStateRemovesCategoryOrderAssignmentsAndSelectedFilter() {
+        let firstCategory = TemplateCategory(id: "user-1", name: "One", isUserCreated: true)
+        let secondCategory = TemplateCategory(id: "user-2", name: "Two", isUserCreated: true)
+        let result = TemplateCategoryMutationSupport.deletingCategoryState(
+            categoryID: "user-1",
+            userCategories: [firstCategory, secondCategory],
+            categoryOrder: ["user-1", "user-2", "builtin-landscape"],
+            categoryAssignments: ["template-a": "user-1", "template-b": "user-2"],
+            selectedCategoryFilter: "user-1"
+        )
+
+        XCTAssertEqual(result.userCategories.map(\.id), ["user-2"])
+        XCTAssertEqual(result.categoryOrder, ["user-2", "builtin-landscape"])
+        XCTAssertNil(result.categoryAssignments["template-a"])
+        XCTAssertEqual(result.categoryAssignments["template-b"], "user-2")
+        XCTAssertEqual(result.selectedCategoryFilter, TemplateCategory.allCategory.id)
+    }
+
+    func testCategoryMutationSupportDeletingCategoryStatePreservesUnrelatedSelectedFilter() {
+        let firstCategory = TemplateCategory(id: "user-1", name: "One", isUserCreated: true)
+        let secondCategory = TemplateCategory(id: "user-2", name: "Two", isUserCreated: true)
+        let result = TemplateCategoryMutationSupport.deletingCategoryState(
+            categoryID: "user-1",
+            userCategories: [firstCategory, secondCategory],
+            categoryOrder: ["user-1", "user-2"],
+            categoryAssignments: ["template-a": "user-1"],
+            selectedCategoryFilter: "user-2"
+        )
+
+        XCTAssertEqual(result.selectedCategoryFilter, "user-2")
+        XCTAssertEqual(result.userCategories.map(\.id), ["user-2"])
+    }
+
+    func testCategoryMutationSupportMovedCategoryOrderHandlesMultiIndexMoveWithAdjustedDestination() {
+        let categories = [
+            TemplateCategory(id: "a", name: "A", isUserCreated: true),
+            TemplateCategory(id: "b", name: "B", isUserCreated: true),
+            TemplateCategory(id: "c", name: "C", isUserCreated: true),
+            TemplateCategory(id: "d", name: "D", isUserCreated: true),
+            TemplateCategory(id: "e", name: "E", isUserCreated: true)
+        ]
+
+        let reorderedIDs = TemplateCategoryMutationSupport.movedCategoryOrder(
+            reorderableCategories: categories,
+            source: IndexSet([1, 2]),
+            destination: 4
+        )
+
+        XCTAssertEqual(reorderedIDs, ["a", "d", "b", "c", "e"])
+    }
+
+    func testCategoryMutationSupportAssigningTemplateAddsAndRemovesCategoryAssignment() {
+        let startingAssignments = ["template-a": "user-1"]
+        let assigned = TemplateCategoryMutationSupport.assigningTemplate(
+            "template-b",
+            to: "user-2",
+            in: startingAssignments
+        )
+        XCTAssertEqual(assigned["template-a"], "user-1")
+        XCTAssertEqual(assigned["template-b"], "user-2")
+
+        let unassigned = TemplateCategoryMutationSupport.assigningTemplate(
+            "template-a",
+            to: nil,
+            in: assigned
+        )
+        XCTAssertNil(unassigned["template-a"])
+        XCTAssertEqual(unassigned["template-b"], "user-2")
+    }
+
+    func testCategoryMutationSupportToggledMembershipAddsThenRemovesTemplateID() {
+        let added = TemplateCategoryMutationSupport.toggledMembership(
+            of: "template-1",
+            in: []
+        )
+        XCTAssertEqual(added, Set(["template-1"]))
+
+        let removed = TemplateCategoryMutationSupport.toggledMembership(
+            of: "template-1",
+            in: added
+        )
+        XCTAssertTrue(removed.isEmpty)
+    }
+
+    func testCategoryMutationSupportHideTemplateSetMutationsInsertRemoveAndClearIDs() {
+        let inserted = TemplateCategoryMutationSupport.insertingTemplateID("template-b", into: Set(["template-a"]))
+        XCTAssertEqual(inserted, Set(["template-a", "template-b"]))
+
+        let removed = TemplateCategoryMutationSupport.removingTemplateID("template-b", from: inserted)
+        XCTAssertEqual(removed, Set(["template-a"]))
+
+        let cleared = TemplateCategoryMutationSupport.clearingTemplateIDs()
+        XCTAssertTrue(cleared.isEmpty)
+    }
+
     private static func makeTemplate(
         id: String,
         title: String,
