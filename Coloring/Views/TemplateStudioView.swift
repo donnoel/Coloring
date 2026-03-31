@@ -824,7 +824,7 @@ struct TemplateStudioView: View {
     }
 
     private var paletteHiddenTransition: AnyTransition {
-        .offset(y: paletteHiddenOffset).combined(with: .opacity)
+        .offset(y: paletteHiddenOffset)
     }
 
     private func togglePalettePlacement() {
