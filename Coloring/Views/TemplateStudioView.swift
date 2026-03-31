@@ -401,65 +401,21 @@ struct TemplateStudioView: View {
         let isFavorite = viewModel.isFavorite(template.id)
         let isCompleted = viewModel.isCompleted(template.id)
 
-        return Button {
-            viewModel.selectTemplate(template.id)
-            withAnimation(.easeInOut(duration: 0.2)) {
-                columnVisibility = .detailOnly
-            }
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(template.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(template.source == .imported ? "Imported" : template.category)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                if template.isImported {
-                    Image(systemName: "tray.and.arrow.down")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(6)
-                        .background(importedTemplateBadgeFill, in: Circle())
-                }
-
-                if isFavorite {
-                    Image(systemName: "star.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.yellow)
-                }
-
-                if isCompleted {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.green)
-                }
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(Color.accentColor)
+        return TemplateStudioTemplateRowView(
+            template: template,
+            isSelected: isSelected,
+            isFavorite: isFavorite,
+            isCompleted: isCompleted,
+            rowFill: templateRowFill(isSelected: isSelected),
+            rowStroke: templateRowStroke(isSelected: isSelected),
+            importedBadgeFill: importedTemplateBadgeFill,
+            onSelect: {
+                viewModel.selectTemplate(template.id)
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    columnVisibility = .detailOnly
                 }
             }
-            .padding(.vertical, 11)
-            .padding(.horizontal, 12)
-            .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(templateRowFill(isSelected: isSelected))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(templateRowStroke(isSelected: isSelected), lineWidth: 1)
-                    )
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
+        ) {
             Button {
                 viewModel.toggleFavorite(for: template.id)
             } label: {
@@ -511,8 +467,7 @@ struct TemplateStudioView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        } swipeActionsContent: {
             if template.isImported {
                 Button {
                     startRename(template)
@@ -545,49 +500,17 @@ struct TemplateStudioView: View {
     }
 
     private var categoryFilterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(viewModel.allCategories) { category in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            viewModel.selectedCategoryFilter = category.id
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(category.name)
-                                .font(.caption.weight(.medium))
-
-                            if category.id == TemplateCategory.inProgressCategory.id {
-                                Text("\(viewModel.visibleInProgressTemplateIDs.count)")
-                                    .font(.caption2.weight(.semibold))
-                                    .monospacedDigit()
-                                    .foregroundStyle(
-                                        viewModel.selectedCategoryFilter == category.id
-                                            ? Color.accentColor
-                                            : Color.secondary
-                                    )
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(categoryBadgeFill(isSelected: viewModel.selectedCategoryFilter == category.id), in: Capsule())
-                            }
-                        }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(categoryChipFill(isSelected: viewModel.selectedCategoryFilter == category.id), in: Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(
-                                        viewModel.selectedCategoryFilter == category.id
-                                            ? Color.accentColor
-                                            : Color.clear,
-                                        lineWidth: 1
-                                    )
-                            )
-                    }
-                    .buttonStyle(.plain)
+        TemplateStudioCategoryFilterChipsView(
+            categories: viewModel.allCategories,
+            selectedCategoryID: viewModel.selectedCategoryFilter,
+            inProgressCategoryID: TemplateCategory.inProgressCategory.id,
+            inProgressCount: viewModel.visibleInProgressTemplateIDs.count,
+            onSelectCategory: { categoryID in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedCategoryFilter = categoryID
                 }
             }
-        }
+        )
     }
 
     private var templateWorkspace: some View {
@@ -830,30 +753,6 @@ struct TemplateStudioView: View {
         }
 
         return Color.white.opacity(0.55)
-    }
-
-    private func categoryBadgeFill(isSelected: Bool) -> Color {
-        if colorScheme == .dark {
-            return isSelected
-                ? Color(red: 0.80, green: 0.90, blue: 1.00).opacity(0.2)
-                : Color(red: 0.18, green: 0.22, blue: 0.29).opacity(0.98)
-        }
-
-        return isSelected
-            ? Color.white.opacity(0.72)
-            : Color(.systemBackground).opacity(0.9)
-    }
-
-    private func categoryChipFill(isSelected: Bool) -> Color {
-        if colorScheme == .dark {
-            return isSelected
-                ? Color(red: 0.13, green: 0.30, blue: 0.50).opacity(0.42)
-                : Color(red: 0.14, green: 0.18, blue: 0.24).opacity(0.96)
-        }
-
-        return isSelected
-            ? Color.accentColor.opacity(0.2)
-            : Color(.systemGray5)
     }
 
     private func handleStrokeInteractionChanged(_ isActive: Bool) {
