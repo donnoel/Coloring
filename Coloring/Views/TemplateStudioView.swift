@@ -103,11 +103,7 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes the imported drawing from this iPad and iCloud.")
         }
-        .confirmationDialog(
-            "Clear Strokes",
-            isPresented: $isClearStrokesConfirmationPresented,
-            titleVisibility: .visible
-        ) {
+        .alert("Clear Strokes", isPresented: $isClearStrokesConfirmationPresented) {
             Button("Confirm Clear Strokes", role: .destructive) {
                 viewModel.clearDrawing()
             }
@@ -115,11 +111,7 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes all drawn strokes for the selected drawing.")
         }
-        .confirmationDialog(
-            "Clear Fills",
-            isPresented: $isClearFillsConfirmationPresented,
-            titleVisibility: .visible
-        ) {
+        .alert("Clear Fills", isPresented: $isClearFillsConfirmationPresented) {
             Button("Confirm Clear Fills", role: .destructive) {
                 viewModel.clearFills()
             }
