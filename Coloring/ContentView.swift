@@ -23,7 +23,7 @@ struct ContentView: View {
                     viewModel: templateViewModel,
                     onColoringInteractionChanged: handleStudioColoringInteractionChanged
                 )
-                    .toolbar(isStudioTabPillVisible ? .visible : .hidden, for: .tabBar)
+                    .toolbar(.visible, for: .tabBar)
                     .tabItem {
                         Label("Studio", systemImage: "paintbrush.pointed")
                     }
@@ -35,6 +35,15 @@ struct ContentView: View {
                         Label("Gallery", systemImage: "photo.on.rectangle.angled")
                     }
                     .tag(RootTab.gallery)
+            }
+            .overlay(alignment: .top) {
+                if shouldMaskStudioTabPill {
+                    Rectangle()
+                        .fill(topChromeMaskFill)
+                        .frame(height: 84)
+                        .ignoresSafeArea(edges: .top)
+                        .transition(.opacity)
+                }
             }
         }
         .onChange(of: selectedTabRawValue) { _, newValue in
@@ -132,6 +141,28 @@ struct ContentView: View {
 
     private var shouldRenderDecorativeBackground: Bool {
         selectedTabRawValue != RootTab.studio.rawValue || isStudioTabPillVisible
+    }
+
+    private var shouldMaskStudioTabPill: Bool {
+        selectedTabRawValue == RootTab.studio.rawValue && !isStudioTabPillVisible
+    }
+
+    private var topChromeMaskFill: LinearGradient {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [
+                    Color("InkBlack"),
+                    Color.black.opacity(0.95),
+                    Color(red: 0.07, green: 0.07, blue: 0.09)
+                ]
+                : [
+                    Color(red: 0.95, green: 0.98, blue: 1.00),
+                    Color(red: 0.96, green: 0.98, blue: 0.97),
+                    Color(red: 0.99, green: 0.98, blue: 0.99)
+                ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     private func handleStudioColoringInteractionChanged(_ isActive: Bool) {
