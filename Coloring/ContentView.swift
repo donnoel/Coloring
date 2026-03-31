@@ -129,9 +129,7 @@ struct ContentView: View {
             studioTabPillAutoShowTask = nil
 
             if isStudioTabPillVisible {
-                withAnimation(.easeOut(duration: 0.12)) {
-                    isStudioTabPillVisible = false
-                }
+                isStudioTabPillVisible = false
             }
             return
         }
@@ -144,9 +142,7 @@ struct ContentView: View {
             }
 
             await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isStudioTabPillVisible = true
-                }
+                isStudioTabPillVisible = true
             }
         }
     }
@@ -159,9 +155,7 @@ struct ContentView: View {
             return
         }
 
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isStudioTabPillVisible = true
-        }
+        isStudioTabPillVisible = true
     }
 }
 
