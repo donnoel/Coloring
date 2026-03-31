@@ -679,7 +679,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             throw LibraryError.invalidImageData
         }
 
-        let sanitizedName = Self.sanitizedFilename(preferredName ?? "Imported Drawing")
+        let sanitizedName = TemplateImportedTemplateNamingSupport.sanitizedFilename(preferredName ?? "Imported Drawing")
         let filename = "\(sanitizedName)-\(UUID().uuidString.lowercased()).png"
         let destinationURL = try importedDirectoryURL().appendingPathComponent(filename)
 
@@ -689,7 +689,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
 
         return ColoringTemplate(
             id: "imported-\(filename)",
-            title: Self.humanReadableTitle(from: filename),
+            title: TemplateImportedTemplateNamingSupport.humanReadableTitle(from: filename),
             category: "Imported",
             source: .imported,
             filePath: destinationURL.path
@@ -706,8 +706,8 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let sourceURL = existingTemplate.fileURL
         let directoryURL = try importedDirectoryURL()
         let sourceStem = sourceURL.deletingPathExtension().lastPathComponent
-        let suffix = Self.uuidSuffix(from: sourceStem) ?? "-\(UUID().uuidString.lowercased())"
-        let preferredFileName = "\(Self.sanitizedFilename(trimmedTitle))\(suffix).png"
+        let suffix = TemplateImportedTemplateNamingSupport.uuidSuffix(from: sourceStem) ?? "-\(UUID().uuidString.lowercased())"
+        let preferredFileName = "\(TemplateImportedTemplateNamingSupport.sanitizedFilename(trimmedTitle))\(suffix).png"
         let destinationURL = uniqueDestinationURL(
             in: directoryURL,
             preferredFileName: preferredFileName,
@@ -725,7 +725,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         let filename = destinationURL.lastPathComponent
         return ColoringTemplate(
             id: "imported-\(filename)",
-            title: Self.humanReadableTitle(from: filename),
+            title: TemplateImportedTemplateNamingSupport.humanReadableTitle(from: filename),
             category: "Imported",
             source: .imported,
             filePath: destinationURL.path
@@ -906,7 +906,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
                 let filename = fileURL.lastPathComponent
                 return ColoringTemplate(
                     id: "imported-\(filename)",
-                    title: Self.humanReadableTitle(from: filename),
+                    title: TemplateImportedTemplateNamingSupport.humanReadableTitle(from: filename),
                     category: "Imported",
                     source: .imported,
                     filePath: fileURL.path
@@ -1244,39 +1244,6 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
     }
 
-    nonisolated private static func sanitizedFilename(_ title: String) -> String {
-        let lowered = title.lowercased()
-        let allowed = CharacterSet.alphanumerics.union(.whitespaces)
-        let filteredScalars = lowered.unicodeScalars.map { allowed.contains($0) ? Character($0) : " " }
-        let normalized = String(filteredScalars)
-            .split(whereSeparator: { $0.isWhitespace })
-            .joined(separator: "-")
-
-        return normalized.isEmpty ? "imported-drawing" : normalized
-    }
-
-    nonisolated private static func uuidSuffix(from fileStem: String) -> String? {
-        let pattern = "-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        guard let range = fileStem.range(of: pattern, options: .regularExpression) else {
-            return nil
-        }
-        return String(fileStem[range])
-    }
-
-    nonisolated private static func humanReadableTitle(from filename: String) -> String {
-        var stem = filename
-            .replacingOccurrences(of: ".png", with: "")
-        if let uuidRange = stem.range(
-            of: "-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-            options: .regularExpression
-        ) {
-            stem.removeSubrange(uuidRange)
-        }
-
-        let normalized = stem.replacingOccurrences(of: "-", with: " ")
-
-        return normalized.capitalized
-    }
 }
 
 private extension Data {
