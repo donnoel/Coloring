@@ -36,6 +36,30 @@ final class ColoringUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
     }
 
+    func testRepeatedStudioGallerySwitchingRemainsReachable() throws {
+        let app = launchApp()
+        XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
+        XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+
+        for _ in 0..<3 {
+            XCTAssertTrue(tapTab(named: "Gallery", in: app), "Could not tap Gallery tab")
+            XCTAssertTrue(
+                waitForAny(
+                    [
+                        app.staticTexts["No Artwork Yet"],
+                        app.staticTexts["Loading Artwork…"],
+                        app.staticTexts["Artwork Gallery"]
+                    ],
+                    timeout: 10
+                ),
+                "Gallery content did not appear"
+            )
+
+            XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
+            XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+        }
+    }
+
     func testLayersIsNotVisibleInStudioSidebar() throws {
         let app = launchApp()
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")

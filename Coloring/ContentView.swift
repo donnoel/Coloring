@@ -75,47 +75,63 @@ struct ContentView: View {
         )
         .ignoresSafeArea()
         .overlay {
-            Circle()
-                .fill(Color("SprayRed").opacity(colorScheme == .dark ? 0.23 : 0.14))
-                .frame(width: 430, height: 430)
-                .blur(radius: 44)
-                .offset(x: 330, y: -250)
+            if shouldRenderDecorativeBackground {
+                Circle()
+                    .fill(Color("SprayRed").opacity(colorScheme == .dark ? 0.23 : 0.14))
+                    .frame(width: 430, height: 430)
+                    .blur(radius: 44)
+                    .offset(x: 330, y: -250)
+            }
         }
         .overlay {
-            Circle()
-                .fill(Color("SprayOrange").opacity(colorScheme == .dark ? 0.18 : 0.10))
-                .frame(width: 420, height: 420)
-                .blur(radius: 54)
-                .offset(x: 80, y: -280)
+            if shouldRenderDecorativeBackground {
+                Circle()
+                    .fill(Color("SprayOrange").opacity(colorScheme == .dark ? 0.18 : 0.10))
+                    .frame(width: 420, height: 420)
+                    .blur(radius: 54)
+                    .offset(x: 80, y: -280)
+            }
         }
         .overlay {
-            Circle()
-                .fill(Color("SprayYellow").opacity(colorScheme == .dark ? 0.15 : 0.08))
-                .frame(width: 380, height: 380)
-                .blur(radius: 58)
-                .offset(x: -210, y: -250)
+            if shouldRenderDecorativeBackground {
+                Circle()
+                    .fill(Color("SprayYellow").opacity(colorScheme == .dark ? 0.15 : 0.08))
+                    .frame(width: 380, height: 380)
+                    .blur(radius: 58)
+                    .offset(x: -210, y: -250)
+            }
         }
         .overlay {
-            Circle()
-                .fill(Color("SprayGreen").opacity(colorScheme == .dark ? 0.16 : 0.09))
-                .frame(width: 560, height: 560)
-                .blur(radius: 60)
-                .offset(x: -330, y: 260)
+            if shouldRenderDecorativeBackground {
+                Circle()
+                    .fill(Color("SprayGreen").opacity(colorScheme == .dark ? 0.16 : 0.09))
+                    .frame(width: 560, height: 560)
+                    .blur(radius: 60)
+                    .offset(x: -330, y: 260)
+            }
         }
         .overlay {
-            Circle()
-                .fill(Color("SprayBlue").opacity(colorScheme == .dark ? 0.16 : 0.09))
-                .frame(width: 510, height: 510)
-                .blur(radius: 60)
-                .offset(x: 40, y: 300)
+            if shouldRenderDecorativeBackground {
+                Circle()
+                    .fill(Color("SprayBlue").opacity(colorScheme == .dark ? 0.16 : 0.09))
+                    .frame(width: 510, height: 510)
+                    .blur(radius: 60)
+                    .offset(x: 40, y: 300)
+            }
         }
         .overlay {
-            Circle()
-                .fill(Color("SprayViolet").opacity(colorScheme == .dark ? 0.18 : 0.10))
-                .frame(width: 500, height: 500)
-                .blur(radius: 62)
-                .offset(x: 350, y: 210)
+            if shouldRenderDecorativeBackground {
+                Circle()
+                    .fill(Color("SprayViolet").opacity(colorScheme == .dark ? 0.18 : 0.10))
+                    .frame(width: 500, height: 500)
+                    .blur(radius: 62)
+                    .offset(x: 350, y: 210)
+            }
         }
+    }
+
+    private var shouldRenderDecorativeBackground: Bool {
+        selectedTabRawValue != RootTab.studio.rawValue || isStudioTabPillVisible
     }
 
     private func handleStudioColoringInteractionChanged(_ isActive: Bool) {
