@@ -2090,6 +2090,43 @@ final class ColoringTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(thumbnailSignature[2], 240)
     }
 
+    func testGalleryStoreServiceSaveArtworkFailsClosedWhenManifestIsUnreadable() async throws {
+        let fileManager = FileManager.default
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
+        try fileManager.createDirectory(at: galleryURL, withIntermediateDirectories: true)
+
+        let manifestURL = galleryURL.appendingPathComponent("manifest.json")
+        let unreadableManifestData = Data("not valid json".utf8)
+        try unreadableManifestData.write(to: manifestURL, options: .atomic)
+
+        let store = makeRealGalleryStore(galleryURL: galleryURL)
+        let imageData = await MainActor.run {
+            solidColorTemplateImageData(.purple, size: CGSize(width: 32, height: 20))
+        }
+
+        do {
+            _ = try await store.saveArtwork(
+                imageData: imageData,
+                sourceTemplateID: "builtin-1",
+                sourceTemplateName: "Template One"
+            )
+            XCTFail("Expected saveArtwork to throw when manifest is unreadable.")
+        } catch {
+            // Expected.
+        }
+
+        let galleryItems = try fileManager.contentsOfDirectory(
+            at: galleryURL,
+            includingPropertiesForKeys: nil
+        )
+        let savedArtworkItems = galleryItems.filter { $0.pathExtension.lowercased() == "png" }
+        XCTAssertTrue(savedArtworkItems.isEmpty, "Expected no newly saved artwork files.")
+
+        let manifestDataAfterFailure = try Data(contentsOf: manifestURL)
+        XCTAssertEqual(manifestDataAfterFailure, unreadableManifestData)
+    }
+
     func testTemplateExportUsesTemplateSizedCanvas() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let templateImageData = await MainActor.run {

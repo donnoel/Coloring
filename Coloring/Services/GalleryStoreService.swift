@@ -61,6 +61,7 @@ actor GalleryStoreService: GalleryStoreProviding {
         sourceTemplateID: String,
         sourceTemplateName: String
     ) throws -> ArtworkEntry {
+        let fileManager = FileManager.default
         try ensureDirectoryExists()
         let directoryURL = try galleryDirectoryURL()
 
@@ -71,12 +72,12 @@ actor GalleryStoreService: GalleryStoreProviding {
 
         // Save full image
         let fullImageURL = directoryURL.appendingPathComponent(fullImageFilename)
+        let thumbnailURL = directoryURL.appendingPathComponent(thumbnailFilename)
         try normalizedImageData.write(to: fullImageURL, options: .atomic)
 
         // Generate and save thumbnail
         if let fullImage = UIImage(data: normalizedImageData) {
             let thumbnailData = generateThumbnail(from: fullImage, maxSize: 300)
-            let thumbnailURL = directoryURL.appendingPathComponent(thumbnailFilename)
             try? thumbnailData?.write(to: thumbnailURL, options: .atomic)
         }
 
@@ -89,12 +90,17 @@ actor GalleryStoreService: GalleryStoreProviding {
             thumbnailFilename: thumbnailFilename
         )
 
-        var entries = (try? loadEntries()) ?? []
-        entries.insert(entry, at: 0)
-        cachedEntries = entries
-        try persistManifest(entries)
-
-        return entry
+        do {
+            var entries = try loadEntries()
+            entries.insert(entry, at: 0)
+            try persistManifest(entries)
+            cachedEntries = entries
+            return entry
+        } catch {
+            try? fileManager.removeItem(at: fullImageURL)
+            try? fileManager.removeItem(at: thumbnailURL)
+            throw error
+        }
     }
 
     func deleteEntry(_ id: String) throws {
