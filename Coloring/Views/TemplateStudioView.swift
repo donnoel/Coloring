@@ -88,22 +88,20 @@ struct TemplateStudioView: View {
         } message: {
             Text("Choose a new name for this imported drawing.")
         }
-        .confirmationDialog(
-            "Delete Drawing",
-            isPresented: isDeleteDialogPresented,
-            titleVisibility: .visible
-        ) {
-            if let templatePendingDeletion {
-                Button("Delete \"\(templatePendingDeletion.title)\"", role: .destructive) {
-                    confirmDeletion()
-                }
+        .alert("Delete Drawing", isPresented: isDeleteDialogPresented) {
+            Button("Confirm Delete Drawing", role: .destructive) {
+                confirmDeletion()
             }
 
             Button("Cancel", role: .cancel) {
                 templatePendingDeletion = nil
             }
         } message: {
-            Text("This removes the imported drawing from this iPad and iCloud.")
+            if let templatePendingDeletion {
+                Text("This removes \"\(templatePendingDeletion.title)\" from this iPad and iCloud.")
+            } else {
+                Text("This removes the imported drawing from this iPad and iCloud.")
+            }
         }
         .alert("Clear Strokes", isPresented: $isClearStrokesConfirmationPresented) {
             Button("Confirm Clear Strokes", role: .destructive) {
@@ -121,11 +119,7 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes all fill colors for the selected drawing.")
         }
-        .confirmationDialog(
-            "Delete All Imported",
-            isPresented: $isDeleteAllImportedConfirmationPresented,
-            titleVisibility: .visible
-        ) {
+        .alert("Delete All Imported", isPresented: $isDeleteAllImportedConfirmationPresented) {
             Button("Confirm Delete All", role: .destructive) {
                 confirmDeleteAllImported()
             }
