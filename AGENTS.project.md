@@ -9,20 +9,20 @@ Success means users can pick a scene, color it intuitively, and export finished 
 
 ## Current product phase (MVP+ implemented)
 1) MVP scope
-- Single full-screen Apple Pencil studio (no Scene/Templates tab split)
+- Studio + Gallery tab shell with a full-screen Apple Pencil studio (no Scene/Templates tab split)
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
 - Apple Pencil Template Studio with 80 manifest-driven built-in templates, including orientation metadata
 - Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Landscape/Portrait, four complexity folders (Easy/Medium/Detailed/Dense), and manifest-driven shelf folders (Cozy, Nature, Animals, Fantasy, Patterns, Seasonal, Motorsport, Sci-Fi) with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
+- Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
 
 2) Architecture boundaries
 - SwiftUI views handle presentation and interaction only
 - View model owns screen state and user actions
-- Services own scene catalog and export IO
-- Services own template catalog/import persistence and template export IO
+- Services own template catalog/import persistence, category state persistence, drawing persistence, and export/gallery IO
 
 3) Reliability and UX goals
 - Clean build with no warnings
@@ -33,16 +33,18 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Restore imported drawings from iCloud when local files are missing
 - Retry imported drawing restore after launch and on app foreground to handle delayed iCloud availability
 - Persist per-template coloring strokes locally and mirror them to iCloud for reinstall recovery
+- Keep hidden-template state durable so hidden items stay excluded from normal library browsing until unhidden
 
 4) Testing priorities
 - View-model state transitions (scene switching, coloring, clearing)
 - Export state handling
 - Template image synchronization when switching between same-size templates
 - Imported drawing reset flows (single delete and delete-all confirmation behavior)
+- Hidden/unhidden template flows and category-state sanitization
 
 ## Architecture snapshot (current)
 - App entry: `/Users/donnoel/Development/Coloring/Coloring/ColoringApp.swift`
-- Root navigation: single Template Studio root in `/Users/donnoel/Development/Coloring/Coloring/ContentView.swift`
+- Root navigation: Studio + Gallery `TabView` root in `/Users/donnoel/Development/Coloring/Coloring/ContentView.swift`
 - Template view model: `/Users/donnoel/Development/Coloring/Coloring/ViewModels/TemplateStudioViewModel.swift`
 - Services:
   - `/Users/donnoel/Development/Coloring/Coloring/Services/TemplateLibraryService.swift`
@@ -68,6 +70,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - The In Progress folder automatically includes drawings that have saved strokes or fills, excludes drawings marked Completed, and removes drawings when both strokes and fills are cleared.
 - The In Progress chip displays the current number of non-completed drawings with saved strokes or fills.
 - Favorites and Completed folder membership persist locally per drawing, and Recent reflects the most recently opened drawings first.
+- Hidden template IDs persist locally and hidden drawings remain excluded from normal browsing/category results until unhidden.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
@@ -85,6 +88,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - The native PencilKit tool picker should stay in sync with the active system appearance while preserving light-canvas color mapping so black/white inks do not invert.
 - Gallery exports and thumbnails should be normalized to an opaque white-backed image so transparent regions never appear dark in gallery previews.
 - Gallery stage cards should render full-resolution artwork, while the bottom thumbnail rail should use compact thumbnails for performance.
+- Sending artwork to Gallery should be best-effort and must not fail/share-block a completed PNG export.
 
 ## UX rules
 - iPad-first layout with clear template navigation.
