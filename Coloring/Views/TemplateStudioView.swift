@@ -43,6 +43,7 @@ struct TemplateStudioView: View {
         } detail: {
             templateWorkspace
         }
+        .accessibilityIdentifier("studio.root")
         .navigationSplitViewStyle(.prominentDetail)
         .ignoresSafeArea(edges: .top)
         .task {

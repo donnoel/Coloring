@@ -36,6 +36,7 @@ struct GalleryView: View {
                         galleryContent(in: geometry.size)
                     }
                 }
+                .accessibilityIdentifier("gallery.root")
                 .ignoresSafeArea()
             }
             .navigationTitle("Gallery")

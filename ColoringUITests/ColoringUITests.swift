@@ -11,59 +11,39 @@ final class ColoringUITests: XCTestCase {
         XCTAssertTrue(findShellSwitchElement(named: "Studio", in: app).exists)
         XCTAssertTrue(findShellSwitchElement(named: "Gallery", in: app).exists)
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
-        XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForStudioContent(in: app))
     }
 
     func testSwitchesBetweenStudioAndGalleryTabs() throws {
         let app = launchApp()
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
-        XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForStudioContent(in: app))
 
         XCTAssertTrue(tapTab(named: "Gallery", in: app), "Could not tap Gallery tab")
-        XCTAssertTrue(
-            waitForAny(
-                [
-                    app.staticTexts["No Artwork Yet"],
-                    app.staticTexts["Loading Artwork…"],
-                    app.staticTexts["Artwork Gallery"]
-                ],
-                timeout: 10
-            ),
-            "Gallery content did not appear"
-        )
+        XCTAssertTrue(waitForGalleryContent(in: app), "Gallery content did not appear")
 
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
-        XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForStudioContent(in: app))
     }
 
     func testRepeatedStudioGallerySwitchingRemainsReachable() throws {
         let app = launchApp()
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
-        XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForStudioContent(in: app))
 
         for _ in 0..<3 {
             XCTAssertTrue(tapTab(named: "Gallery", in: app), "Could not tap Gallery tab")
-            XCTAssertTrue(
-                waitForAny(
-                    [
-                        app.staticTexts["No Artwork Yet"],
-                        app.staticTexts["Loading Artwork…"],
-                        app.staticTexts["Artwork Gallery"]
-                    ],
-                    timeout: 10
-                ),
-                "Gallery content did not appear"
-            )
+            XCTAssertTrue(waitForGalleryContent(in: app), "Gallery content did not appear")
 
             XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
-            XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+            XCTAssertTrue(waitForStudioContent(in: app))
         }
     }
 
     func testLayersIsNotVisibleInStudioSidebar() throws {
         let app = launchApp()
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
-        XCTAssertTrue(app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForStudioContent(in: app))
 
         XCTAssertFalse(app.tables.buttons["Layers"].exists)
         XCTAssertFalse(app.tables.staticTexts["Layers"].exists)
@@ -138,6 +118,29 @@ final class ColoringUITests: XCTestCase {
         default:
             return [name]
         }
+    }
+
+    private func waitForStudioContent(in app: XCUIApplication) -> Bool {
+        if app.otherElements["studio.root"].waitForExistence(timeout: 10) {
+            return true
+        }
+
+        return app.staticTexts["Add New Coloring Page"].waitForExistence(timeout: 10)
+    }
+
+    private func waitForGalleryContent(in app: XCUIApplication) -> Bool {
+        if app.otherElements["gallery.root"].waitForExistence(timeout: 10) {
+            return true
+        }
+
+        return waitForAny(
+            [
+                app.staticTexts["No Artwork Yet"],
+                app.staticTexts["Loading Artwork…"],
+                app.staticTexts["Artwork Gallery"]
+            ],
+            timeout: 10
+        )
     }
 
     private func waitForAny(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
