@@ -14,8 +14,9 @@ struct TemplateStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: TemplateStudioViewModel
+    var onColoringInteractionChanged: ((Bool) -> Void)? = nil
 
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isPhotoPickerPresented = false
     @State private var isFileImporterPresented = false
     // Default to showing the library so the user always has a reliable starting point.
     // We still collapse to the canvas after a template is selected.
@@ -26,7 +27,6 @@ struct TemplateStudioView: View {
     @State private var isDeleteAllImportedConfirmationPresented = false
     @State private var isClearStrokesConfirmationPresented = false
     @State private var isClearFillsConfirmationPresented = false
-    @State private var isLayerPanelPresented = false
     @State private var isCategoryManagementPresented = false
     @State private var isHiddenManagementPresented = false
     @State private var isPaletteVisible = true
@@ -43,6 +43,7 @@ struct TemplateStudioView: View {
             templateWorkspace
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .ignoresSafeArea(edges: .top)
         .task {
             await viewModel.loadTemplatesIfNeeded()
             viewModel.loadBrushPresetsIfNeeded()
@@ -55,15 +56,6 @@ struct TemplateStudioView: View {
 
             Task {
                 await viewModel.refreshTemplatesFromStorage()
-            }
-        }
-        .onChange(of: selectedPhotoItem) { _, newItem in
-            guard let newItem else {
-                return
-            }
-
-            Task {
-                await importPhotoItem(newItem)
             }
         }
         .onChange(of: viewModel.selectedTemplateID) { _, _ in
@@ -112,11 +104,7 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes the imported drawing from this iPad and iCloud.")
         }
-        .confirmationDialog(
-            "Clear Strokes",
-            isPresented: $isClearStrokesConfirmationPresented,
-            titleVisibility: .visible
-        ) {
+        .alert("Clear Strokes", isPresented: $isClearStrokesConfirmationPresented) {
             Button("Confirm Clear Strokes", role: .destructive) {
                 viewModel.clearDrawing()
             }
@@ -124,11 +112,7 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes all drawn strokes for the selected drawing.")
         }
-        .confirmationDialog(
-            "Clear Fills",
-            isPresented: $isClearFillsConfirmationPresented,
-            titleVisibility: .visible
-        ) {
+        .alert("Clear Fills", isPresented: $isClearFillsConfirmationPresented) {
             Button("Confirm Clear Fills", role: .destructive) {
                 viewModel.clearFills()
             }
@@ -152,11 +136,22 @@ struct TemplateStudioView: View {
         .sheet(isPresented: $isCategoryManagementPresented) {
             CategoryManagementView(viewModel: viewModel)
         }
-        .sheet(isPresented: $isLayerPanelPresented) {
-            LayerPanelView(viewModel: viewModel)
-        }
         .sheet(isPresented: $isHiddenManagementPresented) {
             HiddenTemplatesView(viewModel: viewModel)
+        }
+        .background {
+            TemplateStudioPhotoPickerPresenter(
+                isPresented: $isPhotoPickerPresented,
+                onImagePicked: { data, suggestedName in
+                    Task {
+                        await viewModel.importTemplateImage(data, suggestedName: suggestedName)
+                    }
+                },
+                onImportError: { message in
+                    viewModel.reportImportFailure(message)
+                }
+            )
+            .frame(width: 0, height: 0)
         }
         .onAppear {
             let clampedWidth = clampedSidebarWidth(storedSidebarWidth)
@@ -175,7 +170,7 @@ struct TemplateStudioView: View {
         List {
             Section {
                 libraryHeroCard
-                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 6, trailing: 12))
+                    .listRowInsets(EdgeInsets(top: 16, leading: 12, bottom: 6, trailing: 12))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
@@ -245,13 +240,6 @@ struct TemplateStudioView: View {
                         Label("Share Export", systemImage: "paperplane")
                     }
                 }
-
-                Button {
-                    isLayerPanelPresented = true
-                } label: {
-                    Label("Layers", systemImage: "square.3.layers.3d")
-                }
-                .disabled(viewModel.selectedTemplateImage == nil)
 
                 Button(role: .destructive) {
                     isClearStrokesConfirmationPresented = true
@@ -372,76 +360,18 @@ struct TemplateStudioView: View {
     }
 
     private var importControls: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "paintpalette.fill")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(liquidImportAccent)
-                    .padding(10)
-                    .background(.regularMaterial, in: Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Add New Coloring Page")
-                        .font(.headline.weight(.semibold))
-                    Text("Import line-art from Photos or Files.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            HStack(spacing: 10) {
-                PhotosPicker(
-                    selection: $selectedPhotoItem,
-                    matching: .images,
-                    preferredItemEncoding: .automatic
-                ) {
-                    liquidImportButtonLabel(
-                        title: "Photos",
-                        systemImage: "photo.on.rectangle.angled"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    isFileImporterPresented = true
-                } label: {
-                    liquidImportButtonLabel(
-                        title: "Files",
-                        systemImage: "folder"
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(elevatedSidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(liquidImportAccent.opacity(0.75), lineWidth: 1)
-                )
-        }
-    }
-
-    private func liquidImportButtonLabel(title: String, systemImage: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-        }
-        .foregroundStyle(.primary)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(controlSidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(sidebarControlStroke, lineWidth: 1)
-                )
-        }
+        TemplateStudioImportControlsCardView(
+            onPhotosTap: {
+                isPhotoPickerPresented = true
+            },
+            onFilesTap: {
+                isFileImporterPresented = true
+            },
+            elevatedSidebarFill: elevatedSidebarFill,
+            controlSidebarFill: controlSidebarFill,
+            sidebarControlStroke: sidebarControlStroke,
+            liquidImportAccent: liquidImportAccent
+        )
     }
 
     private var liquidImportAccent: LinearGradient {
@@ -461,65 +391,21 @@ struct TemplateStudioView: View {
         let isFavorite = viewModel.isFavorite(template.id)
         let isCompleted = viewModel.isCompleted(template.id)
 
-        return Button {
-            viewModel.selectTemplate(template.id)
-            withAnimation(.easeInOut(duration: 0.2)) {
-                columnVisibility = .detailOnly
-            }
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(template.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(template.source == .imported ? "Imported" : template.category)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                if template.isImported {
-                    Image(systemName: "tray.and.arrow.down")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(6)
-                        .background(importedTemplateBadgeFill, in: Circle())
-                }
-
-                if isFavorite {
-                    Image(systemName: "star.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.yellow)
-                }
-
-                if isCompleted {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.green)
-                }
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(Color.accentColor)
+        return TemplateStudioTemplateRowView(
+            template: template,
+            isSelected: isSelected,
+            isFavorite: isFavorite,
+            isCompleted: isCompleted,
+            rowFill: templateRowFill(isSelected: isSelected),
+            rowStroke: templateRowStroke(isSelected: isSelected),
+            importedBadgeFill: importedTemplateBadgeFill,
+            onSelect: {
+                viewModel.selectTemplate(template.id)
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    columnVisibility = .detailOnly
                 }
             }
-            .padding(.vertical, 11)
-            .padding(.horizontal, 12)
-            .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(templateRowFill(isSelected: isSelected))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(templateRowStroke(isSelected: isSelected), lineWidth: 1)
-                    )
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
+        ) {
             Button {
                 viewModel.toggleFavorite(for: template.id)
             } label: {
@@ -571,8 +457,7 @@ struct TemplateStudioView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        } swipeActionsContent: {
             if template.isImported {
                 Button {
                     startRename(template)
@@ -605,49 +490,17 @@ struct TemplateStudioView: View {
     }
 
     private var categoryFilterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(viewModel.allCategories) { category in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            viewModel.selectedCategoryFilter = category.id
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(category.name)
-                                .font(.caption.weight(.medium))
-
-                            if category.id == TemplateCategory.inProgressCategory.id {
-                                Text("\(viewModel.visibleInProgressTemplateIDs.count)")
-                                    .font(.caption2.weight(.semibold))
-                                    .monospacedDigit()
-                                    .foregroundStyle(
-                                        viewModel.selectedCategoryFilter == category.id
-                                            ? Color.accentColor
-                                            : Color.secondary
-                                    )
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(categoryBadgeFill(isSelected: viewModel.selectedCategoryFilter == category.id), in: Capsule())
-                            }
-                        }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(categoryChipFill(isSelected: viewModel.selectedCategoryFilter == category.id), in: Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(
-                                        viewModel.selectedCategoryFilter == category.id
-                                            ? Color.accentColor
-                                            : Color.clear,
-                                        lineWidth: 1
-                                    )
-                            )
-                    }
-                    .buttonStyle(.plain)
+        TemplateStudioCategoryFilterChipsView(
+            categories: viewModel.allCategories,
+            selectedCategoryID: viewModel.selectedCategoryFilter,
+            inProgressCategoryID: TemplateCategory.inProgressCategory.id,
+            inProgressCount: viewModel.visibleInProgressTemplateIDs.count,
+            onSelectCategory: { categoryID in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedCategoryFilter = categoryID
                 }
             }
-        }
+        )
     }
 
     private var templateWorkspace: some View {
@@ -717,21 +570,26 @@ struct TemplateStudioView: View {
 
             VStack(spacing: 0) {
                 if isPaletteAtTop {
-                    paletteBar
-                        .padding(.top, 56)
+                    if isPaletteChromeVisible {
+                        paletteBar
+                            .padding(.top, 56)
+                            .transition(paletteHiddenTransition)
+                    }
                 }
 
                 Spacer(minLength: 0)
 
                 if !isPaletteAtTop {
-                    paletteBar
-                        .padding(.bottom, 20)
+                    if isPaletteChromeVisible {
+                        paletteBar
+                            .padding(.bottom, 20)
+                            .transition(paletteHiddenTransition)
+                    }
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: isPaletteVisible)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
+        .ignoresSafeArea(edges: .horizontal)
     }
 
     private var paletteBar: some View {
@@ -753,9 +611,6 @@ struct TemplateStudioView: View {
             onRedo: { viewModel.redoLastEdit() }
         )
         .padding(.horizontal, 20)
-        .opacity((isPaletteVisible || viewModel.isFillModeActive) ? 1 : 0)
-        .offset(y: (isPaletteVisible || viewModel.isFillModeActive) ? 0 : paletteHiddenOffset)
-        .allowsHitTesting(isPaletteVisible || viewModel.isFillModeActive)
     }
 
     private var sidebarBackground: some View {
@@ -811,83 +666,19 @@ struct TemplateStudioView: View {
         .accessibilityHint("Drag left or right to adjust the drawing library width.")
     }
 
-    private var libraryCollapseButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                columnVisibility = .detailOnly
-            }
-        } label: {
-            Image(systemName: "sidebar.leading")
-                .font(.subheadline.weight(.semibold))
-                .padding(8)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Hide Library")
-        .accessibilityHint("Collapse the drawing library and focus on the canvas.")
-    }
-
     private var libraryHeroCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "paintpalette.fill")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.12, green: 0.62, blue: 0.97),
-                                    Color(red: 0.18, green: 0.82, blue: 0.62)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Drawing Library")
-                            .font(.headline.weight(.semibold))
-                        Text("Organize, import, and color with one workspace.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+        TemplateStudioLibraryHeroCardView(
+            visibleCount: sortedTemplates.count,
+            importedCount: viewModel.visibleImportedTemplateCount,
+            onCollapseTap: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    columnVisibility = .detailOnly
                 }
-
-                Spacer(minLength: 8)
-                libraryCollapseButton
-            }
-
-            HStack(spacing: 8) {
-                sidebarMetricPill(value: sortedTemplates.count, label: "Visible")
-                sidebarMetricPill(value: viewModel.visibleImportedTemplateCount, label: "Imported")
-            }
-        }
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(elevatedSidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(sidebarCardStroke, lineWidth: 1)
-                )
-        }
-    }
-
-    private func sidebarMetricPill(value: Int, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("\(value)")
-                .font(.headline.weight(.semibold))
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(controlSidebarFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            },
+            elevatedSidebarFill: elevatedSidebarFill,
+            sidebarCardStroke: sidebarCardStroke,
+            controlSidebarFill: controlSidebarFill
+        )
     }
 
     private var elevatedSidebarFill: AnyShapeStyle {
@@ -956,30 +747,6 @@ struct TemplateStudioView: View {
         return Color.white.opacity(0.55)
     }
 
-    private func categoryBadgeFill(isSelected: Bool) -> Color {
-        if colorScheme == .dark {
-            return isSelected
-                ? Color(red: 0.80, green: 0.90, blue: 1.00).opacity(0.2)
-                : Color(red: 0.18, green: 0.22, blue: 0.29).opacity(0.98)
-        }
-
-        return isSelected
-            ? Color.white.opacity(0.72)
-            : Color(.systemBackground).opacity(0.9)
-    }
-
-    private func categoryChipFill(isSelected: Bool) -> Color {
-        if colorScheme == .dark {
-            return isSelected
-                ? Color(red: 0.13, green: 0.30, blue: 0.50).opacity(0.42)
-                : Color(red: 0.14, green: 0.18, blue: 0.24).opacity(0.96)
-        }
-
-        return isSelected
-            ? Color.accentColor.opacity(0.2)
-            : Color(.systemGray5)
-    }
-
     private func handleStrokeInteractionChanged(_ isActive: Bool) {
         viewModel.updateStrokeInteraction(isActive: isActive)
 
@@ -988,6 +755,7 @@ struct TemplateStudioView: View {
         }
 
         if isActive {
+            onColoringInteractionChanged?(true)
             paletteAutoShowTask?.cancel()
             paletteAutoShowTask = nil
 
@@ -999,6 +767,7 @@ struct TemplateStudioView: View {
             return
         }
 
+        onColoringInteractionChanged?(false)
         paletteAutoShowTask?.cancel()
         paletteAutoShowTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -1037,6 +806,14 @@ struct TemplateStudioView: View {
 
     private var paletteHiddenOffset: CGFloat {
         isPaletteAtTop ? -24 : 24
+    }
+
+    private var isPaletteChromeVisible: Bool {
+        isPaletteVisible || viewModel.isFillModeActive
+    }
+
+    private var paletteHiddenTransition: AnyTransition {
+        .offset(y: paletteHiddenOffset)
     }
 
     private func togglePalettePlacement() {
@@ -1125,28 +902,6 @@ struct TemplateStudioView: View {
         }
     }
 
-    private func importPhotoItem(_ item: PhotosPickerItem) async {
-        do {
-            guard let imageData = try await item.loadTransferable(type: Data.self) else {
-                await MainActor.run {
-                    viewModel.reportImportFailure("Could not load selected photo data.")
-                    selectedPhotoItem = nil
-                }
-                return
-            }
-
-            await viewModel.importTemplateImage(imageData, suggestedName: item.itemIdentifier)
-            await MainActor.run {
-                selectedPhotoItem = nil
-            }
-        } catch {
-            await MainActor.run {
-                viewModel.reportImportFailure("Could not read selected photo.")
-                selectedPhotoItem = nil
-            }
-        }
-    }
-
     private func handleFileImport(_ result: Result<[URL], Error>) {
         guard case let .success(urls) = result,
               let fileURL = urls.first
@@ -1180,62 +935,102 @@ struct TemplateStudioView: View {
     }
 }
 
-private struct HiddenTemplatesView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: TemplateStudioViewModel
+private struct TemplateStudioPhotoPickerPresenter: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onImagePicked: (Data, String?) -> Void
+    let onImportError: (String) -> Void
 
-    var body: some View {
-        NavigationStack {
-            List {
-                if viewModel.hiddenTemplates.isEmpty {
-                    ContentUnavailableView(
-                        "No Hidden Templates",
-                        systemImage: "eye",
-                        description: Text("Long-press a drawing and choose Hide to manage it here.")
-                    )
-                } else {
-                    ForEach(viewModel.hiddenTemplates) { template in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(template.title)
-                                    .font(.body.weight(.semibold))
-                                Text(template.source == .imported ? "Imported" : template.category)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
+    func makeUIViewController(context: Context) -> UIViewController {
+        let controller = UIViewController()
+        controller.view.isHidden = true
+        context.coordinator.hostController = controller
+        return controller
+    }
 
-                            Spacer()
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.syncPresentation()
+    }
 
-                            Button("Unhide") {
-                                viewModel.unhideTemplate(template.id)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .contextMenu {
-                            Button {
-                                viewModel.unhideTemplate(template.id)
-                            } label: {
-                                Label("Unhide", systemImage: "eye")
-                            }
-                        }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
+        var parent: TemplateStudioPhotoPickerPresenter
+        weak var hostController: UIViewController?
+        weak var pickerController: PHPickerViewController?
+
+        init(parent: TemplateStudioPhotoPickerPresenter) {
+            self.parent = parent
+        }
+
+        func syncPresentation() {
+            if parent.isPresented {
+                presentIfNeeded()
+            } else {
+                dismissIfNeeded()
+            }
+        }
+
+        private func presentIfNeeded() {
+            guard pickerController == nil,
+                  let hostController,
+                  hostController.presentedViewController == nil
+            else {
+                return
+            }
+
+            var configuration = PHPickerConfiguration(photoLibrary: .shared())
+            configuration.filter = .images
+            configuration.selectionLimit = 1
+
+            let picker = PHPickerViewController(configuration: configuration)
+            picker.delegate = self
+            picker.modalPresentationStyle = .pageSheet
+            picker.presentationController?.delegate = self
+            if let sheet = picker.sheetPresentationController {
+                sheet.detents = [.large()]
+                sheet.prefersGrabberVisible = false
+            }
+
+            hostController.present(picker, animated: true)
+            pickerController = picker
+        }
+
+        private func dismissIfNeeded() {
+            guard let pickerController else {
+                return
+            }
+
+            pickerController.dismiss(animated: true)
+            self.pickerController = nil
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            pickerController = nil
+            picker.dismiss(animated: true)
+            parent.isPresented = false
+
+            guard let provider = results.first?.itemProvider else {
+                return
+            }
+
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                Task { @MainActor in
+                    guard let data else {
+                        self.parent.onImportError("Could not load selected photo data.")
+                        return
                     }
+
+                    self.parent.onImagePicked(data, provider.suggestedName)
                 }
             }
-            .navigationTitle("Hidden")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
+        }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Unhide All") {
-                        viewModel.unhideAllTemplates()
-                    }
-                    .disabled(viewModel.hiddenTemplates.isEmpty)
-                }
-            }
+        func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+            pickerController = nil
+            parent.isPresented = false
         }
     }
 }

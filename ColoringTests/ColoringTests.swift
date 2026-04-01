@@ -3090,6 +3090,202 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    func testDrawingExportSupportSelectedTemplateAspectRatioFallsBackForNilOrInvalidImage() {
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: nil),
+            4.0 / 3.0,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: UIImage()),
+            4.0 / 3.0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testDrawingExportSupportSelectedTemplateAspectRatioUsesImageDimensions() {
+        let image = solidColorTemplateImage(.red, size: CGSize(width: 300, height: 150))
+
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: image),
+            2.0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testDrawingExportSupportSerializedDrawingDataHandlesEmptyAndNonEmptyDrawings() {
+        let emptyDrawing = PKDrawing()
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.serializedDrawingData(for: emptyDrawing),
+            Data()
+        )
+
+        let nonEmptyDrawing = makeSampleTemplateDrawing()
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.serializedDrawingData(for: nonEmptyDrawing),
+            nonEmptyDrawing.dataRepresentation()
+        )
+    }
+
+    func testDrawingExportSupportBestExportSizeFallsBackAndPreservesSmallImages() {
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: nil),
+            CGSize(width: 2048, height: 1536)
+        )
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: UIImage()),
+            CGSize(width: 2048, height: 1536)
+        )
+
+        let smallImage = solidColorTemplateImage(.blue, size: CGSize(width: 1200, height: 900))
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: smallImage),
+            CGSize(width: 1200, height: 900)
+        )
+    }
+
+    func testDrawingExportSupportBestExportSizeScalesDownLargeImagesToMaxLongEdge() {
+        let largeImage = solidColorTemplateImage(.green, size: CGSize(width: 4096, height: 2048))
+
+        XCTAssertEqual(
+            TemplateStudioDrawingExportSupport.bestExportSize(for: largeImage),
+            CGSize(width: 2048, height: 1024)
+        )
+    }
+
+    func testImportedTemplateNamingSupportSanitizedFilenameNormalizesWhitespaceAndSymbols() {
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.sanitizedFilename("  My   Cool*&% Drawing!!  "),
+            "my-cool-drawing"
+        )
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.sanitizedFilename("!!!___"),
+            "imported-drawing"
+        )
+    }
+
+    func testImportedTemplateNamingSupportUUIDSuffixExtractionMatchesTrailingUUIDOnly() {
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.uuidSuffix(
+                from: "my-drawing-123e4567-e89b-12d3-a456-426614174000"
+            ),
+            "-123e4567-e89b-12d3-a456-426614174000"
+        )
+        XCTAssertNil(
+            TemplateImportedTemplateNamingSupport.uuidSuffix(
+                from: "my-drawing-123e4567-e89b-12d3-a456-426614174000-copy"
+            )
+        )
+    }
+
+    func testImportedTemplateNamingSupportHumanReadableTitleStripsUUIDAndExtension() {
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.humanReadableTitle(
+                from: "my-drawing-123e4567-e89b-12d3-a456-426614174000.png"
+            ),
+            "My Drawing"
+        )
+        XCTAssertEqual(
+            TemplateImportedTemplateNamingSupport.humanReadableTitle(from: "line-art.png"),
+            "Line Art"
+        )
+    }
+
+    func testCategoryMutationSupportDeletingCategoryStateRemovesCategoryOrderAssignmentsAndSelectedFilter() {
+        let firstCategory = TemplateCategory(id: "user-1", name: "One", isUserCreated: true)
+        let secondCategory = TemplateCategory(id: "user-2", name: "Two", isUserCreated: true)
+        let result = TemplateCategoryMutationSupport.deletingCategoryState(
+            categoryID: "user-1",
+            userCategories: [firstCategory, secondCategory],
+            categoryOrder: ["user-1", "user-2", "builtin-landscape"],
+            categoryAssignments: ["template-a": "user-1", "template-b": "user-2"],
+            selectedCategoryFilter: "user-1"
+        )
+
+        XCTAssertEqual(result.userCategories.map(\.id), ["user-2"])
+        XCTAssertEqual(result.categoryOrder, ["user-2", "builtin-landscape"])
+        XCTAssertNil(result.categoryAssignments["template-a"])
+        XCTAssertEqual(result.categoryAssignments["template-b"], "user-2")
+        XCTAssertEqual(result.selectedCategoryFilter, TemplateCategory.allCategory.id)
+    }
+
+    func testCategoryMutationSupportDeletingCategoryStatePreservesUnrelatedSelectedFilter() {
+        let firstCategory = TemplateCategory(id: "user-1", name: "One", isUserCreated: true)
+        let secondCategory = TemplateCategory(id: "user-2", name: "Two", isUserCreated: true)
+        let result = TemplateCategoryMutationSupport.deletingCategoryState(
+            categoryID: "user-1",
+            userCategories: [firstCategory, secondCategory],
+            categoryOrder: ["user-1", "user-2"],
+            categoryAssignments: ["template-a": "user-1"],
+            selectedCategoryFilter: "user-2"
+        )
+
+        XCTAssertEqual(result.selectedCategoryFilter, "user-2")
+        XCTAssertEqual(result.userCategories.map(\.id), ["user-2"])
+    }
+
+    func testCategoryMutationSupportMovedCategoryOrderHandlesMultiIndexMoveWithAdjustedDestination() {
+        let categories = [
+            TemplateCategory(id: "a", name: "A", isUserCreated: true),
+            TemplateCategory(id: "b", name: "B", isUserCreated: true),
+            TemplateCategory(id: "c", name: "C", isUserCreated: true),
+            TemplateCategory(id: "d", name: "D", isUserCreated: true),
+            TemplateCategory(id: "e", name: "E", isUserCreated: true)
+        ]
+
+        let reorderedIDs = TemplateCategoryMutationSupport.movedCategoryOrder(
+            reorderableCategories: categories,
+            source: IndexSet([1, 2]),
+            destination: 4
+        )
+
+        XCTAssertEqual(reorderedIDs, ["a", "d", "b", "c", "e"])
+    }
+
+    func testCategoryMutationSupportAssigningTemplateAddsAndRemovesCategoryAssignment() {
+        let startingAssignments = ["template-a": "user-1"]
+        let assigned = TemplateCategoryMutationSupport.assigningTemplate(
+            "template-b",
+            to: "user-2",
+            in: startingAssignments
+        )
+        XCTAssertEqual(assigned["template-a"], "user-1")
+        XCTAssertEqual(assigned["template-b"], "user-2")
+
+        let unassigned = TemplateCategoryMutationSupport.assigningTemplate(
+            "template-a",
+            to: nil,
+            in: assigned
+        )
+        XCTAssertNil(unassigned["template-a"])
+        XCTAssertEqual(unassigned["template-b"], "user-2")
+    }
+
+    func testCategoryMutationSupportToggledMembershipAddsThenRemovesTemplateID() {
+        let added = TemplateCategoryMutationSupport.toggledMembership(
+            of: "template-1",
+            in: []
+        )
+        XCTAssertEqual(added, Set(["template-1"]))
+
+        let removed = TemplateCategoryMutationSupport.toggledMembership(
+            of: "template-1",
+            in: added
+        )
+        XCTAssertTrue(removed.isEmpty)
+    }
+
+    func testCategoryMutationSupportHideTemplateSetMutationsInsertRemoveAndClearIDs() {
+        let inserted = TemplateCategoryMutationSupport.insertingTemplateID("template-b", into: Set(["template-a"]))
+        XCTAssertEqual(inserted, Set(["template-a", "template-b"]))
+
+        let removed = TemplateCategoryMutationSupport.removingTemplateID("template-b", from: inserted)
+        XCTAssertEqual(removed, Set(["template-a"]))
+
+        let cleared = TemplateCategoryMutationSupport.clearingTemplateIDs()
+        XCTAssertTrue(cleared.isEmpty)
+    }
+
     private static func makeTemplate(
         id: String,
         title: String,

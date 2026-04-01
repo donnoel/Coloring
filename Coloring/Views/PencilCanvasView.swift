@@ -685,13 +685,30 @@ final class ZoomableCanvasContainerView: UIView {
         let scaledContentHeight = contentView.bounds.height * scrollView.zoomScale
         let horizontalInset = max((scrollView.bounds.width - scaledContentWidth) / 2, 0)
         let verticalInset = max((scrollView.bounds.height - scaledContentHeight) / 2, 0)
+        let verticalCompensation = externalVerticalCenteringCompensation()
+
+        let topInset = max(verticalInset - verticalCompensation, 0)
+        let bottomInset = max(verticalInset + verticalCompensation, 0)
 
         scrollView.contentInset = UIEdgeInsets(
-            top: verticalInset,
+            top: topInset,
             left: horizontalInset,
-            bottom: verticalInset,
+            bottom: bottomInset,
             right: horizontalInset
         )
+    }
+
+    private func externalVerticalCenteringCompensation() -> CGFloat {
+        guard let window else {
+            return 0
+        }
+
+        let frameInWindow = convert(bounds, to: window)
+        let topGap = max(frameInWindow.minY, 0)
+        let bottomGap = max(window.bounds.maxY - frameInWindow.maxY, 0)
+        let baselineCompensation = (topGap - bottomGap) / 2
+        let visualTopBias: CGFloat = 16
+        return baselineCompensation + visualTopBias
     }
 
     private func setupSubviews() {

@@ -44,12 +44,6 @@ struct GalleryView: View {
                 await viewModel.loadEntries()
                 syncCarouselIndex()
             }
-            .onAppear {
-                Task {
-                    await viewModel.loadEntries()
-                    syncCarouselIndex()
-                }
-            }
             .onChange(of: viewModel.entries.map(\.id)) { _, _ in
                 syncCarouselIndex()
             }
