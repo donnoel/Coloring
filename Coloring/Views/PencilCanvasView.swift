@@ -809,7 +809,15 @@ final class ZoomableCanvasContainerView: UIView {
 
         let fitScaleX = scrollView.bounds.width / contentView.bounds.width
         let fitScaleY = scrollView.bounds.height / contentView.bounds.height
-        let fitScale = min(fitScaleX, fitScaleY)
+        let baseFitScale = min(fitScaleX, fitScaleY)
+        let isPortraitArtwork = contentView.bounds.height > contentView.bounds.width
+        let fitScale: CGFloat
+
+        if isPortraitArtwork {
+            fitScale = min(baseFitScale * 1.12, fitScaleX)
+        } else {
+            fitScale = baseFitScale
+        }
 
         // Allow users to zoom out to 1.0 even on large iPads where "fit" would upscale.
         scrollView.minimumZoomScale = min(fitScale, 1.0)
