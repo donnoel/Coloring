@@ -351,9 +351,8 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
 
             var lastError: Error = error
             for _ in 0..<8 {
-                // Use a shorter sleep to reduce actor blocking time.
-                // Total worst-case: 8 × 100ms = 800ms (down from 8 × 250ms = 2s).
-                Thread.sleep(forTimeInterval: 0.1)
+                // Avoid blocking the actor with a thread sleep while iCloud
+                // download hydration catches up.
                 do {
                     return try Data(contentsOf: sourceURL)
                 } catch {
@@ -1166,9 +1165,8 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             }
             var lastError: Error = error
             for _ in 0..<8 {
-                // Use a shorter sleep to reduce actor blocking time.
-                // Total worst-case: 8 × 100ms = 800ms (down from 8 × 250ms = 2s).
-                Thread.sleep(forTimeInterval: 0.1)
+                // Avoid blocking the actor with a thread sleep while iCloud
+                // download hydration catches up.
                 do {
                     return try Data(contentsOf: sourceURL)
                 } catch {

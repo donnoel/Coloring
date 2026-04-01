@@ -3140,6 +3140,7 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testDrawingExportSupportSelectedTemplateAspectRatioUsesImageDimensions() {
         let image = solidColorTemplateImage(.red, size: CGSize(width: 300, height: 150))
 
@@ -3150,6 +3151,7 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testDrawingExportSupportSerializedDrawingDataHandlesEmptyAndNonEmptyDrawings() {
         let emptyDrawing = PKDrawing()
         XCTAssertEqual(
@@ -3164,6 +3166,7 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testDrawingExportSupportBestExportSizeFallsBackAndPreservesSmallImages() {
         XCTAssertEqual(
             TemplateStudioDrawingExportSupport.bestExportSize(for: nil),
@@ -3181,6 +3184,7 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testDrawingExportSupportBestExportSizeScalesDownLargeImagesToMaxLongEdge() {
         let largeImage = solidColorTemplateImage(.green, size: CGSize(width: 4096, height: 2048))
 
