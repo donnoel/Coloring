@@ -170,7 +170,7 @@ struct TemplateStudioView: View {
         List {
             Section {
                 libraryHeroCard
-                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 6, trailing: 12))
+                    .listRowInsets(EdgeInsets(top: 16, leading: 12, bottom: 6, trailing: 12))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
