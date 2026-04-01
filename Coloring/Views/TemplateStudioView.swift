@@ -1002,8 +1002,8 @@ private struct TemplateStudioPhotoPickerPresenter: UIViewControllerRepresentable
                 return false
             }
 
-            if let orientation = hostController.view.window?.windowScene?.interfaceOrientation {
-                return orientation.isPortrait
+            if let windowScene = hostController.view.window?.windowScene {
+                return windowScene.effectiveGeometry.interfaceOrientation.isPortrait
             }
 
             let viewSize = hostController.view.bounds.size

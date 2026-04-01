@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import UIKit
 
 protocol GalleryStoreProviding {
@@ -8,6 +9,7 @@ protocol GalleryStoreProviding {
 }
 
 actor GalleryStoreService: GalleryStoreProviding {
+    private let logger = Logger(subsystem: "Coloring", category: "GalleryStore")
     nonisolated private let galleryDirectoryURLProvider: @Sendable () throws -> URL
     private var cachedEntries: [ArtworkEntry]?
 
@@ -78,7 +80,13 @@ actor GalleryStoreService: GalleryStoreProviding {
         // Generate and save thumbnail
         if let fullImage = UIImage(data: normalizedImageData) {
             let thumbnailData = generateThumbnail(from: fullImage, maxSize: 300)
-            try? thumbnailData?.write(to: thumbnailURL, options: .atomic)
+            if let thumbnailData {
+                do {
+                    try thumbnailData.write(to: thumbnailURL, options: .atomic)
+                } catch {
+                    logger.error("Failed to write gallery thumbnail: \(error.localizedDescription, privacy: .public)")
+                }
+            }
         }
 
         let entry = ArtworkEntry(
@@ -97,8 +105,16 @@ actor GalleryStoreService: GalleryStoreProviding {
             cachedEntries = entries
             return entry
         } catch {
-            try? fileManager.removeItem(at: fullImageURL)
-            try? fileManager.removeItem(at: thumbnailURL)
+            do {
+                try fileManager.removeItem(at: fullImageURL)
+            } catch {
+                logger.error("Failed to roll back full image after manifest error: \(error.localizedDescription, privacy: .public)")
+            }
+            do {
+                try fileManager.removeItem(at: thumbnailURL)
+            } catch {
+                logger.error("Failed to roll back thumbnail after manifest error: \(error.localizedDescription, privacy: .public)")
+            }
             throw error
         }
     }
@@ -106,7 +122,14 @@ actor GalleryStoreService: GalleryStoreProviding {
     func deleteEntry(_ id: String) throws {
         let fileManager = FileManager.default
         let directoryURL = try galleryDirectoryURL()
-        var entries = (try? loadEntries()) ?? []
+        let loadedEntries: [ArtworkEntry]
+        do {
+            loadedEntries = try loadEntries()
+        } catch {
+            logger.error("Failed to load gallery manifest for delete: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        var entries = loadedEntries
         guard let index = entries.firstIndex(where: { $0.id == id }) else {
             return
         }
@@ -119,8 +142,16 @@ actor GalleryStoreService: GalleryStoreProviding {
         // Clean up files
         let fullImageURL = directoryURL.appendingPathComponent(entry.fullImageFilename)
         let thumbnailURL = directoryURL.appendingPathComponent(entry.thumbnailFilename)
-        try? fileManager.removeItem(at: fullImageURL)
-        try? fileManager.removeItem(at: thumbnailURL)
+        do {
+            try fileManager.removeItem(at: fullImageURL)
+        } catch {
+            logger.error("Failed to delete gallery full image file: \(error.localizedDescription, privacy: .public)")
+        }
+        do {
+            try fileManager.removeItem(at: thumbnailURL)
+        } catch {
+            logger.error("Failed to delete gallery thumbnail file: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func persistManifest(_ entries: [ArtworkEntry]) throws {

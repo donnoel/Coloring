@@ -1,6 +1,8 @@
 import Foundation
+import OSLog
 
 actor TemplateColoringPersistenceCoordinator {
+    private let logger = Logger(subsystem: "Coloring", category: "TemplateColoringPersistence")
     private let drawingStore: any TemplateDrawingStoreProviding
     private var latestLayerRevisionByTemplateID: [String: Int] = [:]
     private var latestFillRevisionByTemplateID: [String: Int] = [:]
@@ -14,7 +16,13 @@ actor TemplateColoringPersistenceCoordinator {
             return
         }
 
-        try? await drawingStore.saveLayerStackData(data, for: templateID)
+        do {
+            try await drawingStore.saveLayerStackData(data, for: templateID)
+        } catch {
+            logger.error(
+                "Failed to persist layer stack for template \(templateID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     func persistFillData(_ fillData: Data?, for templateID: String, revision: Int) async {
@@ -23,7 +31,13 @@ actor TemplateColoringPersistenceCoordinator {
         }
 
         let persistedFillData = fillData ?? Data()
-        try? await drawingStore.saveFillData(persistedFillData, for: templateID)
+        do {
+            try await drawingStore.saveFillData(persistedFillData, for: templateID)
+        } catch {
+            logger.error(
+                "Failed to persist fill data for template \(templateID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     func renameTracking(from oldTemplateID: String, to newTemplateID: String) {
