@@ -1,0 +1,1091 @@
+import SwiftUI
+
+struct FirstRunOnboardingView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var currentPage = 0
+    let onComplete: () -> Void
+
+    private let pages: [OnboardingPage] = [
+        OnboardingPage(
+            title: "Welcome to Studio",
+            subtitle: "Browse built-in and imported drawings, then open one and start coloring.",
+            badges: [
+                .init(icon: "paintbrush.pointed.fill", title: "Studio Workspace"),
+                .init(icon: "rectangle.stack.fill", title: "Built-In + Imported")
+            ],
+            palette: .init(
+                primary: Color(red: 0.16, green: 0.60, blue: 0.97),
+                secondary: Color(red: 0.18, green: 0.80, blue: 0.66),
+                tertiary: Color(red: 0.98, green: 0.67, blue: 0.20),
+                quaternary: Color(red: 0.95, green: 0.37, blue: 0.41)
+            ),
+            hero: .studio
+        ),
+        OnboardingPage(
+            title: "Import and Color",
+            subtitle: "Import line art from Photos or Files. Draw with Apple Pencil, tap Fill, then undo, redo, or clear in a tap.",
+            badges: [
+                .init(icon: "photo.on.rectangle.angled", title: "Photos + Files"),
+                .init(icon: "applepencil", title: "Apple Pencil + PencilKit"),
+                .init(icon: "drop.fill", title: "Fill + Edit Controls")
+            ],
+            palette: .init(
+                primary: Color(red: 0.09, green: 0.67, blue: 0.97),
+                secondary: Color(red: 0.17, green: 0.84, blue: 0.63),
+                tertiary: Color(red: 0.99, green: 0.58, blue: 0.20),
+                quaternary: Color(red: 0.99, green: 0.39, blue: 0.38)
+            ),
+            hero: .importColor
+        ),
+        OnboardingPage(
+            title: "Organize and Sync",
+            subtitle: "Use categories, hidden management, and long-press actions to keep Studio tidy. Imported drawings and progress sync with iCloud.",
+            badges: [
+                .init(icon: "folder.badge.gearshape", title: "Categories"),
+                .init(icon: "eye.slash", title: "Hidden Management"),
+                .init(icon: "icloud", title: "iCloud")
+            ],
+            palette: .init(
+                primary: Color(red: 0.37, green: 0.60, blue: 0.98),
+                secondary: Color(red: 0.54, green: 0.49, blue: 0.92),
+                tertiary: Color(red: 0.97, green: 0.62, blue: 0.26),
+                quaternary: Color(red: 0.16, green: 0.74, blue: 0.63)
+            ),
+            hero: .organize
+        ),
+        OnboardingPage(
+            title: "Gallery and Share",
+            subtitle: "Send finished artwork to Gallery, open details, share what you made, and remove pieces anytime.",
+            badges: [
+                .init(icon: "square.and.arrow.up", title: "Send to Gallery"),
+                .init(icon: "photo.stack", title: "Browse Finished Artwork"),
+                .init(icon: "trash", title: "Share + Delete")
+            ],
+            palette: .init(
+                primary: Color(red: 0.14, green: 0.66, blue: 0.97),
+                secondary: Color(red: 0.19, green: 0.80, blue: 0.65),
+                tertiary: Color(red: 0.97, green: 0.57, blue: 0.22),
+                quaternary: Color(red: 0.93, green: 0.35, blue: 0.40)
+            ),
+            hero: .gallery
+        )
+    ]
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                onboardingBackground
+
+                VStack(spacing: 0) {
+                    topBar
+                        .padding(.horizontal, 26)
+                        .padding(.top, 16)
+
+                    TabView(selection: $currentPage) {
+                        ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
+                            OnboardingPageView(
+                                page: page,
+                                colorScheme: colorScheme,
+                                isCurrentPage: index == currentPage,
+                                reduceMotion: reduceMotion
+                            )
+                            .frame(maxWidth: min(geometry.size.width * 0.93, 880))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .tag(index)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: currentPage)
+
+                    footer
+                        .padding(.horizontal, 22)
+                        .padding(.top, 10)
+                        .padding(.bottom, 18)
+                }
+            }
+        }
+        .interactiveDismissDisabled()
+    }
+
+    private var topBar: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [currentPageData.palette.primary, currentPageData.palette.secondary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Image(systemName: "paintpalette.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                    )
+
+                Text("Coloring")
+                    .font(.headline.weight(.semibold))
+            }
+            .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.94) : Color.primary.opacity(0.90))
+
+            Spacer()
+
+            Button("Skip") {
+                onComplete()
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.90) : Color.primary.opacity(0.76))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.30 : 0.44), lineWidth: 1)
+            )
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var footer: some View {
+        VStack(spacing: 12) {
+            progressPanel
+
+            Button {
+                continueOrComplete()
+            } label: {
+                HStack(spacing: 8) {
+                    Text(isLastPage ? "Get Started" : "Continue")
+                        .font(.headline.weight(.semibold))
+                    Image(systemName: isLastPage ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+                        .font(.title3.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            currentPageData.palette.primary,
+                            currentPageData.palette.secondary,
+                            currentPageData.palette.tertiary
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.46), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.14), radius: 14, x: 0, y: 8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var progressPanel: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Step \(currentPage + 1) of \(pages.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.78) : Color.primary.opacity(0.66))
+
+                Text(currentPageData.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.92) : Color.primary.opacity(0.86))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 10)
+
+            HStack(spacing: 7) {
+                ForEach(pages.indices, id: \.self) { index in
+                    Capsule(style: .continuous)
+                        .fill(progressFill(for: index))
+                        .frame(width: index == currentPage ? 34 : 11, height: 10)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: currentPage)
+                }
+            }
+
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [currentPageData.palette.primary, currentPageData.palette.secondary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Text("\(currentPage + 1)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 28, height: 28)
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.45), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(colorScheme == .dark ? 0.12 : 0.30),
+                    Color.white.opacity(colorScheme == .dark ? 0.08 : 0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(colorScheme == .dark ? 0.28 : 0.44), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.20 : 0.08), radius: 8, x: 0, y: 4)
+    }
+
+    private var onboardingBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [
+                        Color(red: 0.05, green: 0.06, blue: 0.10),
+                        Color(red: 0.07, green: 0.09, blue: 0.14),
+                        Color(red: 0.10, green: 0.08, blue: 0.13)
+                    ]
+                    : [
+                        Color(red: 0.95, green: 0.97, blue: 1.00),
+                        Color(red: 0.94, green: 0.97, blue: 0.99),
+                        Color(red: 0.98, green: 0.96, blue: 0.99)
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(currentPageData.palette.primary.opacity(colorScheme == .dark ? 0.30 : 0.20))
+                .frame(width: 520, height: 520)
+                .blur(radius: 58)
+                .offset(x: 310, y: -300)
+
+            Circle()
+                .fill(currentPageData.palette.tertiary.opacity(colorScheme == .dark ? 0.26 : 0.18))
+                .frame(width: 420, height: 420)
+                .blur(radius: 54)
+                .offset(x: -280, y: -240)
+
+            Circle()
+                .fill(currentPageData.palette.secondary.opacity(colorScheme == .dark ? 0.30 : 0.19))
+                .frame(width: 560, height: 560)
+                .blur(radius: 60)
+                .offset(x: -250, y: 320)
+
+            Circle()
+                .fill(currentPageData.palette.quaternary.opacity(colorScheme == .dark ? 0.24 : 0.14))
+                .frame(width: 480, height: 480)
+                .blur(radius: 58)
+                .offset(x: 290, y: 320)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var currentPageData: OnboardingPage {
+        pages[currentPage]
+    }
+
+    private var isLastPage: Bool {
+        currentPage == pages.count - 1
+    }
+
+    private func continueOrComplete() {
+        guard !isLastPage else {
+            onComplete()
+            return
+        }
+
+        let next = min(currentPage + 1, pages.count - 1)
+        if reduceMotion {
+            currentPage = next
+        } else {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+                currentPage = next
+            }
+        }
+    }
+
+    private func progressFill(for index: Int) -> AnyShapeStyle {
+        if index == currentPage {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [currentPageData.palette.primary, currentPageData.palette.secondary],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+        }
+
+        return AnyShapeStyle(Color.white.opacity(colorScheme == .dark ? 0.30 : 0.50))
+    }
+}
+
+private struct OnboardingPageView: View {
+    let page: OnboardingPage
+    let colorScheme: ColorScheme
+    let isCurrentPage: Bool
+    let reduceMotion: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingHeroCard(page: page, colorScheme: colorScheme)
+                .frame(maxWidth: .infinity)
+                .frame(height: 344)
+                .scaleEffect(!reduceMotion && isCurrentPage ? 1 : 0.986)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: isCurrentPage)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(page.title)
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.96) : Color.primary)
+                    .minimumScaleFactor(0.84)
+
+                Text(page.subtitle)
+                    .font(.body)
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.80) : Color.primary.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            WrapHStack(spacing: 8, lineSpacing: 8) {
+                ForEach(page.badges, id: \.title) { badge in
+                    OnboardingBadgeView(
+                        badge: badge,
+                        palette: page.palette,
+                        colorScheme: colorScheme
+                    )
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(22)
+        .background(
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .fill(colorScheme == .dark ? Color.white.opacity(0.13) : Color.white.opacity(0.72))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .stroke(Color.white.opacity(colorScheme == .dark ? 0.30 : 0.62), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.32 : 0.11), radius: 16, x: 0, y: 10)
+        )
+    }
+}
+
+private struct OnboardingHeroCard: View {
+    let page: OnboardingPage
+    let colorScheme: ColorScheme
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            page.palette.primary.opacity(colorScheme == .dark ? 0.62 : 0.54),
+                            page.palette.secondary.opacity(colorScheme == .dark ? 0.58 : 0.48),
+                            page.palette.tertiary.opacity(colorScheme == .dark ? 0.48 : 0.40)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay {
+                    Circle()
+                        .fill(page.palette.quaternary.opacity(colorScheme == .dark ? 0.30 : 0.20))
+                        .frame(width: 220, height: 220)
+                        .blur(radius: 22)
+                        .offset(x: 160, y: -120)
+                }
+                .overlay {
+                    Circle()
+                        .fill(page.palette.primary.opacity(colorScheme == .dark ? 0.25 : 0.16))
+                        .frame(width: 240, height: 240)
+                        .blur(radius: 24)
+                        .offset(x: -140, y: 110)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(colorScheme == .dark ? 0.28 : 0.42), lineWidth: 1)
+                )
+
+            Group {
+                switch page.hero {
+                case .studio:
+                    studioHero
+                case .importColor:
+                    importColorHero
+                case .organize:
+                    organizeHero
+                case .gallery:
+                    galleryHero
+                }
+            }
+            .padding(22)
+        }
+    }
+
+    private var studioHero: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                heroLabel("Drawing Library", icon: "rectangle.stack.fill")
+
+                VStack(spacing: 9) {
+                    studioLibraryRow(
+                        title: "Garden Scene",
+                        subtitle: "Built-in",
+                        tint: page.palette.secondary,
+                        accent: page.palette.tertiary
+                    )
+                    studioLibraryRow(
+                        title: "City Bridge",
+                        subtitle: "Selected",
+                        tint: page.palette.primary,
+                        accent: page.palette.quaternary,
+                        isSelected: true
+                    )
+                    studioLibraryRow(
+                        title: "Forest Camp",
+                        subtitle: "In Progress",
+                        tint: page.palette.tertiary,
+                        accent: page.palette.primary
+                    )
+                }
+            }
+            .frame(maxWidth: 240)
+
+            VStack(spacing: 10) {
+                heroLabel("Studio Canvas", icon: "paintbrush.pointed.fill")
+
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.94),
+                                Color.white.opacity(0.78)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        VStack(spacing: 10) {
+                            HStack(alignment: .top, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("City Bridge")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.primary.opacity(0.90))
+                                    Text("Imported drawing")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 0)
+                                heroMiniPill(title: "Selected")
+                            }
+
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.95),
+                                            page.palette.primary.opacity(0.14),
+                                            page.palette.secondary.opacity(0.14)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(height: 86)
+                                .overlay(
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(page.palette.primary.opacity(0.52), lineWidth: 1.8)
+
+                                        VStack(spacing: 8) {
+                                            HStack(spacing: 8) {
+                                                Capsule(style: .continuous)
+                                                    .fill(page.palette.primary.opacity(0.42))
+                                                    .frame(width: 64, height: 10)
+                                                Capsule(style: .continuous)
+                                                    .fill(page.palette.secondary.opacity(0.38))
+                                                    .frame(width: 44, height: 10)
+                                                Spacer(minLength: 0)
+                                            }
+                                            HStack(spacing: 8) {
+                                                Circle()
+                                                    .fill(page.palette.tertiary.opacity(0.48))
+                                                    .frame(width: 22, height: 22)
+                                                Image(systemName: "scribble.variable")
+                                                    .font(.title3.weight(.semibold))
+                                                    .foregroundStyle(page.palette.primary)
+                                                Spacer(minLength: 0)
+                                            }
+                                        }
+                                        .padding(.horizontal, 11)
+                                    }
+                                )
+
+                            HStack(spacing: 8) {
+                                heroChip(title: "Browse", icon: "square.grid.2x2")
+                                heroChip(title: "Open Drawing", icon: "play.fill")
+                            }
+                        }
+                        .padding(12)
+                    )
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var importColorHero: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                heroChip(title: "Photos", icon: "photo.on.rectangle.angled")
+                heroChip(title: "Files", icon: "folder.fill")
+                Spacer(minLength: 0)
+                heroMiniPill(title: "Import")
+            }
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.34),
+                            Color.white.opacity(0.20)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    VStack(spacing: 13) {
+                        HStack(spacing: 10) {
+                            toolOrb(icon: "applepencil", tint: page.palette.primary)
+                            toolOrb(icon: "drop.fill", tint: page.palette.secondary)
+                            toolOrb(icon: "arrow.uturn.backward", tint: page.palette.tertiary)
+                            toolOrb(icon: "arrow.uturn.forward", tint: page.palette.quaternary)
+                            toolOrb(icon: "trash", tint: page.palette.primary.opacity(0.90))
+                        }
+
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.40),
+                                        Color.white.opacity(0.24)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(height: 116)
+                            .overlay(
+                                VStack(spacing: 10) {
+                                    HStack(spacing: 8) {
+                                        heroMiniPill(title: "Canvas")
+                                        heroMiniPill(title: "Fill On")
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "hand.tap.fill")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(page.palette.secondary)
+                                    }
+
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.white.opacity(0.84))
+                                        .frame(height: 74)
+                                        .overlay(
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .stroke(Color.black.opacity(0.18), lineWidth: 1.3)
+
+                                                Path { path in
+                                                    path.move(to: CGPoint(x: 18, y: 56))
+                                                    path.addCurve(
+                                                        to: CGPoint(x: 86, y: 16),
+                                                        control1: CGPoint(x: 24, y: 22),
+                                                        control2: CGPoint(x: 58, y: 10)
+                                                    )
+                                                    path.addCurve(
+                                                        to: CGPoint(x: 152, y: 54),
+                                                        control1: CGPoint(x: 112, y: 24),
+                                                        control2: CGPoint(x: 134, y: 60)
+                                                    )
+                                                }
+                                                .stroke(
+                                                    Color.black.opacity(0.28),
+                                                    style: StrokeStyle(
+                                                        lineWidth: 2.0,
+                                                        lineCap: .round,
+                                                        lineJoin: .round
+                                                    )
+                                                )
+
+                                                Circle()
+                                                    .fill(page.palette.tertiary.opacity(0.58))
+                                                    .frame(width: 24, height: 24)
+                                                    .offset(x: -34, y: 2)
+
+                                                Circle()
+                                                    .fill(page.palette.secondary.opacity(0.56))
+                                                    .frame(width: 20, height: 20)
+                                                    .offset(x: -6, y: -6)
+
+                                                Capsule(style: .continuous)
+                                                    .fill(page.palette.primary.opacity(0.60))
+                                                    .frame(width: 42, height: 18)
+                                                    .offset(x: 28, y: 10)
+
+                                                Circle()
+                                                    .stroke(page.palette.quaternary, lineWidth: 2)
+                                                    .frame(width: 26, height: 26)
+                                                    .offset(x: 52, y: -8)
+                                            }
+                                            .padding(.horizontal, 8)
+                                        )
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                            )
+
+                        HStack(spacing: 10) {
+                            ForEach(0..<6, id: \.self) { index in
+                                Circle()
+                                    .fill(heroPaletteColor(index))
+                                    .frame(width: 20, height: 20)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.50), lineWidth: 1)
+                                    )
+                            }
+                            Spacer(minLength: 0)
+                            HStack(spacing: 8) {
+                                heroMiniPill(title: "Undo")
+                                heroMiniPill(title: "Clear")
+                            }
+                        }
+                    }
+                    .padding(14)
+                )
+        }
+    }
+
+    private var organizeHero: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                heroLabel("Collections", icon: "folder.badge.gearshape")
+                categoryRow(title: "Favorites", icon: "star.fill", tint: page.palette.tertiary, detail: "14")
+                categoryRow(title: "Completed", icon: "checkmark.seal.fill", tint: page.palette.secondary, detail: "26")
+                categoryRow(title: "Hidden", icon: "eye.slash.fill", tint: page.palette.quaternary, detail: "5")
+            }
+            .frame(maxWidth: 230)
+
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            page.palette.primary.opacity(0.90),
+                                            page.palette.secondary.opacity(0.76)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 36, height: 36)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(Color.white.opacity(0.44), lineWidth: 1)
+                                )
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("City Bridge")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Selected drawing")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer(minLength: 0)
+                            heroMiniPill(title: "Selected")
+                        }
+
+                        Rectangle()
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.14 : 0.34))
+                            .frame(height: 1)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "hand.tap.fill")
+                                .foregroundStyle(page.palette.primary)
+                            Text("Long-press quick actions")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer(minLength: 0)
+                        }
+
+                        HStack(spacing: 6) {
+                            heroMiniPill(title: "Move")
+                            heroMiniPill(title: "Hide")
+                            heroMiniPill(title: "Rename")
+                        }
+
+                        Rectangle()
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.14 : 0.34))
+                            .frame(height: 1)
+
+                        HStack(alignment: .top, spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .fill(page.palette.primary.opacity(0.22))
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: "icloud.fill")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(page.palette.primary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("iCloud")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Imported drawings and progress can sync and restore.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+                    .padding(12)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(colorScheme == .dark ? 0.24 : 0.40), lineWidth: 1)
+                )
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var galleryHero: some View {
+        VStack(spacing: 11) {
+            HStack(spacing: 10) {
+                heroChip(title: "Send to Gallery", icon: "square.and.arrow.up")
+                Spacer(minLength: 0)
+                heroChip(title: "Share", icon: "square.and.arrow.up.on.square")
+            }
+
+            ZStack {
+                galleryArtworkCard(
+                    imageName: "OnboardingGalleryPet",
+                    size: CGSize(width: 200, height: 124),
+                    rotation: -7.5
+                )
+                .offset(x: -110, y: -22)
+
+                galleryArtworkCard(
+                    imageName: "OnboardingGalleryForest",
+                    size: CGSize(width: 194, height: 120),
+                    rotation: 6.5
+                )
+                .offset(x: 108, y: -20)
+
+                galleryArtworkCard(
+                    imageName: "OnboardingGalleryVenice",
+                    size: CGSize(width: 292, height: 176),
+                    rotation: 0.6
+                )
+                .offset(y: 14)
+            }
+            .frame(height: 216)
+
+            HStack(spacing: 8) {
+                ForEach(0..<4, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(heroPaletteColor(index).opacity(0.9))
+                        .frame(width: index == 1 ? 64 : 38, height: 10)
+                }
+                Spacer(minLength: 0)
+                heroChip(title: "Delete", icon: "trash")
+            }
+        }
+    }
+
+    private func heroLabel(_ title: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+            Text(title)
+                .font(.caption.weight(.semibold))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .foregroundStyle(.primary)
+        .background(.regularMaterial, in: Capsule())
+    }
+
+    private func heroMiniPill(title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .foregroundStyle(.primary)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.28), lineWidth: 1)
+            )
+    }
+
+    private func heroChip(title: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .foregroundStyle(.primary)
+        .background(.thinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.34), lineWidth: 1)
+        )
+    }
+
+    private func toolOrb(icon: String, tint: Color) -> some View {
+        Image(systemName: icon)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(width: 34, height: 34)
+            .background(tint, in: Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.32), lineWidth: 1)
+            )
+    }
+
+    private func categoryRow(title: String, icon: String, tint: Color, detail: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(tint, in: Circle())
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 0)
+
+            Text(detail)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.35), in: Capsule())
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func studioLibraryRow(
+        title: String,
+        subtitle: String,
+        tint: Color,
+        accent: Color,
+        isSelected: Bool = false
+    ) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [tint.opacity(0.98), accent.opacity(0.80)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 30, height: 30)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(Color.white.opacity(0.42), lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(isSelected ? tint.opacity(0.90) : .secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(tint)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isSelected ? tint.opacity(0.84) : Color.white.opacity(0.26), lineWidth: isSelected ? 1.6 : 1)
+        )
+    }
+
+    private func galleryArtworkCard(
+        imageName: String,
+        size: CGSize,
+        rotation: Double
+    ) -> some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFill()
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.20),
+                                .clear
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .center
+                        )
+                    )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.44 : 0.56), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.30 : 0.16), radius: 10, x: 0, y: 6)
+            .rotationEffect(.degrees(rotation))
+    }
+
+    private func heroPaletteColor(_ index: Int) -> Color {
+        let palette = [
+            page.palette.primary,
+            page.palette.secondary,
+            page.palette.tertiary,
+            page.palette.quaternary
+        ]
+        return palette[index % palette.count]
+    }
+}
+
+private struct OnboardingBadgeView: View {
+    let badge: OnboardingBadge
+    let palette: OnboardingPalette
+    let colorScheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: badge.icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 21, height: 21)
+                .background(
+                    LinearGradient(
+                        colors: [palette.primary, palette.secondary],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: Circle()
+                )
+
+            Text(badge.title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.90) : Color.primary.opacity(0.82))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(.thinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(colorScheme == .dark ? 0.24 : 0.42), lineWidth: 1)
+        )
+    }
+}
+
+private struct WrapHStack<Content: View>: View {
+    let spacing: CGFloat
+    let lineSpacing: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if #available(iOS 16.0, *) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: spacing) {
+                    content
+                }
+                VStack(alignment: .leading, spacing: lineSpacing) {
+                    content
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: lineSpacing) {
+                content
+            }
+        }
+    }
+}
+
+private struct OnboardingPage {
+    let title: String
+    let subtitle: String
+    let badges: [OnboardingBadge]
+    let palette: OnboardingPalette
+    let hero: OnboardingHeroKind
+}
+
+private struct OnboardingBadge {
+    let icon: String
+    let title: String
+}
+
+private struct OnboardingPalette {
+    let primary: Color
+    let secondary: Color
+    let tertiary: Color
+    let quaternary: Color
+}
+
+private enum OnboardingHeroKind {
+    case studio
+    case importColor
+    case organize
+    case gallery
+}
+
+#Preview {
+    FirstRunOnboardingView(onComplete: {})
+}

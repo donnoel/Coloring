@@ -18,6 +18,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
+- First-run premium onboarding flow with four visual pages covering Studio, import/coloring controls, organization + iCloud behavior, and Gallery export/share basics
 
 2) Architecture boundaries
 - SwiftUI views handle presentation and interaction only
@@ -79,6 +80,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Fill color selection should rely on the active native PencilKit color rather than a separate in-app swatch palette.
 - The native PencilKit palette should remain available in both draw and fill modes so users can change colors without mode switching.
+- During first-run onboarding presentation, the native PencilKit palette should remain hidden and restore after onboarding is dismissed.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
 - Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
 - The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.

@@ -14,6 +14,7 @@ struct TemplateStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: TemplateStudioViewModel
+    var isToolPickerSuppressed: Bool = false
     var onColoringInteractionChanged: ((Bool) -> Void)? = nil
 
     @State private var isPhotoPickerPresented = false
@@ -87,22 +88,20 @@ struct TemplateStudioView: View {
         } message: {
             Text("Choose a new name for this imported drawing.")
         }
-        .confirmationDialog(
-            "Delete Drawing",
-            isPresented: isDeleteDialogPresented,
-            titleVisibility: .visible
-        ) {
-            if let templatePendingDeletion {
-                Button("Delete \"\(templatePendingDeletion.title)\"", role: .destructive) {
-                    confirmDeletion()
-                }
+        .alert("Delete Drawing", isPresented: isDeleteDialogPresented) {
+            Button("Confirm Delete Drawing", role: .destructive) {
+                confirmDeletion()
             }
 
             Button("Cancel", role: .cancel) {
                 templatePendingDeletion = nil
             }
         } message: {
-            Text("This removes the imported drawing from this iPad and iCloud.")
+            if let templatePendingDeletion {
+                Text("This removes \"\(templatePendingDeletion.title)\" from this iPad and iCloud.")
+            } else {
+                Text("This removes the imported drawing from this iPad and iCloud.")
+            }
         }
         .alert("Clear Strokes", isPresented: $isClearStrokesConfirmationPresented) {
             Button("Confirm Clear Strokes", role: .destructive) {
@@ -120,11 +119,7 @@ struct TemplateStudioView: View {
         } message: {
             Text("This removes all fill colors for the selected drawing.")
         }
-        .confirmationDialog(
-            "Delete All Imported",
-            isPresented: $isDeleteAllImportedConfirmationPresented,
-            titleVisibility: .visible
-        ) {
+        .alert("Delete All Imported", isPresented: $isDeleteAllImportedConfirmationPresented) {
             Button("Confirm Delete All", role: .destructive) {
                 confirmDeleteAllImported()
             }
@@ -565,7 +560,8 @@ struct TemplateStudioView: View {
                 },
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
-                brushTool: viewModel.currentBrushTool
+                brushTool: viewModel.currentBrushTool,
+                isToolPickerSuppressed: isToolPickerSuppressed
             )
 
             VStack(spacing: 0) {
@@ -987,15 +983,31 @@ private struct TemplateStudioPhotoPickerPresenter: UIViewControllerRepresentable
 
             let picker = PHPickerViewController(configuration: configuration)
             picker.delegate = self
-            picker.modalPresentationStyle = .pageSheet
+            let shouldUseCompactPresentation = shouldUseCompactPhotoPickerPresentation(for: hostController)
+            picker.modalPresentationStyle = shouldUseCompactPresentation ? .formSheet : .pageSheet
             picker.presentationController?.delegate = self
-            if let sheet = picker.sheetPresentationController {
+            if shouldUseCompactPresentation {
+                picker.preferredContentSize = CGSize(width: 700, height: 760)
+            } else if let sheet = picker.sheetPresentationController {
                 sheet.detents = [.large()]
                 sheet.prefersGrabberVisible = false
             }
 
             hostController.present(picker, animated: true)
             pickerController = picker
+        }
+
+        private func shouldUseCompactPhotoPickerPresentation(for hostController: UIViewController) -> Bool {
+            guard UIDevice.current.userInterfaceIdiom == .pad else {
+                return false
+            }
+
+            if let orientation = hostController.view.window?.windowScene?.interfaceOrientation {
+                return orientation.isPortrait
+            }
+
+            let viewSize = hostController.view.bounds.size
+            return viewSize.height > viewSize.width
         }
 
         private func dismissIfNeeded() {
