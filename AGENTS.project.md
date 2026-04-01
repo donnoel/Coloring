@@ -18,6 +18,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
+- First-run premium onboarding flow with four visual pages covering Studio, import/coloring controls, organization + iCloud behavior, and Gallery export/share basics
 
 2) Architecture boundaries
 - SwiftUI views handle presentation and interaction only

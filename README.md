@@ -28,6 +28,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | Feature | Description |
 |--------|-------------|
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
+| **Premium First-Run Onboarding** | A short 4-page visual onboarding introduces Studio, import/coloring controls, organization/sync behavior, and Gallery export/share flow on first launch. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
 | **80 Built-In Templates** | Manifest-driven built-ins across eight shelf categories with orientation metadata for filtering/layout. |

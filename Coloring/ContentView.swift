@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var templateViewModel = TemplateStudioViewModel()
     @StateObject private var galleryViewModel = GalleryViewModel()
     @AppStorage("contentView.selectedTab") private var selectedTabRawValue: String = RootTab.studio.rawValue
+    @AppStorage("onboarding.hasCompletedFirstRun") private var hasCompletedFirstRunOnboarding = false
     @State private var isStudioTabPillVisible = true
     @State private var studioTabPillAutoShowTask: Task<Void, Never>?
 
@@ -55,6 +56,21 @@ struct ContentView: View {
             studioTabPillAutoShowTask?.cancel()
             studioTabPillAutoShowTask = nil
             isStudioTabPillVisible = true
+        }
+        .fullScreenCover(isPresented: onboardingPresentationBinding) {
+            FirstRunOnboardingView {
+                hasCompletedFirstRunOnboarding = true
+            }
+        }
+    }
+
+    private var onboardingPresentationBinding: Binding<Bool> {
+        Binding {
+            !hasCompletedFirstRunOnboarding
+        } set: { isPresented in
+            if !isPresented {
+                hasCompletedFirstRunOnboarding = true
+            }
         }
     }
 
