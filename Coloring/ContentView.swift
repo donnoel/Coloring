@@ -39,7 +39,9 @@ struct ContentView: View {
                     Rectangle()
                         .fill(topChromeMaskFill)
                         .frame(height: 84)
+                        .offset(y: -60)
                         .ignoresSafeArea(edges: .top)
+                        .allowsHitTesting(false)
                         .transition(.opacity)
                 }
             }
