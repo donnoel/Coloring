@@ -43,6 +43,7 @@ struct TemplateStudioView: View {
             templateWorkspace
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .ignoresSafeArea(edges: .top)
         .task {
             await viewModel.loadTemplatesIfNeeded()
             viewModel.loadBrushPresetsIfNeeded()
