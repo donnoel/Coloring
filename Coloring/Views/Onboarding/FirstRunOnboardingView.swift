@@ -484,60 +484,101 @@ private struct OnboardingHeroCard: View {
                         )
                     )
                     .overlay(
-                        VStack(spacing: 10) {
-                            HStack(alignment: .top, spacing: 8) {
+                        VStack(spacing: 9) {
+                            HStack(spacing: 8) {
                                 VStack(alignment: .leading, spacing: 2) {
+                                    Text("Selected Drawing")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.secondary)
                                     Text("City Bridge")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.primary.opacity(0.90))
-                                    Text("Imported drawing")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
                                 }
                                 Spacer(minLength: 0)
-                                heroMiniPill(title: "Selected")
+                                heroMiniPill(title: "Ready")
                             }
 
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            Color.white.opacity(0.95),
-                                            page.palette.primary.opacity(0.14),
+                                            Color.white.opacity(0.92),
+                                            page.palette.primary.opacity(0.18),
                                             page.palette.secondary.opacity(0.14)
                                         ],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
-                                .frame(height: 86)
+                                .frame(height: 108)
                                 .overlay(
-                                    ZStack {
+                                    HStack(spacing: 10) {
                                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(page.palette.primary.opacity(0.52), lineWidth: 1.8)
+                                            .fill(Color.white.opacity(0.84))
+                                            .frame(width: 96, height: 76)
+                                            .overlay(
+                                                ZStack {
+                                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                                        .stroke(Color.black.opacity(0.20), lineWidth: 1.2)
 
-                                        VStack(spacing: 8) {
-                                            HStack(spacing: 8) {
-                                                Capsule(style: .continuous)
-                                                    .fill(page.palette.primary.opacity(0.42))
-                                                    .frame(width: 64, height: 10)
-                                                Capsule(style: .continuous)
-                                                    .fill(page.palette.secondary.opacity(0.38))
-                                                    .frame(width: 44, height: 10)
-                                                Spacer(minLength: 0)
-                                            }
-                                            HStack(spacing: 8) {
+                                                    Path { path in
+                                                        path.move(to: CGPoint(x: 12, y: 50))
+                                                        path.addCurve(
+                                                            to: CGPoint(x: 82, y: 50),
+                                                            control1: CGPoint(x: 30, y: 20),
+                                                            control2: CGPoint(x: 62, y: 20)
+                                                        )
+                                                    }
+                                                    .stroke(
+                                                        Color.black.opacity(0.34),
+                                                        style: StrokeStyle(
+                                                            lineWidth: 1.8,
+                                                            lineCap: .round,
+                                                            lineJoin: .round
+                                                        )
+                                                    )
+
+                                                    Circle()
+                                                        .fill(page.palette.secondary.opacity(0.54))
+                                                        .frame(width: 15, height: 15)
+                                                        .offset(x: -20, y: 10)
+                                                    Circle()
+                                                        .fill(page.palette.tertiary.opacity(0.52))
+                                                        .frame(width: 14, height: 14)
+                                                        .offset(x: 16, y: 8)
+                                                }
+                                                .padding(7)
+                                            )
+
+                                        VStack(alignment: .leading, spacing: 7) {
+                                            Text("Imported drawing")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+
+                                            Capsule(style: .continuous)
+                                                .fill(page.palette.primary.opacity(0.44))
+                                                .frame(width: 94, height: 9)
+                                            Capsule(style: .continuous)
+                                                .fill(page.palette.secondary.opacity(0.38))
+                                                .frame(width: 64, height: 9)
+
+                                            HStack(spacing: 6) {
                                                 Circle()
-                                                    .fill(page.palette.tertiary.opacity(0.48))
-                                                    .frame(width: 22, height: 22)
-                                                Image(systemName: "scribble.variable")
-                                                    .font(.title3.weight(.semibold))
-                                                    .foregroundStyle(page.palette.primary)
+                                                    .fill(page.palette.primary)
+                                                    .frame(width: 9, height: 9)
+                                                Circle()
+                                                    .fill(page.palette.secondary)
+                                                    .frame(width: 9, height: 9)
+                                                Circle()
+                                                    .fill(page.palette.tertiary)
+                                                    .frame(width: 9, height: 9)
                                                 Spacer(minLength: 0)
                                             }
                                         }
-                                        .padding(.horizontal, 11)
+                                        Spacer(minLength: 0)
                                     }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
                                 )
 
                             HStack(spacing: 8) {
@@ -573,7 +614,7 @@ private struct OnboardingHeroCard: View {
                     )
                 )
                 .overlay(
-                    VStack(spacing: 13) {
+                    VStack(spacing: 12) {
                         HStack(spacing: 10) {
                             toolOrb(icon: "applepencil", tint: page.palette.primary)
                             toolOrb(icon: "drop.fill", tint: page.palette.secondary)
@@ -593,37 +634,38 @@ private struct OnboardingHeroCard: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(height: 116)
+                            .frame(height: 144)
                             .overlay(
                                 VStack(spacing: 10) {
                                     HStack(spacing: 8) {
+                                        heroMiniPill(title: "Photos")
+                                        Image(systemName: "arrow.right")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
                                         heroMiniPill(title: "Canvas")
-                                        heroMiniPill(title: "Fill On")
                                         Spacer(minLength: 0)
-                                        Image(systemName: "hand.tap.fill")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(page.palette.secondary)
+                                        heroMiniPill(title: "Fill On")
                                     }
 
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .fill(Color.white.opacity(0.84))
-                                        .frame(height: 74)
+                                        .frame(height: 96)
                                         .overlay(
                                             ZStack {
                                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                     .stroke(Color.black.opacity(0.18), lineWidth: 1.3)
 
                                                 Path { path in
-                                                    path.move(to: CGPoint(x: 18, y: 56))
+                                                    path.move(to: CGPoint(x: 14, y: 72))
                                                     path.addCurve(
-                                                        to: CGPoint(x: 86, y: 16),
-                                                        control1: CGPoint(x: 24, y: 22),
-                                                        control2: CGPoint(x: 58, y: 10)
+                                                        to: CGPoint(x: 74, y: 24),
+                                                        control1: CGPoint(x: 22, y: 34),
+                                                        control2: CGPoint(x: 50, y: 14)
                                                     )
                                                     path.addCurve(
-                                                        to: CGPoint(x: 152, y: 54),
-                                                        control1: CGPoint(x: 112, y: 24),
-                                                        control2: CGPoint(x: 134, y: 60)
+                                                        to: CGPoint(x: 136, y: 70),
+                                                        control1: CGPoint(x: 96, y: 30),
+                                                        control2: CGPoint(x: 120, y: 76)
                                                     )
                                                 }
                                                 .stroke(
@@ -635,25 +677,47 @@ private struct OnboardingHeroCard: View {
                                                     )
                                                 )
 
+                                                Path { path in
+                                                    path.move(to: CGPoint(x: 22, y: 76))
+                                                    path.addCurve(
+                                                        to: CGPoint(x: 150, y: 76),
+                                                        control1: CGPoint(x: 52, y: 64),
+                                                        control2: CGPoint(x: 118, y: 64)
+                                                    )
+                                                }
+                                                .stroke(
+                                                    page.palette.primary.opacity(0.48),
+                                                    style: StrokeStyle(
+                                                        lineWidth: 3.2,
+                                                        lineCap: .round,
+                                                        lineJoin: .round
+                                                    )
+                                                )
+
                                                 Circle()
                                                     .fill(page.palette.tertiary.opacity(0.58))
                                                     .frame(width: 24, height: 24)
-                                                    .offset(x: -34, y: 2)
+                                                    .offset(x: -34, y: 10)
 
                                                 Circle()
                                                     .fill(page.palette.secondary.opacity(0.56))
                                                     .frame(width: 20, height: 20)
-                                                    .offset(x: -6, y: -6)
+                                                    .offset(x: -4, y: -4)
 
                                                 Capsule(style: .continuous)
                                                     .fill(page.palette.primary.opacity(0.60))
                                                     .frame(width: 42, height: 18)
-                                                    .offset(x: 28, y: 10)
+                                                    .offset(x: 26, y: 18)
 
                                                 Circle()
                                                     .stroke(page.palette.quaternary, lineWidth: 2)
                                                     .frame(width: 26, height: 26)
-                                                    .offset(x: 52, y: -8)
+                                                    .offset(x: 52, y: 0)
+
+                                                Image(systemName: "pencil.tip")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(page.palette.primary)
+                                                    .offset(x: 62, y: -26)
                                             }
                                             .padding(.horizontal, 8)
                                         )
@@ -674,6 +738,7 @@ private struct OnboardingHeroCard: View {
                             }
                             Spacer(minLength: 0)
                             HStack(spacing: 8) {
+                                heroMiniPill(title: "Draw")
                                 heroMiniPill(title: "Undo")
                                 heroMiniPill(title: "Clear")
                             }
@@ -697,7 +762,7 @@ private struct OnboardingHeroCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 9) {
                         HStack(spacing: 10) {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(
@@ -715,6 +780,11 @@ private struct OnboardingHeroCard: View {
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .stroke(Color.white.opacity(0.44), lineWidth: 1)
                                 )
+                                .overlay(
+                                    Image(systemName: "photo")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.white.opacity(0.90))
+                                )
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("City Bridge")
@@ -725,20 +795,15 @@ private struct OnboardingHeroCard: View {
                             }
 
                             Spacer(minLength: 0)
-                            heroMiniPill(title: "Selected")
+
+                            Image(systemName: "ellipsis.circle.fill")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(page.palette.primary.opacity(0.92))
                         }
 
-                        Rectangle()
-                            .fill(Color.white.opacity(colorScheme == .dark ? 0.14 : 0.34))
-                            .frame(height: 1)
-
-                        HStack(spacing: 8) {
-                            Image(systemName: "hand.tap.fill")
-                                .foregroundStyle(page.palette.primary)
-                            Text("Long-press quick actions")
-                                .font(.subheadline.weight(.semibold))
-                            Spacer(minLength: 0)
-                        }
+                        Text("Long-press City Bridge for quick actions")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
 
                         HStack(spacing: 6) {
                             heroMiniPill(title: "Move")
@@ -746,29 +811,38 @@ private struct OnboardingHeroCard: View {
                             heroMiniPill(title: "Rename")
                         }
 
-                        Rectangle()
-                            .fill(Color.white.opacity(colorScheme == .dark ? 0.14 : 0.34))
-                            .frame(height: 1)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.28))
+                            .overlay(
+                                HStack(alignment: .top, spacing: 10) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(page.palette.primary.opacity(0.22))
+                                            .frame(width: 34, height: 34)
+                                        Image(systemName: "icloud.fill")
+                                            .font(.headline.weight(.semibold))
+                                            .foregroundStyle(page.palette.primary)
+                                    }
 
-                        HStack(alignment: .top, spacing: 10) {
-                            ZStack {
-                                Circle()
-                                    .fill(page.palette.primary.opacity(0.22))
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: "icloud.fill")
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(page.palette.primary)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("iCloud")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Imported drawings and progress can sync and restore.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                        }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 6) {
+                                            Text("iCloud")
+                                                .font(.subheadline.weight(.semibold))
+                                            Circle()
+                                                .fill(page.palette.secondary)
+                                                .frame(width: 7, height: 7)
+                                            Text("Synced")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(page.palette.secondary)
+                                        }
+                                        Text("Imported drawings and progress sync and restore across your devices.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                                .padding(10)
+                            )
                     }
                     .padding(12)
                 )
