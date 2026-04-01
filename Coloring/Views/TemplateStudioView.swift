@@ -983,15 +983,31 @@ private struct TemplateStudioPhotoPickerPresenter: UIViewControllerRepresentable
 
             let picker = PHPickerViewController(configuration: configuration)
             picker.delegate = self
-            picker.modalPresentationStyle = .pageSheet
+            let shouldUseCompactPresentation = shouldUseCompactPhotoPickerPresentation(for: hostController)
+            picker.modalPresentationStyle = shouldUseCompactPresentation ? .formSheet : .pageSheet
             picker.presentationController?.delegate = self
-            if let sheet = picker.sheetPresentationController {
+            if shouldUseCompactPresentation {
+                picker.preferredContentSize = CGSize(width: 700, height: 760)
+            } else if let sheet = picker.sheetPresentationController {
                 sheet.detents = [.large()]
                 sheet.prefersGrabberVisible = false
             }
 
             hostController.present(picker, animated: true)
             pickerController = picker
+        }
+
+        private func shouldUseCompactPhotoPickerPresentation(for hostController: UIViewController) -> Bool {
+            guard UIDevice.current.userInterfaceIdiom == .pad else {
+                return false
+            }
+
+            if let orientation = hostController.view.window?.windowScene?.interfaceOrientation {
+                return orientation.isPortrait
+            }
+
+            let viewSize = hostController.view.bounds.size
+            return viewSize.height > viewSize.width
         }
 
         private func dismissIfNeeded() {
