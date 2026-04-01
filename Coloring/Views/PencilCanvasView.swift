@@ -706,7 +706,9 @@ final class ZoomableCanvasContainerView: UIView {
         let frameInWindow = convert(bounds, to: window)
         let topGap = max(frameInWindow.minY, 0)
         let bottomGap = max(window.bounds.maxY - frameInWindow.maxY, 0)
-        return (topGap - bottomGap) / 2
+        let baselineCompensation = (topGap - bottomGap) / 2
+        let visualTopBias: CGFloat = 16
+        return baselineCompensation + visualTopBias
     }
 
     private func setupSubviews() {
