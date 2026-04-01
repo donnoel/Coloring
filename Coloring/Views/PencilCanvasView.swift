@@ -19,6 +19,7 @@ struct PencilCanvasView: UIViewRepresentable {
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
     var brushTool: PKInkingTool?
+    var isToolPickerSuppressed: Bool = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -35,6 +36,7 @@ struct PencilCanvasView: UIViewRepresentable {
         containerView.scrollView.delegate = context.coordinator
 
         context.coordinator.connect(to: canvasView, containerView: containerView)
+        context.coordinator.updateToolPickerSuppression(isToolPickerSuppressed, on: canvasView)
         containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
@@ -83,6 +85,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         context.coordinator.lastTemplateID = templateID
+        context.coordinator.updateToolPickerSuppression(isToolPickerSuppressed, on: canvasView)
         context.coordinator.updateFillMode(fillMode, in: uiView)
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
         context.coordinator.updateOverlayImages(
@@ -105,6 +108,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private weak var containerView: ZoomableCanvasContainerView?
         private var toolPicker: PKToolPicker?
         private var pencilInteraction: UIPencilInteraction?
+        private var isToolPickerSuppressed = false
         private var lastInkTool: PKTool = PKInkingTool(.marker, color: .black, width: 12)
         private var isApplyingExternalDrawing = false
         var lastTemplateID: String?
@@ -206,10 +210,21 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
             lastFillModeState = nil
+            isToolPickerSuppressed = false
             unregisterLifecycleObservers()
             self.canvasView = nil
             containerView?.appearanceDidChangeHandler = nil
             containerView = nil
+        }
+
+        func updateToolPickerSuppression(_ isSuppressed: Bool, on canvasView: PKCanvasView) {
+            isToolPickerSuppressed = isSuppressed
+
+            if isSuppressed {
+                hideToolPicker(on: canvasView)
+            } else {
+                recoverToolPickerVisibilityIfNeeded()
+            }
         }
 
         func updateOverlayImages(
@@ -286,6 +301,7 @@ struct PencilCanvasView: UIViewRepresentable {
 
         private func recoverToolPickerVisibilityIfNeeded() {
             guard !isRunningTests,
+                  !isToolPickerSuppressed,
                   let canvasView
             else {
                 return
@@ -590,6 +606,11 @@ struct PencilCanvasView: UIViewRepresentable {
 
         private func showToolPicker() {
             recoverToolPickerVisibilityIfNeeded()
+        }
+
+        private func hideToolPicker(on canvasView: PKCanvasView) {
+            toolPicker?.setVisible(false, forFirstResponder: canvasView)
+            canvasView.resignFirstResponder()
         }
 
         private func switchToEraser() {

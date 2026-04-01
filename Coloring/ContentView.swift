@@ -12,6 +12,8 @@ struct ContentView: View {
     @StateObject private var galleryViewModel = GalleryViewModel()
     @AppStorage("contentView.selectedTab") private var selectedTabRawValue: String = RootTab.studio.rawValue
     @AppStorage("onboarding.hasCompletedFirstRun") private var hasCompletedFirstRunOnboarding = false
+    private let shouldAlwaysShowOnboardingForTesting = false
+    @State private var hasShownOnboardingThisLaunch = false
     @State private var isStudioTabPillVisible = true
     @State private var studioTabPillAutoShowTask: Task<Void, Never>?
 
@@ -22,6 +24,7 @@ struct ContentView: View {
             TabView(selection: selectedTabBinding) {
                 TemplateStudioView(
                     viewModel: templateViewModel,
+                    isToolPickerSuppressed: isOnboardingPresented,
                     onColoringInteractionChanged: handleStudioColoringInteractionChanged
                 )
                     .tabItem {
@@ -66,12 +69,21 @@ struct ContentView: View {
 
     private var onboardingPresentationBinding: Binding<Bool> {
         Binding {
-            !hasCompletedFirstRunOnboarding
+            isOnboardingPresented
         } set: { isPresented in
             if !isPresented {
                 hasCompletedFirstRunOnboarding = true
+                hasShownOnboardingThisLaunch = true
             }
         }
+    }
+
+    private var isOnboardingPresented: Bool {
+        if shouldAlwaysShowOnboardingForTesting {
+            return !hasShownOnboardingThisLaunch
+        }
+
+        return !hasCompletedFirstRunOnboarding
     }
 
     private var selectedTabBinding: Binding<RootTab> {

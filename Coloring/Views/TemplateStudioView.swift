@@ -14,6 +14,7 @@ struct TemplateStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: TemplateStudioViewModel
+    var isToolPickerSuppressed: Bool = false
     var onColoringInteractionChanged: ((Bool) -> Void)? = nil
 
     @State private var isPhotoPickerPresented = false
@@ -565,7 +566,8 @@ struct TemplateStudioView: View {
                 },
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
-                brushTool: viewModel.currentBrushTool
+                brushTool: viewModel.currentBrushTool,
+                isToolPickerSuppressed: isToolPickerSuppressed
             )
 
             VStack(spacing: 0) {
