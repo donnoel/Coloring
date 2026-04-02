@@ -9,11 +9,12 @@ struct FirstRunOnboardingView: View {
 
     private let pages: [OnboardingPage] = [
         OnboardingPage(
-            title: "Welcome to Studio",
-            subtitle: "Browse built-in and imported drawings, then open one and start coloring.",
+            title: "Pick a Page, Start Fast",
+            subtitle: "Browse built-in scenes or imports, choose a page, and jump straight into coloring in Studio.",
             badges: [
-                .init(icon: "paintbrush.pointed.fill", title: "Studio Workspace"),
-                .init(icon: "rectangle.stack.fill", title: "Built-In + Imported")
+                .init(icon: "rectangle.stack.fill", title: "Built-In + Imported"),
+                .init(icon: "sparkles", title: "Fun Scenes"),
+                .init(icon: "play.fill", title: "Open in One Tap")
             ],
             palette: .init(
                 primary: Color(red: 0.16, green: 0.60, blue: 0.97),
@@ -24,12 +25,13 @@ struct FirstRunOnboardingView: View {
             hero: .studio
         ),
         OnboardingPage(
-            title: "Import and Color",
-            subtitle: "Import line art from Photos or Files. Draw with Apple Pencil, tap Fill, then undo, redo, or clear in a tap.",
+            title: "Coloring Feels Instant",
+            subtitle: "Import from Photos or Files, color with Apple Pencil, and blend draw + fill to bring each page to life.",
             badges: [
                 .init(icon: "photo.on.rectangle.angled", title: "Photos + Files"),
                 .init(icon: "applepencil", title: "Apple Pencil + PencilKit"),
-                .init(icon: "drop.fill", title: "Fill + Edit Controls")
+                .init(icon: "drop.fill", title: "Draw + Fill"),
+                .init(icon: "arrow.uturn.backward.circle.fill", title: "Undo + Redo")
             ],
             palette: .init(
                 primary: Color(red: 0.09, green: 0.67, blue: 0.97),
@@ -40,8 +42,8 @@ struct FirstRunOnboardingView: View {
             hero: .importColor
         ),
         OnboardingPage(
-            title: "Organize and Sync",
-            subtitle: "Use categories, hidden management, and long-press actions to keep Studio tidy. Imported drawings and progress sync with iCloud.",
+            title: "Keep Every Page Organized",
+            subtitle: "Sort by Favorites, In Progress, and Completed. Hide what you do not need, and keep imports + progress synced with iCloud.",
             badges: [
                 .init(icon: "folder.badge.gearshape", title: "Categories"),
                 .init(icon: "eye.slash", title: "Hidden Management"),
@@ -346,7 +348,7 @@ private struct OnboardingPageView: View {
         VStack(alignment: .leading, spacing: 18) {
             OnboardingHeroCard(page: page, colorScheme: colorScheme)
                 .frame(maxWidth: .infinity)
-                .frame(height: 344)
+                .frame(height: page.hero == .gallery ? 372 : 344)
                 .scaleEffect(!reduceMotion && isCurrentPage ? 1 : 0.986)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: isCurrentPage)
 
@@ -447,21 +449,21 @@ private struct OnboardingHeroCard: View {
 
                 VStack(spacing: 9) {
                     studioLibraryRow(
-                        title: "Garden Scene",
-                        subtitle: "Built-in",
+                        title: "Rainy Window Cat",
+                        subtitle: "Built-in · Easy",
                         tint: page.palette.secondary,
                         accent: page.palette.tertiary
                     )
                     studioLibraryRow(
-                        title: "City Bridge",
-                        subtitle: "Selected",
+                        title: "Baking Scene with Pie",
+                        subtitle: "Selected · Easy",
                         tint: page.palette.primary,
                         accent: page.palette.quaternary,
                         isSelected: true
                     )
                     studioLibraryRow(
-                        title: "Forest Camp",
-                        subtitle: "In Progress",
+                        title: "Sunflower Path",
+                        subtitle: "Built-in · Easy",
                         tint: page.palette.tertiary,
                         accent: page.palette.primary
                     )
@@ -490,7 +492,7 @@ private struct OnboardingHeroCard: View {
                                     Text("Selected Drawing")
                                         .font(.caption2.weight(.medium))
                                         .foregroundStyle(.secondary)
-                                    Text("City Bridge")
+                                    Text("Baking Scene with Pie")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.primary.opacity(0.90))
                                 }
@@ -515,52 +517,31 @@ private struct OnboardingHeroCard: View {
                                     HStack(spacing: 10) {
                                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                                             .fill(Color.white.opacity(0.84))
-                                            .frame(width: 96, height: 76)
+                                            .frame(width: 130, height: 84)
                                             .overlay(
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                                        .stroke(Color.black.opacity(0.20), lineWidth: 1.2)
-
-                                                    Path { path in
-                                                        path.move(to: CGPoint(x: 12, y: 50))
-                                                        path.addCurve(
-                                                            to: CGPoint(x: 82, y: 50),
-                                                            control1: CGPoint(x: 30, y: 20),
-                                                            control2: CGPoint(x: 62, y: 20)
-                                                        )
-                                                    }
-                                                    .stroke(
-                                                        Color.black.opacity(0.34),
-                                                        style: StrokeStyle(
-                                                            lineWidth: 1.8,
-                                                            lineCap: .round,
-                                                            lineJoin: .round
-                                                        )
-                                                    )
-
-                                                    Circle()
-                                                        .fill(page.palette.secondary.opacity(0.54))
-                                                        .frame(width: 15, height: 15)
-                                                        .offset(x: -20, y: 10)
-                                                    Circle()
-                                                        .fill(page.palette.tertiary.opacity(0.52))
-                                                        .frame(width: 14, height: 14)
-                                                        .offset(x: 16, y: 8)
-                                                }
-                                                .padding(7)
+                                                halfColoredArtworkPreview(
+                                                    imageName: "OnboardingGalleryPet",
+                                                    cornerRadius: 9
+                                                )
+                                                .padding(6)
                                             )
 
                                         VStack(alignment: .leading, spacing: 7) {
-                                            Text("Imported drawing")
+                                            Text("File")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
 
                                             Capsule(style: .continuous)
                                                 .fill(page.palette.primary.opacity(0.44))
-                                                .frame(width: 94, height: 9)
+                                                .frame(width: 156, height: 9)
                                             Capsule(style: .continuous)
                                                 .fill(page.palette.secondary.opacity(0.38))
-                                                .frame(width: 64, height: 9)
+                                                .frame(width: 144, height: 9)
+
+                                            Text("Baking Scene with Pie")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
 
                                             HStack(spacing: 6) {
                                                 Circle()
@@ -634,7 +615,7 @@ private struct OnboardingHeroCard: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(height: 144)
+                            .frame(height: 166)
                             .overlay(
                                 VStack(spacing: 10) {
                                     HStack(spacing: 8) {
@@ -649,77 +630,13 @@ private struct OnboardingHeroCard: View {
 
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .fill(Color.white.opacity(0.84))
-                                        .frame(height: 96)
+                                        .frame(height: 122)
                                         .overlay(
-                                            ZStack {
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .stroke(Color.black.opacity(0.18), lineWidth: 1.3)
-
-                                                Path { path in
-                                                    path.move(to: CGPoint(x: 14, y: 72))
-                                                    path.addCurve(
-                                                        to: CGPoint(x: 74, y: 24),
-                                                        control1: CGPoint(x: 22, y: 34),
-                                                        control2: CGPoint(x: 50, y: 14)
-                                                    )
-                                                    path.addCurve(
-                                                        to: CGPoint(x: 136, y: 70),
-                                                        control1: CGPoint(x: 96, y: 30),
-                                                        control2: CGPoint(x: 120, y: 76)
-                                                    )
-                                                }
-                                                .stroke(
-                                                    Color.black.opacity(0.28),
-                                                    style: StrokeStyle(
-                                                        lineWidth: 2.0,
-                                                        lineCap: .round,
-                                                        lineJoin: .round
-                                                    )
-                                                )
-
-                                                Path { path in
-                                                    path.move(to: CGPoint(x: 22, y: 76))
-                                                    path.addCurve(
-                                                        to: CGPoint(x: 150, y: 76),
-                                                        control1: CGPoint(x: 52, y: 64),
-                                                        control2: CGPoint(x: 118, y: 64)
-                                                    )
-                                                }
-                                                .stroke(
-                                                    page.palette.primary.opacity(0.48),
-                                                    style: StrokeStyle(
-                                                        lineWidth: 3.2,
-                                                        lineCap: .round,
-                                                        lineJoin: .round
-                                                    )
-                                                )
-
-                                                Circle()
-                                                    .fill(page.palette.tertiary.opacity(0.58))
-                                                    .frame(width: 24, height: 24)
-                                                    .offset(x: -34, y: 10)
-
-                                                Circle()
-                                                    .fill(page.palette.secondary.opacity(0.56))
-                                                    .frame(width: 20, height: 20)
-                                                    .offset(x: -4, y: -4)
-
-                                                Capsule(style: .continuous)
-                                                    .fill(page.palette.primary.opacity(0.60))
-                                                    .frame(width: 42, height: 18)
-                                                    .offset(x: 26, y: 18)
-
-                                                Circle()
-                                                    .stroke(page.palette.quaternary, lineWidth: 2)
-                                                    .frame(width: 26, height: 26)
-                                                    .offset(x: 52, y: 0)
-
-                                                Image(systemName: "pencil.tip")
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundStyle(page.palette.primary)
-                                                    .offset(x: 62, y: -26)
-                                            }
-                                            .padding(.horizontal, 8)
+                                            halfColoredArtworkPreview(
+                                                imageName: "OnboardingGalleryVenice",
+                                                cornerRadius: 10
+                                            )
+                                                .padding(.horizontal, 8)
                                         )
                                 }
                                 .padding(.horizontal, 10)
@@ -753,11 +670,12 @@ private struct OnboardingHeroCard: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 heroLabel("Collections", icon: "folder.badge.gearshape")
+                categoryRow(title: "In Progress", icon: "paintpalette.fill", tint: page.palette.primary, detail: "8")
                 categoryRow(title: "Favorites", icon: "star.fill", tint: page.palette.tertiary, detail: "14")
                 categoryRow(title: "Completed", icon: "checkmark.seal.fill", tint: page.palette.secondary, detail: "26")
                 categoryRow(title: "Hidden", icon: "eye.slash.fill", tint: page.palette.quaternary, detail: "5")
             }
-            .frame(maxWidth: 230)
+            .frame(maxWidth: 248)
 
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -765,31 +683,20 @@ private struct OnboardingHeroCard: View {
                     VStack(alignment: .leading, spacing: 9) {
                         HStack(spacing: 10) {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            page.palette.primary.opacity(0.90),
-                                            page.palette.secondary.opacity(0.76)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
+                                .fill(Color.white.opacity(0.86))
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    halfColoredArtworkPreview(
+                                        imageName: "OnboardingGalleryForest",
+                                        cornerRadius: 8
                                     )
-                                )
-                                .frame(width: 36, height: 36)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(Color.white.opacity(0.44), lineWidth: 1)
-                                )
-                                .overlay(
-                                    Image(systemName: "photo")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.white.opacity(0.90))
+                                    .padding(3)
                                 )
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("City Bridge")
+                                Text("Baking Scene with Pie")
                                     .font(.subheadline.weight(.semibold))
-                                Text("Selected drawing")
+                                Text("In Progress · Synced")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -801,7 +708,7 @@ private struct OnboardingHeroCard: View {
                                 .foregroundStyle(page.palette.primary.opacity(0.92))
                         }
 
-                        Text("Long-press City Bridge for quick actions")
+                        Text("Long-press for quick actions")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
 
@@ -810,6 +717,41 @@ private struct OnboardingHeroCard: View {
                             heroMiniPill(title: "Hide")
                             heroMiniPill(title: "Rename")
                         }
+
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.24))
+                            .overlay(
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(spacing: 6) {
+                                        Text("Progress")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        Text("62%")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(page.palette.primary)
+                                    }
+
+                                    GeometryReader { geometry in
+                                        let width = max(0, geometry.size.width)
+                                        ZStack(alignment: .leading) {
+                                            Capsule(style: .continuous)
+                                                .fill(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.54))
+                                            Capsule(style: .continuous)
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [page.palette.primary, page.palette.secondary],
+                                                        startPoint: .leading,
+                                                        endPoint: .trailing
+                                                    )
+                                                )
+                                                .frame(width: width * 0.62)
+                                        }
+                                    }
+                                    .frame(height: 9)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                            )
 
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.28))
@@ -831,11 +773,11 @@ private struct OnboardingHeroCard: View {
                                             Circle()
                                                 .fill(page.palette.secondary)
                                                 .frame(width: 7, height: 7)
-                                            Text("Synced")
+                                            Text("Connected")
                                                 .font(.caption2.weight(.semibold))
                                                 .foregroundStyle(page.palette.secondary)
                                         }
-                                        Text("Imported drawings and progress sync and restore across your devices.")
+                                        Text("Imported drawings and progress sync and auto-restore on your iPad.")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .lineLimit(2)
@@ -855,7 +797,7 @@ private struct OnboardingHeroCard: View {
     }
 
     private var galleryHero: some View {
-        VStack(spacing: 11) {
+        VStack(spacing: 8) {
             HStack(spacing: 10) {
                 heroChip(title: "Send to Gallery", icon: "square.and.arrow.up")
                 Spacer(minLength: 0)
@@ -865,26 +807,26 @@ private struct OnboardingHeroCard: View {
             ZStack {
                 galleryArtworkCard(
                     imageName: "OnboardingGalleryPet",
-                    size: CGSize(width: 200, height: 124),
-                    rotation: -7.5
+                    size: CGSize(width: 236, height: 148),
+                    rotation: -6.5
                 )
-                .offset(x: -110, y: -22)
+                .offset(x: -124, y: -34)
 
                 galleryArtworkCard(
                     imageName: "OnboardingGalleryForest",
-                    size: CGSize(width: 194, height: 120),
-                    rotation: 6.5
+                    size: CGSize(width: 236, height: 148),
+                    rotation: 5.8
                 )
-                .offset(x: 108, y: -20)
+                .offset(x: 124, y: -34)
 
                 galleryArtworkCard(
                     imageName: "OnboardingGalleryVenice",
-                    size: CGSize(width: 292, height: 176),
-                    rotation: 0.6
+                    size: CGSize(width: 360, height: 218),
+                    rotation: 0.0
                 )
-                .offset(y: 14)
+                .offset(y: 20)
             }
-            .frame(height: 216)
+            .frame(height: 272)
 
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { index in
@@ -1063,6 +1005,54 @@ private struct OnboardingHeroCard: View {
             )
             .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.30 : 0.16), radius: 10, x: 0, y: 6)
             .rotationEffect(.degrees(rotation))
+    }
+
+    private func halfColoredArtworkPreview(imageName: String, cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white.opacity(0.90))
+            .overlay {
+                GeometryReader { geometry in
+                    let width = geometry.size.width
+                    let height = geometry.size.height
+
+                    ZStack {
+                        Image(imageName)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: width, height: height)
+
+                        Image(imageName)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: width, height: height)
+                            .saturation(0)
+                            .contrast(1.38)
+                            .brightness(0.20)
+                            .opacity(0.96)
+                            .mask(
+                                Rectangle()
+                                    .frame(width: width * 0.48, height: height)
+                                    .offset(x: width * 0.26)
+                            )
+
+                        Rectangle()
+                            .fill(Color.white.opacity(0.30))
+                            .frame(width: width * 0.024, height: height)
+                            .position(x: width * 0.52, y: height * 0.50)
+
+                        Path { path in
+                            path.move(to: CGPoint(x: width * 0.52, y: 0))
+                            path.addLine(to: CGPoint(x: width * 0.52, y: height))
+                        }
+                        .stroke(Color.black.opacity(0.22), lineWidth: max(1.0, width * 0.008))
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius - 1, style: .continuous))
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.black.opacity(0.18), lineWidth: 1.2)
+            )
     }
 
     private func heroPaletteColor(_ index: Int) -> Color {
