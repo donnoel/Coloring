@@ -24,7 +24,7 @@ struct ContentView: View {
             TabView(selection: selectedTabBinding) {
                 TemplateStudioView(
                     viewModel: templateViewModel,
-                    isToolPickerSuppressed: isOnboardingPresented,
+                    isToolPickerSuppressed: shouldSuppressStudioToolPicker,
                     onColoringInteractionChanged: handleStudioColoringInteractionChanged
                 )
                     .tabItem {
@@ -84,6 +84,10 @@ struct ContentView: View {
         }
 
         return !hasCompletedFirstRunOnboarding
+    }
+
+    private var shouldSuppressStudioToolPicker: Bool {
+        isOnboardingPresented || selectedTabRawValue != RootTab.studio.rawValue
     }
 
     private var selectedTabBinding: Binding<RootTab> {
