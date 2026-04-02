@@ -345,7 +345,7 @@ private struct OnboardingPageView: View {
     let reduceMotion: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: heroToCopySpacing) {
             OnboardingHeroCard(page: page, colorScheme: colorScheme)
                 .frame(maxWidth: .infinity)
                 .frame(height: heroHeight)
@@ -386,6 +386,10 @@ private struct OnboardingPageView: View {
                 )
                 .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.32 : 0.11), radius: 16, x: 0, y: 10)
         )
+    }
+
+    private var heroToCopySpacing: CGFloat {
+        page.hero == .gallery ? 24 : 18
     }
 
     private var heroHeight: CGFloat {

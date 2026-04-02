@@ -1602,6 +1602,23 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(resolution.selectedTemplateID, "builtin-1")
     }
 
+    func testReloadStateResolverFallsBackToFirstSidebarOrderedTemplate() {
+        let templates = [
+            Self.makeTemplate(id: "builtin-z", title: "Zebra Path"),
+            Self.makeTemplate(id: "builtin-a", title: "A Waterfall Valley")
+        ]
+
+        let resolution = TemplateReloadStateResolver.resolve(
+            loadedTemplates: templates,
+            hiddenTemplateIDs: [],
+            currentSelectedTemplateID: "",
+            lastSelectedTemplateID: nil,
+            recentTemplateIDs: []
+        )
+
+        XCTAssertEqual(resolution.selectedTemplateID, "builtin-a")
+    }
+
     func testFillImageResolverUsesCachedImageWithoutDecoding() {
         let cachedImage = UIImage(data: sampleTemplateImageData)
         XCTAssertNotNil(cachedImage)

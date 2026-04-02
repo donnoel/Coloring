@@ -115,19 +115,21 @@ actor GalleryStoreService: GalleryStoreProviding {
 
     private func readData(from sourceURL: URL) throws -> Data {
         let fallbackDownloadedURL = fallbackDownloadedURLIfPlaceholder(for: sourceURL)
-        do {
-            return try Data(contentsOf: sourceURL)
-        } catch {
-            if let fallbackDownloadedURL,
-               let fallbackData = try? Data(contentsOf: fallbackDownloadedURL)
-            {
+        if let fallbackDownloadedURL {
+            requestUbiquitousDownloadIfNeeded(at: sourceURL)
+            requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
+
+            if let fallbackData = try? Data(contentsOf: fallbackDownloadedURL) {
                 return fallbackData
             }
 
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+
+        do {
+            return try Data(contentsOf: sourceURL)
+        } catch {
             requestUbiquitousDownloadIfNeeded(at: sourceURL)
-            if let fallbackDownloadedURL {
-                requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
-            }
 
             var lastError: Error = error
             for _ in 0..<8 {
@@ -135,14 +137,6 @@ actor GalleryStoreService: GalleryStoreProviding {
                     return try Data(contentsOf: sourceURL)
                 } catch {
                     lastError = error
-                }
-
-                if let fallbackDownloadedURL {
-                    do {
-                        return try Data(contentsOf: fallbackDownloadedURL)
-                    } catch {
-                        lastError = error
-                    }
                 }
             }
 

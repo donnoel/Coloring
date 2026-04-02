@@ -252,17 +252,16 @@ final class TemplateStudioViewModel: ObservableObject {
             persistLastSelectedTemplateID(selectedTemplateID)
             refreshEditAvailability()
 
-            await restoreInProgressTemplateIDs(for: loadedTemplates.map(\.id))
-            restoreDrawingForSelectedTemplate()
-            restoreFillForSelectedTemplate()
-
             if selectedTemplateID != previousTemplateID {
                 // Only clear when selection changed; preserving same-template image avoids launch flicker.
                 selectedTemplateImage = nil
                 loadedTemplateImageID = nil
             }
 
+            restoreDrawingForSelectedTemplate()
+            restoreFillForSelectedTemplate()
             await loadSelectedTemplateImage(for: selectedTemplateID)
+            await restoreInProgressTemplateIDs(for: loadedTemplates.map(\.id))
             return true
         } catch {
             importErrorMessage = "Could not load templates: \(error.localizedDescription)"

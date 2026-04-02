@@ -9,6 +9,19 @@ struct TemplateReloadResolution {
 }
 
 enum TemplateReloadStateResolver {
+    private static func defaultVisibleSelectionID(from visibleTemplates: [ColoringTemplate]) -> String {
+        visibleTemplates
+            .sorted { lhs, rhs in
+                if lhs.source != rhs.source {
+                    return lhs.source == .imported
+                }
+
+                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+            }
+            .first?
+            .id ?? ""
+    }
+
     static func resolve(
         loadedTemplates: [ColoringTemplate],
         hiddenTemplateIDs: Set<String>,
@@ -51,7 +64,7 @@ enum TemplateReloadStateResolver {
         {
             selectedTemplateID = lastSelectedTemplateID
         } else {
-            selectedTemplateID = visibleTemplates.first?.id ?? ""
+            selectedTemplateID = defaultVisibleSelectionID(from: visibleTemplates)
         }
 
         return TemplateReloadResolution(
