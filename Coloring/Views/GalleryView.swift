@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GalleryView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var viewModel: GalleryViewModel
     @State private var selectedEntry: ArtworkEntry?
@@ -44,6 +45,16 @@ struct GalleryView: View {
             .task {
                 await viewModel.loadEntries()
                 syncCarouselIndex()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else {
+                    return
+                }
+
+                Task {
+                    await viewModel.loadEntries()
+                    syncCarouselIndex()
+                }
             }
             .onChange(of: viewModel.entries.map(\.id)) { _, _ in
                 syncCarouselIndex()

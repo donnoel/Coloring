@@ -19,7 +19,7 @@
 - zoom into detail work with natural gestures,
 - export a composited PNG when finished.
 
-The app is offline-first for day-to-day use and uses iCloud for recovery of imported templates and per-template drawing progress.
+The app is offline-first for day-to-day use and uses iCloud for recovery of imported templates, per-template drawing progress, library state (favorites/completed/recent/hidden/categories), and gallery artwork metadata.
 
 ---
 
@@ -54,6 +54,8 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Progress Recovery** | Pencil strokes, fills, and layer state are restored per template so work reappears when you return. |
+| **Library State Recovery** | Favorites, Completed, Recent, Hidden, and custom category organization restore after reinstall when iCloud is available. |
+| **Gallery Recovery** | Gallery manifest and artwork files mirror to iCloud so exported pieces return after reinstall. |
 | **Destructive Action Confirmations** | Confirmation prompts for clear strokes, clear fills, and imported drawing deletions. |
 | **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
@@ -102,8 +104,8 @@ Coloring follows a predictable persistence and rendering pipeline:
 6. Load selected template image into the studio.
 7. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
 8. Persist drawing, fill, and layer-stack updates per template locally.
-9. Mirror drawing/fill/imported-template data to iCloud when available.
-10. Restore drawing/fill/layer state for the selected template on reload/reinstall.
+9. Mirror drawing/fill/imported-template/category-state/gallery data to iCloud when available.
+10. Restore drawing/fill/layer state, library metadata state, and gallery entries on reload/reinstall.
 11. Export template image + fills + layer composites + active strokes into a composited PNG.
 
 ---
