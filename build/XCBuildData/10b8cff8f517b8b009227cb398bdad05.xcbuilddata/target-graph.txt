@@ -1,4 +1,0 @@
-Target dependency graph (2 targets)
-Target 'ColoringTests' in project 'Coloring'
-➜ Explicit dependency on target 'Coloring' in project 'Coloring'
-Target 'Coloring' in project 'Coloring' (no dependencies)
