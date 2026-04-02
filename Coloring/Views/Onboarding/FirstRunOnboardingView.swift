@@ -449,20 +449,20 @@ private struct OnboardingHeroCard: View {
 
                 VStack(spacing: 9) {
                     studioLibraryRow(
-                        title: "Rainy Window Cat",
+                        title: "Winter Cabin",
                         subtitle: "Built-in · Easy",
                         tint: page.palette.secondary,
                         accent: page.palette.tertiary
                     )
                     studioLibraryRow(
-                        title: "Baking Scene with Pie",
+                        title: "Winter Cabin",
                         subtitle: "Selected · Easy",
                         tint: page.palette.primary,
                         accent: page.palette.quaternary,
                         isSelected: true
                     )
                     studioLibraryRow(
-                        title: "Sunflower Path",
+                        title: "Winter Cabin",
                         subtitle: "Built-in · Easy",
                         tint: page.palette.tertiary,
                         accent: page.palette.primary
@@ -492,7 +492,7 @@ private struct OnboardingHeroCard: View {
                                     Text("Selected Drawing")
                                         .font(.caption2.weight(.medium))
                                         .foregroundStyle(.secondary)
-                                    Text("Baking Scene with Pie")
+                                    Text("Winter Cabin")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.primary.opacity(0.90))
                                 }
@@ -520,7 +520,7 @@ private struct OnboardingHeroCard: View {
                                             .frame(width: 130, height: 84)
                                             .overlay(
                                                 halfColoredArtworkPreview(
-                                                    imageName: "OnboardingGalleryPet",
+                                                    imageName: "OnboardingWinterCabin",
                                                     cornerRadius: 9
                                                 )
                                                 .padding(6)
@@ -538,7 +538,7 @@ private struct OnboardingHeroCard: View {
                                                 .fill(page.palette.secondary.opacity(0.38))
                                                 .frame(width: 144, height: 9)
 
-                                            Text("Baking Scene with Pie")
+                                            Text("Winter Cabin")
                                                 .font(.caption2.weight(.semibold))
                                                 .foregroundStyle(.secondary)
                                                 .lineLimit(1)
