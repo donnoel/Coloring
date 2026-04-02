@@ -389,7 +389,7 @@ private struct OnboardingPageView: View {
     }
 
     private var heroToCopySpacing: CGFloat {
-        page.hero == .gallery ? 24 : 18
+        page.hero == .gallery ? 30 : 18
     }
 
     private var heroHeight: CGFloat {

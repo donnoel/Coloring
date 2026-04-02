@@ -15,6 +15,7 @@ actor GalleryStoreService: GalleryStoreProviding {
     nonisolated private let galleryDirectoryURLProvider: @Sendable () throws -> URL
     nonisolated private let ubiquityContainerURLProvider: @Sendable (String?) -> URL?
     private var cachedEntries: [ArtworkEntry]?
+    private var artworkSyncTask: Task<Void, Never>?
 
     nonisolated static let galleryDirectoryURL: URL = {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -239,7 +240,7 @@ actor GalleryStoreService: GalleryStoreProviding {
         }
     }
 
-    private func synchronizeLocalGalleryWithCloud() {
+    private func synchronizeLocalManifestWithCloud() {
         guard let cloudDirectoryURL = cloudGalleryDirectoryURL() else {
             return
         }
@@ -262,30 +263,61 @@ actor GalleryStoreService: GalleryStoreProviding {
             }
 
             let localManifestData = try Data(contentsOf: localManifestURL)
-            let entries = try JSONDecoder().decode([ArtworkEntry].self, from: localManifestData)
-
             syncDataToCloudIfNeeded(localManifestData, filename: "manifest.json", cloudDirectoryURL: cloudDirectoryURL)
-
-            for entry in entries {
-                try syncFileBidirectionally(
-                    filename: entry.fullImageFilename,
-                    localDirectoryURL: localDirectoryURL,
-                    cloudDirectoryURL: cloudDirectoryURL
-                )
-                try syncFileBidirectionally(
-                    filename: entry.thumbnailFilename,
-                    localDirectoryURL: localDirectoryURL,
-                    cloudDirectoryURL: cloudDirectoryURL
-                )
-            }
         } catch {
             logger.error("Gallery sync with iCloud failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
+    private func scheduleArtworkSync(entries: [ArtworkEntry]) {
+        artworkSyncTask?.cancel()
+
+        guard !entries.isEmpty else {
+            return
+        }
+
+        artworkSyncTask = Task { [entries] in
+            await self.syncArtworkFilesFromCloudIfNeeded(entries: entries)
+        }
+    }
+
+    private func syncArtworkFilesFromCloudIfNeeded(entries: [ArtworkEntry]) async {
+        guard let cloudDirectoryURL = cloudGalleryDirectoryURL() else {
+            return
+        }
+
+        do {
+            let localDirectoryURL = try galleryDirectoryURL()
+            try ensureDirectoryExists(at: localDirectoryURL)
+
+            for entry in entries {
+                if Task.isCancelled {
+                    return
+                }
+
+                do {
+                    try syncFileBidirectionally(
+                        filename: entry.fullImageFilename,
+                        localDirectoryURL: localDirectoryURL,
+                        cloudDirectoryURL: cloudDirectoryURL
+                    )
+                    try syncFileBidirectionally(
+                        filename: entry.thumbnailFilename,
+                        localDirectoryURL: localDirectoryURL,
+                        cloudDirectoryURL: cloudDirectoryURL
+                    )
+                } catch {
+                    logger.error("Failed to sync gallery artwork file: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } catch {
+            logger.error("Gallery artwork sync failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     func loadEntries() throws -> [ArtworkEntry] {
         try ensureLocalDirectoryExists()
-        synchronizeLocalGalleryWithCloud()
+        synchronizeLocalManifestWithCloud()
 
         let manifestURL = try manifestURL()
 
@@ -297,6 +329,7 @@ actor GalleryStoreService: GalleryStoreProviding {
         let data = try Data(contentsOf: manifestURL)
         let entries = try JSONDecoder().decode([ArtworkEntry].self, from: data)
         cachedEntries = entries
+        scheduleArtworkSync(entries: entries)
         return entries
     }
 
