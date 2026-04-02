@@ -109,6 +109,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var toolPicker: PKToolPicker?
         private var pencilInteraction: UIPencilInteraction?
         private var isToolPickerSuppressed = false
+        private var shouldStartWithMinimizedToolPicker = true
         private var lastInkTool: PKTool = PKInkingTool(.marker, color: .black, width: 12)
         private var isApplyingExternalDrawing = false
         var lastTemplateID: String?
@@ -176,9 +177,16 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
-            canvasView.becomeFirstResponder()
             self.toolPicker = toolPicker
+
+            if shouldStartWithMinimizedToolPicker {
+                toolPicker.setVisible(false, forFirstResponder: canvasView)
+                canvasView.resignFirstResponder()
+                shouldStartWithMinimizedToolPicker = false
+            } else {
+                toolPicker.setVisible(true, forFirstResponder: canvasView)
+                canvasView.becomeFirstResponder()
+            }
 
             let interaction = UIPencilInteraction(delegate: self)
             canvasView.addInteraction(interaction)
@@ -316,6 +324,12 @@ struct PencilCanvasView: UIViewRepresentable {
 
             if toolPicker == nil {
                 installToolingIfPossible()
+                return
+            }
+
+            if shouldStartWithMinimizedToolPicker {
+                shouldStartWithMinimizedToolPicker = false
+                hideToolPicker(on: canvasView)
                 return
             }
 
