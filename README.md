@@ -34,9 +34,11 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **80 Built-In Templates** | Manifest-driven built-ins across eight shelf categories with orientation metadata for filtering/layout. |
 | **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills and shows a live count badge. |
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
+| **Imported Default Folder** | Imported drawings with no custom folder assignment appear in the built-in `Imported` folder. |
 | **Reversible Hidden Templates** | Long-press any built-in or imported drawing to hide it from normal browsing and recover it later from a dedicated `Hidden` management view. |
 | **Expanded Built-In Folders** | Adds manifest-driven shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`) for built-in drawings. |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
+| **Custom Folder Management** | Create, rename, delete, and reorder custom folders from Manage Categories, and assign imported drawings into them. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
@@ -64,8 +66,8 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
-- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`); built-in drawings can appear in multiple metadata-driven folders.
-- **Folder Ordering**: Open **Manage Categories** and drag folders to set the order shown in category chips.
+- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, `Imported`, shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`); built-in drawings can appear in multiple metadata-driven folders.
+- **Folder Management**: Open **Manage Categories** to create, rename, delete, and reorder custom folders alongside built-in folder ordering.
 - **Favorites / Completed / Hide**: Long-press a drawing in the sidebar to favorite it, mark it completed, or hide it.
 - **Hidden Management**: Tap the `eye.slash` button in the Drawings header to open `Hidden`, where you can unhide individual drawings or use `Unhide All`.
 - **Recent**: The `Recent` folder shows the most recently opened drawings first.
@@ -83,7 +85,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Fill Color Source**: Fill mode uses the currently selected PencilKit color, so strokes and fills share the same palette.
 - **Layers**: Open **Layers** from the sidebar to manage stacked drawing content.
 - **Import**: Add templates from Photos or Files.
-- **Manage Imported Templates**: Rename, delete one, or use **Delete All Imported** (with confirmations).
+- **Manage Imported Templates**: Rename, move to a custom folder, delete one, or use **Delete All Imported** (with confirmations).
 - **Clear Actions**: Clear strokes and clear fills are both confirmation-protected.
 - **Export**: Create a PNG and share from the system share sheet.
 - **Gallery Navigation**: Switch between Studio and Gallery using the app’s tab navigation.
@@ -99,7 +101,7 @@ Coloring follows a predictable persistence and rendering pipeline:
 1. Load built-in templates from bundled manifest/resources.
 2. Load imported template metadata from local storage.
 3. Attempt imported template recovery from iCloud when local files are unavailable.
-4. Restore saved folder state (favorites, completed, recent order, hidden template IDs) for available templates.
+4. Restore saved folder state (favorites, completed, recent order, hidden template IDs, custom folders, and imported-folder assignments) for available templates.
 5. Filter hidden template IDs out of normal library browsing and metadata-driven built-in folder counts.
 6. Load selected template image into the studio.
 7. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
@@ -167,7 +169,7 @@ Coloring/
 ## Getting Started
 
 ### Requirements
-- Xcode 17+
+- Xcode 26+
 - iPad simulator runtime (or physical iPad device)
 
 ### Setup

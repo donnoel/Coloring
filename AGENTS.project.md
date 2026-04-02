@@ -13,8 +13,9 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Unified sidebar list containing built-in and imported drawings
 - PNG export + share flow
 - Apple Pencil Template Studio with 80 manifest-driven built-in templates, including orientation metadata
-- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Landscape/Portrait, four complexity folders (Easy/Medium/Detailed/Dense), and manifest-driven shelf folders (Cozy, Nature, Animals, Fantasy, Patterns, Seasonal, Motorsport, Sci-Fi) with multi-folder membership support
+- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, four complexity folders (Easy/Medium/Detailed/Dense), and manifest-driven shelf folders (Cozy, Nature, Animals, Fantasy, Patterns, Seasonal, Motorsport, Sci-Fi) with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
+- Manage Categories supports creating, renaming, deleting, and reordering custom folders; imported drawings can be assigned into those folders
 - Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)
 - Imported drawing templates from Photos/Files
 - Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
@@ -70,6 +71,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Template stroke progress is saved per drawing and restored from iCloud after reinstall.
 - The In Progress folder automatically includes drawings that have saved strokes or fills, excludes drawings marked Completed, and removes drawings when both strokes and fills are cleared.
 - The In Progress chip displays the current number of non-completed drawings with saved strokes or fills.
+- The Imported folder should include only imported drawings that are not assigned to a custom folder.
 - Favorites, Completed, Recent, Hidden, and custom category organization persist locally and mirror to iCloud for reinstall recovery.
 - Gallery manifest and artwork files persist locally and mirror to iCloud for reinstall recovery.
 - Hidden template IDs persist locally and hidden drawings remain excluded from normal browsing/category results until unhidden.
@@ -106,6 +108,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 
 ## Build/run notes
 - Supported platform: iOS/iPad simulator (`TARGETED_DEVICE_FAMILY = 2`).
+- Deployment target: iOS 26.0 (use a matching modern Xcode toolchain, currently Xcode 26+).
 - Warning policy: treat warnings as errors for all changes.
 - Build command:
   - `xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/platform=iOS Simulator' clean build`
