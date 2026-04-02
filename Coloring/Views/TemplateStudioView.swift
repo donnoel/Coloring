@@ -32,6 +32,7 @@ struct TemplateStudioView: View {
     @State private var isHiddenManagementPresented = false
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
+    @State private var pencilKitActivationToken = 0
     @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
     @State private var liveSidebarWidth: Double = Self.defaultSidebarWidth
     @SceneStorage("templateStudio.palettePlacement") private var palettePlacementRawValue: String = PalettePlacement.bottom.rawValue
@@ -56,6 +57,7 @@ struct TemplateStudioView: View {
                 return
             }
 
+            pencilKitActivationToken = pencilKitActivationToken &+ 1
             Task {
                 await viewModel.refreshTemplatesFromStorage()
                 viewModel.loadCategoriesIfNeeded()
@@ -565,6 +567,7 @@ struct TemplateStudioView: View {
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
                 brushTool: viewModel.currentBrushTool,
+                activationToken: pencilKitActivationToken,
                 isToolPickerSuppressed: isToolPickerSuppressed
             )
 

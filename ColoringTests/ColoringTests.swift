@@ -3119,6 +3119,101 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorReactivationRestoresFirstResponderWhenUnsuppressed() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            drawingState.drawing = PKDrawing()
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+                XCTFail("Expected a window scene for coordinator test host.")
+                return
+            }
+
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+            let hostController = UIViewController()
+            window.rootViewController = hostController
+            window.makeKeyAndVisible()
+
+            let canvasView = TrackingPKCanvasView(frame: hostController.view.bounds)
+            hostController.view.addSubview(canvasView)
+            hostController.view.layoutIfNeeded()
+
+            coordinator.updateToolPickerSuppression(false, on: canvasView)
+            canvasView.resetResponderCallCounts()
+
+            coordinator.updateActivationToken(1, on: canvasView)
+
+            XCTAssertGreaterThan(
+                canvasView.becomeFirstResponderCallCount,
+                0,
+                "Unsuppressed reactivation should restore first responder."
+            )
+
+            window.isHidden = true
+        }
+    }
+
+    func testPencilCanvasCoordinatorReactivationDoesNotRestoreFirstResponderWhenSuppressed() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            drawingState.drawing = PKDrawing()
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+
+            let coordinator = view.makeCoordinator()
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+                XCTFail("Expected a window scene for coordinator test host.")
+                return
+            }
+
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+            let hostController = UIViewController()
+            window.rootViewController = hostController
+            window.makeKeyAndVisible()
+
+            let canvasView = TrackingPKCanvasView(frame: hostController.view.bounds)
+            hostController.view.addSubview(canvasView)
+            hostController.view.layoutIfNeeded()
+
+            coordinator.updateToolPickerSuppression(true, on: canvasView)
+            canvasView.resetResponderCallCounts()
+
+            coordinator.updateActivationToken(1, on: canvasView)
+
+            XCTAssertEqual(
+                canvasView.becomeFirstResponderCallCount,
+                0,
+                "Suppressed reactivation should not request first responder."
+            )
+            XCTAssertEqual(
+                canvasView.resignFirstResponderCallCount,
+                0,
+                "Suppressed reactivation should not change responder state."
+            )
+
+            window.isHidden = true
+        }
+    }
+
     func testCanvasDrivenStrokeEnablesUndoHistory() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let viewModel = await MainActor.run {
@@ -3776,6 +3871,27 @@ final class ColoringTests: XCTestCase {
 @MainActor
 private final class DrawingStateBox {
     var drawing = PKDrawing()
+}
+
+@MainActor
+private final class TrackingPKCanvasView: PKCanvasView {
+    private(set) var becomeFirstResponderCallCount = 0
+    private(set) var resignFirstResponderCallCount = 0
+
+    override func becomeFirstResponder() -> Bool {
+        becomeFirstResponderCallCount += 1
+        return super.becomeFirstResponder()
+    }
+
+    override func resignFirstResponder() -> Bool {
+        resignFirstResponderCallCount += 1
+        return super.resignFirstResponder()
+    }
+
+    func resetResponderCallCounts() {
+        becomeFirstResponderCallCount = 0
+        resignFirstResponderCallCount = 0
+    }
 }
 
 private actor StubTemplateLibrary: TemplateLibraryProviding {

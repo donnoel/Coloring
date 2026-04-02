@@ -19,6 +19,7 @@ struct PencilCanvasView: UIViewRepresentable {
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
     var brushTool: PKInkingTool?
+    var activationToken: Int = 0
     var isToolPickerSuppressed: Bool = false
 
     func makeCoordinator() -> Coordinator {
@@ -86,6 +87,7 @@ struct PencilCanvasView: UIViewRepresentable {
 
         context.coordinator.lastTemplateID = templateID
         context.coordinator.updateToolPickerSuppression(isToolPickerSuppressed, on: canvasView)
+        context.coordinator.updateActivationToken(activationToken, on: canvasView)
         context.coordinator.updateFillMode(fillMode, in: uiView)
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
         context.coordinator.updateOverlayImages(
@@ -124,51 +126,29 @@ struct PencilCanvasView: UIViewRepresentable {
         private var hasPendingLocalDrawingSync = false
         var lastDrawingSyncToken = 0
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
-        private var lifecycleObservers: [NSObjectProtocol] = []
         private var lastFillModeState: Bool?
-        private let isRunningTests = NSClassFromString("XCTestCase") != nil
-            || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
+        private var lastActivationToken = 0
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
         }
 
-        deinit {
-            unregisterLifecycleObservers()
-        }
-
         func connect(to canvasView: PKCanvasView, containerView: ZoomableCanvasContainerView) {
             self.canvasView = canvasView
             self.containerView = containerView
+            lastActivationToken = parent.activationToken
             canvasView.tool = lastInkTool
             containerView.appearanceDidChangeHandler = { [weak self] previousTraitCollection in
                 self?.handleAppearanceChange(previousTraitCollection: previousTraitCollection)
             }
             installDrawingInteractionTracking(on: canvasView)
             installFillEraseGestureIfNeeded(on: canvasView)
-            registerLifecycleObserversIfNeeded()
-
-            guard !isRunningTests else {
-                return
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                self?.recoverToolPickerVisibilityIfNeeded()
-            }
         }
 
-        private func installToolingIfPossible() {
-            guard !isRunningTests,
-                  toolPicker == nil,
-                  let canvasView
+        private func installToolingIfPossible(on canvasView: PKCanvasView) {
+            guard toolPicker == nil,
+                  canvasView.window != nil
             else {
-                return
-            }
-
-            guard canvasView.window != nil else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.installToolingIfPossible()
-                }
                 return
             }
 
@@ -176,13 +156,15 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
+            toolPicker.setVisible(true, forFirstResponder: canvasView)
             self.toolPicker = toolPicker
 
-            let interaction = UIPencilInteraction(delegate: self)
-            canvasView.addInteraction(interaction)
-            pencilInteraction = interaction
+            if pencilInteraction == nil {
+                let interaction = UIPencilInteraction(delegate: self)
+                canvasView.addInteraction(interaction)
+                pencilInteraction = interaction
+            }
         }
 
         func disconnect(from canvasView: PKCanvasView) {
@@ -211,7 +193,7 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingLocalSyncResetWorkItem = nil
             lastFillModeState = nil
             isToolPickerSuppressed = false
-            unregisterLifecycleObservers()
+            lastActivationToken = 0
             self.canvasView = nil
             containerView?.appearanceDidChangeHandler = nil
             containerView = nil
@@ -219,12 +201,20 @@ struct PencilCanvasView: UIViewRepresentable {
 
         func updateToolPickerSuppression(_ isSuppressed: Bool, on canvasView: PKCanvasView) {
             isToolPickerSuppressed = isSuppressed
+            applyToolPickerVisibility(on: canvasView)
+        }
 
-            if isSuppressed {
-                hideToolPicker(on: canvasView)
-            } else {
-                recoverToolPickerVisibilityIfNeeded()
+        func updateActivationToken(_ activationToken: Int, on canvasView: PKCanvasView) {
+            guard activationToken != lastActivationToken else {
+                return
             }
+
+            lastActivationToken = activationToken
+            guard !isToolPickerSuppressed else {
+                return
+            }
+
+            applyToolPickerVisibility(on: canvasView)
         }
 
         func updateOverlayImages(
@@ -252,78 +242,28 @@ struct PencilCanvasView: UIViewRepresentable {
             }
         }
 
-        private func registerLifecycleObserversIfNeeded() {
-            guard lifecycleObservers.isEmpty else {
+        private func applyToolPickerVisibility(on canvasView: PKCanvasView) {
+            if isToolPickerSuppressed {
+                hideToolPicker(on: canvasView)
                 return
             }
 
-            let center = NotificationCenter.default
-            lifecycleObservers.append(
-                center.addObserver(
-                    forName: UIApplication.didBecomeActiveNotification,
-                    object: nil,
-                    queue: .main
-                ) { [weak self] _ in
-                    self?.recoverToolPickerVisibilityIfNeeded()
-                }
-            )
-            lifecycleObservers.append(
-                center.addObserver(
-                    forName: UIScene.didActivateNotification,
-                    object: nil,
-                    queue: .main
-                ) { [weak self] _ in
-                    self?.recoverToolPickerVisibilityIfNeeded()
-                }
-            )
-            lifecycleObservers.append(
-                center.addObserver(
-                    forName: UIWindow.didBecomeKeyNotification,
-                    object: nil,
-                    queue: .main
-                ) { [weak self] _ in
-                    self?.recoverToolPickerVisibilityIfNeeded()
-                }
-            )
+            showToolPicker(on: canvasView)
         }
 
-        private func unregisterLifecycleObservers() {
-            guard !lifecycleObservers.isEmpty else {
-                return
-            }
-
-            let center = NotificationCenter.default
-            for observer in lifecycleObservers {
-                center.removeObserver(observer)
-            }
-            lifecycleObservers.removeAll()
-        }
-
-        private func recoverToolPickerVisibilityIfNeeded() {
-            guard !isRunningTests,
-                  !isToolPickerSuppressed,
-                  let canvasView
-            else {
-                return
-            }
-
+        private func showToolPicker(on canvasView: PKCanvasView) {
             guard canvasView.window != nil else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.recoverToolPickerVisibilityIfNeeded()
-                }
                 return
             }
 
-            if toolPicker == nil {
-                installToolingIfPossible()
-                return
-            }
-
-            if let toolPicker {
-                applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            }
-            toolPicker?.setVisible(true, forFirstResponder: canvasView)
+            installToolingIfPossible(on: canvasView)
             canvasView.becomeFirstResponder()
+            guard let toolPicker else {
+                return
+            }
+
+            applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            toolPicker.setVisible(true, forFirstResponder: canvasView)
         }
 
         private func applyToolPickerAppearance(for toolPicker: PKToolPicker, on canvasView: PKCanvasView) {
@@ -464,12 +404,12 @@ struct PencilCanvasView: UIViewRepresentable {
                     fillTapGesture = tap
                 }
                 fillTapGesture?.isEnabled = true
-                recoverToolPickerVisibilityIfNeeded()
+                refreshToolPickerVisibilityIfPossible()
             } else {
                 drawingGestureRecognizer?.isEnabled = true
                 fillTapGesture?.isEnabled = false
                 if didFillModeChange {
-                    recoverToolPickerVisibilityIfNeeded()
+                    refreshToolPickerVisibilityIfPossible()
                 }
             }
         }
@@ -522,7 +462,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             parent.onFillTap?(normalizedPoint, fillColor)
-            recoverToolPickerVisibilityIfNeeded()
+            refreshToolPickerVisibilityIfPossible()
         }
 
         @objc private func handleFillEraseGesture(_ gesture: UILongPressGestureRecognizer) {
@@ -605,12 +545,20 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func showToolPicker() {
-            recoverToolPickerVisibilityIfNeeded()
+            refreshToolPickerVisibilityIfPossible()
         }
 
         private func hideToolPicker(on canvasView: PKCanvasView) {
             toolPicker?.setVisible(false, forFirstResponder: canvasView)
             canvasView.resignFirstResponder()
+        }
+
+        private func refreshToolPickerVisibilityIfPossible() {
+            guard let canvasView else {
+                return
+            }
+
+            applyToolPickerVisibility(on: canvasView)
         }
 
         private func switchToEraser() {
