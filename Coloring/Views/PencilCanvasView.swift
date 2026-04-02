@@ -109,7 +109,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var toolPicker: PKToolPicker?
         private var pencilInteraction: UIPencilInteraction?
         private var isToolPickerSuppressed = false
-        private var shouldStartWithMinimizedToolPicker = true
+        private var hasUserExplicitlyShownToolPicker = false
         private var lastInkTool: PKTool = PKInkingTool(.marker, color: .black, width: 12)
         private var isApplyingExternalDrawing = false
         var lastTemplateID: String?
@@ -179,14 +179,9 @@ struct PencilCanvasView: UIViewRepresentable {
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
             self.toolPicker = toolPicker
 
-            if shouldStartWithMinimizedToolPicker {
-                toolPicker.setVisible(false, forFirstResponder: canvasView)
-                canvasView.resignFirstResponder()
-                shouldStartWithMinimizedToolPicker = false
-            } else {
-                toolPicker.setVisible(true, forFirstResponder: canvasView)
-                canvasView.becomeFirstResponder()
-            }
+            // Default to minimized on initial presentation; explicit user action can reveal it.
+            toolPicker.setVisible(false, forFirstResponder: canvasView)
+            canvasView.resignFirstResponder()
 
             let interaction = UIPencilInteraction(delegate: self)
             canvasView.addInteraction(interaction)
@@ -327,15 +322,15 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            if shouldStartWithMinimizedToolPicker {
-                shouldStartWithMinimizedToolPicker = false
+            if let toolPicker {
+                applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            }
+
+            guard hasUserExplicitlyShownToolPicker else {
                 hideToolPicker(on: canvasView)
                 return
             }
 
-            if let toolPicker {
-                applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            }
             toolPicker?.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
         }
@@ -619,6 +614,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func showToolPicker() {
+            hasUserExplicitlyShownToolPicker = true
             recoverToolPickerVisibilityIfNeeded()
         }
 
