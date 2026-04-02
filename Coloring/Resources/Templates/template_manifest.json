@@ -529,7 +529,7 @@
   },
   {
     "id": "patterns_005",
-    "title": "Art Nouveau Floral Frame",
+    "title": "Art Nouveau Floral",
     "category": "patterns",
     "complexity": "detailed",
     "orientation": "portrait",
@@ -721,7 +721,7 @@
   },
   {
     "id": "motorsport_001",
-    "title": "Car on Grand Prix Straight",
+    "title": "Grand Prix Straight",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "landscape",
@@ -757,7 +757,7 @@
   },
   {
     "id": "motorsport_004",
-    "title": "Car Cornering Through Curbs",
+    "title": "Cornering Through Curbs",
     "category": "motorsport",
     "complexity": "detailed",
     "orientation": "landscape",
@@ -781,7 +781,7 @@
   },
   {
     "id": "motorsport_006",
-    "title": "Bike Leaning Through Apex",
+    "title": "Leaning Through Apex",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "landscape",
@@ -865,7 +865,7 @@
   },
   {
     "id": "scifi_003",
-    "title": "Alien Marketplace on a Space Colony",
+    "title": "Marketplace on a Space Colony",
     "category": "scifi",
     "complexity": "dense",
     "orientation": "landscape",
@@ -889,7 +889,7 @@
   },
   {
     "id": "scifi_005",
-    "title": "Alien Creature in Crystal Cavern",
+    "title": "Creature in Crustal Cavern",
     "category": "scifi",
     "complexity": "detailed",
     "orientation": "portrait",
@@ -937,7 +937,7 @@
   },
   {
     "id": "scifi_009",
-    "title": "Alien Ruins Under Twin Moons",
+    "title": "Ruins Under Twin Moons",
     "category": "scifi",
     "complexity": "detailed",
     "orientation": "landscape",
