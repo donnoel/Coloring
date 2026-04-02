@@ -179,9 +179,8 @@ struct PencilCanvasView: UIViewRepresentable {
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
             self.toolPicker = toolPicker
 
-            // Default to minimized on initial presentation; explicit user action can reveal it.
-            toolPicker.setVisible(false, forFirstResponder: canvasView)
-            canvasView.resignFirstResponder()
+            // Keep the native picker discoverable at launch in compact form.
+            minimizeToolPicker(on: canvasView)
 
             let interaction = UIPencilInteraction(delegate: self)
             canvasView.addInteraction(interaction)
@@ -327,7 +326,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             guard hasUserExplicitlyShownToolPicker else {
-                hideToolPicker(on: canvasView)
+                minimizeToolPicker(on: canvasView)
                 return
             }
 
@@ -620,6 +619,11 @@ struct PencilCanvasView: UIViewRepresentable {
 
         private func hideToolPicker(on canvasView: PKCanvasView) {
             toolPicker?.setVisible(false, forFirstResponder: canvasView)
+            canvasView.resignFirstResponder()
+        }
+
+        private func minimizeToolPicker(on canvasView: PKCanvasView) {
+            toolPicker?.setVisible(true, forFirstResponder: canvasView)
             canvasView.resignFirstResponder()
         }
 
