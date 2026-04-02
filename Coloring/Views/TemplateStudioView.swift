@@ -372,11 +372,13 @@ struct TemplateStudioView: View {
     }
 
     private var liquidImportAccent: LinearGradient {
-        LinearGradient(
+        let palette = onboardingGalleryPalette
+
+        return LinearGradient(
             colors: [
-                Color(red: 0.07, green: 0.64, blue: 0.96),
-                Color(red: 0.21, green: 0.84, blue: 0.65),
-                Color(red: 0.98, green: 0.58, blue: 0.17)
+                palette.primary,
+                palette.secondary,
+                palette.tertiary
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -612,21 +614,48 @@ struct TemplateStudioView: View {
     }
 
     private var sidebarBackground: some View {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [
-                    Color(red: 0.09, green: 0.11, blue: 0.14),
-                    Color(red: 0.10, green: 0.14, blue: 0.12),
-                    Color(red: 0.12, green: 0.12, blue: 0.15)
-                ]
-                : [
-                    Color(red: 0.93, green: 0.97, blue: 1.00),
-                    Color(red: 0.95, green: 0.99, blue: 0.96),
-                    Color(red: 0.98, green: 0.98, blue: 0.99)
+        let palette = onboardingGalleryPalette
+
+        return ZStack {
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [
+                        Color(red: 0.07, green: 0.09, blue: 0.12),
+                        Color(red: 0.09, green: 0.11, blue: 0.14),
+                        Color(red: 0.10, green: 0.10, blue: 0.13)
+                    ]
+                    : [
+                        Color(red: 0.94, green: 0.97, blue: 1.00),
+                        Color(red: 0.95, green: 0.98, blue: 0.97),
+                        Color(red: 0.98, green: 0.97, blue: 0.99)
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            LinearGradient(
+                colors: [
+                    palette.primary.opacity(colorScheme == .dark ? 0.24 : 0.16),
+                    palette.secondary.opacity(colorScheme == .dark ? 0.22 : 0.14),
+                    palette.tertiary.opacity(colorScheme == .dark ? 0.19 : 0.12)
                 ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(palette.primary.opacity(colorScheme == .dark ? 0.20 : 0.12))
+                .frame(width: 360, height: 360)
+                .blur(radius: 52)
+                .offset(x: -130, y: -240)
+
+            Circle()
+                .fill(palette.tertiary.opacity(colorScheme == .dark ? 0.16 : 0.10))
+                .frame(width: 320, height: 320)
+                .blur(radius: 48)
+                .offset(x: 170, y: 220)
+        }
+        .allowsHitTesting(false)
     }
 
     private var sidebarResizeHandle: some View {
@@ -731,6 +760,14 @@ struct TemplateStudioView: View {
         }
 
         return Color.white.opacity(0.68)
+    }
+
+    private var onboardingGalleryPalette: (primary: Color, secondary: Color, tertiary: Color) {
+        (
+            primary: Color(red: 0.14, green: 0.66, blue: 0.97),
+            secondary: Color(red: 0.19, green: 0.80, blue: 0.65),
+            tertiary: Color(red: 0.97, green: 0.57, blue: 0.22)
+        )
     }
 
     private func templateRowStroke(isSelected: Bool) -> Color {
