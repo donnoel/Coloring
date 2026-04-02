@@ -721,7 +721,7 @@
   },
   {
     "id": "motorsport_001",
-    "title": "Formula Car on Grand Prix Straight",
+    "title": "Car on Grand Prix Straight",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "landscape",
@@ -733,7 +733,7 @@
   },
   {
     "id": "motorsport_002",
-    "title": "Formula Driver Helmet and Cockpit",
+    "title": "Driver Helmet and Cockpit",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "portrait",
@@ -745,7 +745,7 @@
   },
   {
     "id": "motorsport_003",
-    "title": "Formula Pit Lane Setup",
+    "title": "Pit Lane Setup",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "landscape",
@@ -757,7 +757,7 @@
   },
   {
     "id": "motorsport_004",
-    "title": "Formula Car Cornering Through Curbs",
+    "title": "Car Cornering Through Curbs",
     "category": "motorsport",
     "complexity": "detailed",
     "orientation": "landscape",
@@ -769,7 +769,7 @@
   },
   {
     "id": "motorsport_005",
-    "title": "Formula Race Weekend Garage",
+    "title": "Race Weekend Garage",
     "category": "motorsport",
     "complexity": "detailed",
     "orientation": "portrait",
@@ -781,7 +781,7 @@
   },
   {
     "id": "motorsport_006",
-    "title": "MotoGP Bike Leaning Through Apex",
+    "title": "Bike Leaning Through Apex",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "landscape",
@@ -793,7 +793,7 @@
   },
   {
     "id": "motorsport_007",
-    "title": "MotoGP Rider Helmet and Front Fairing",
+    "title": "Rider Helmet and Front Fairing",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "portrait",
@@ -805,7 +805,7 @@
   },
   {
     "id": "motorsport_008",
-    "title": "MotoGP Pit Garage Scene",
+    "title": "Pit Garage Scene",
     "category": "motorsport",
     "complexity": "detailed",
     "orientation": "landscape",
@@ -817,7 +817,7 @@
   },
   {
     "id": "motorsport_009",
-    "title": "MotoGP Starting Grid",
+    "title": "Starting Grid",
     "category": "motorsport",
     "complexity": "dense",
     "orientation": "landscape",
@@ -829,7 +829,7 @@
   },
   {
     "id": "motorsport_010",
-    "title": "MotoGP Bike in Paddock Detail",
+    "title": "Bike in Paddock Detail",
     "category": "motorsport",
     "complexity": "detailed",
     "orientation": "portrait",
