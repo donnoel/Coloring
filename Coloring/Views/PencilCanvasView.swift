@@ -126,6 +126,10 @@ struct PencilCanvasView: UIViewRepresentable {
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
         private var lifecycleObservers: [NSObjectProtocol] = []
         private var lastFillModeState: Bool?
+        private var pendingToolPickerRecoveryWorkItem: DispatchWorkItem?
+        private var pendingToolPickerRecoveryForceReattach = false
+        private var toolPickerRecoveryAttempts = 0
+        private let maxToolPickerRecoveryAttempts = 6
         private let isRunningTests = NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
 
@@ -134,6 +138,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         deinit {
+            resetToolPickerRecoveryState()
             unregisterLifecycleObservers()
         }
 
@@ -166,9 +171,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             guard canvasView.window != nil else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.installToolingIfPossible()
-                }
+                scheduleToolPickerRecoveryRetry()
                 return
             }
 
@@ -211,6 +214,7 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingLocalSyncResetWorkItem = nil
             lastFillModeState = nil
             isToolPickerSuppressed = false
+            resetToolPickerRecoveryState()
             unregisterLifecycleObservers()
             self.canvasView = nil
             containerView?.appearanceDidChangeHandler = nil
@@ -223,7 +227,7 @@ struct PencilCanvasView: UIViewRepresentable {
             if isSuppressed {
                 hideToolPicker(on: canvasView)
             } else {
-                recoverToolPickerVisibilityIfNeeded()
+                recoverToolPickerVisibilityIfNeeded(forceReattach: true)
             }
         }
 
@@ -260,11 +264,29 @@ struct PencilCanvasView: UIViewRepresentable {
             let center = NotificationCenter.default
             lifecycleObservers.append(
                 center.addObserver(
+                    forName: UIApplication.willEnterForegroundNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.recoverToolPickerVisibilityIfNeeded(forceReattach: true)
+                }
+            )
+            lifecycleObservers.append(
+                center.addObserver(
                     forName: UIApplication.didBecomeActiveNotification,
                     object: nil,
                     queue: .main
                 ) { [weak self] _ in
-                    self?.recoverToolPickerVisibilityIfNeeded()
+                    self?.recoverToolPickerVisibilityIfNeeded(forceReattach: true)
+                }
+            )
+            lifecycleObservers.append(
+                center.addObserver(
+                    forName: UIScene.willEnterForegroundNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.recoverToolPickerVisibilityIfNeeded(forceReattach: true)
                 }
             )
             lifecycleObservers.append(
@@ -273,7 +295,7 @@ struct PencilCanvasView: UIViewRepresentable {
                     object: nil,
                     queue: .main
                 ) { [weak self] _ in
-                    self?.recoverToolPickerVisibilityIfNeeded()
+                    self?.recoverToolPickerVisibilityIfNeeded(forceReattach: true)
                 }
             )
             lifecycleObservers.append(
@@ -299,31 +321,100 @@ struct PencilCanvasView: UIViewRepresentable {
             lifecycleObservers.removeAll()
         }
 
-        private func recoverToolPickerVisibilityIfNeeded() {
+        private func recoverToolPickerVisibilityIfNeeded(forceReattach: Bool = false) {
+            pendingToolPickerRecoveryForceReattach = pendingToolPickerRecoveryForceReattach || forceReattach
+            pendingToolPickerRecoveryWorkItem?.cancel()
+            pendingToolPickerRecoveryWorkItem = nil
+            executeToolPickerRecovery()
+        }
+
+        private func executeToolPickerRecovery() {
             guard !isRunningTests,
                   !isToolPickerSuppressed,
                   let canvasView
             else {
+                resetToolPickerRecoveryState()
                 return
             }
 
-            guard canvasView.window != nil else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.recoverToolPickerVisibilityIfNeeded()
-                }
+            let appState = UIApplication.shared.applicationState
+            guard appState == .active,
+                  canvasView.window != nil
+            else {
+                scheduleToolPickerRecoveryRetry()
                 return
             }
+
+            let shouldForceReattach = pendingToolPickerRecoveryForceReattach
+            resetToolPickerRecoveryState()
 
             if toolPicker == nil {
                 installToolingIfPossible()
                 return
             }
 
+            if shouldForceReattach {
+                recreateToolPicker(on: canvasView)
+                return
+            }
+
             if let toolPicker {
                 applyToolPickerAppearance(for: toolPicker, on: canvasView)
             }
-            toolPicker?.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
+            toolPicker?.setVisible(true, forFirstResponder: canvasView)
+
+            // Re-assert visibility on the next run loop after focus changes settle.
+            DispatchQueue.main.async { [weak self, weak canvasView] in
+                guard let self,
+                      let canvasView,
+                      !self.isToolPickerSuppressed
+                else {
+                    return
+                }
+                canvasView.becomeFirstResponder()
+                self.toolPicker?.setVisible(true, forFirstResponder: canvasView)
+            }
+        }
+
+        private func scheduleToolPickerRecoveryRetry() {
+            guard toolPickerRecoveryAttempts < maxToolPickerRecoveryAttempts else {
+                resetToolPickerRecoveryState()
+                return
+            }
+
+            toolPickerRecoveryAttempts += 1
+            pendingToolPickerRecoveryWorkItem?.cancel()
+
+            let retryWorkItem = DispatchWorkItem { [weak self] in
+                self?.pendingToolPickerRecoveryWorkItem = nil
+                self?.executeToolPickerRecovery()
+            }
+            pendingToolPickerRecoveryWorkItem = retryWorkItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: retryWorkItem)
+        }
+
+        private func recreateToolPicker(on canvasView: PKCanvasView) {
+            if let toolPicker {
+                toolPicker.removeObserver(canvasView)
+                toolPicker.removeObserver(self)
+                toolPicker.setVisible(false, forFirstResponder: canvasView)
+            }
+
+            let refreshedToolPicker = PKToolPicker()
+            refreshedToolPicker.addObserver(canvasView)
+            refreshedToolPicker.addObserver(self)
+            applyToolPickerAppearance(for: refreshedToolPicker, on: canvasView)
+            canvasView.becomeFirstResponder()
+            refreshedToolPicker.setVisible(true, forFirstResponder: canvasView)
+            toolPicker = refreshedToolPicker
+        }
+
+        private func resetToolPickerRecoveryState() {
+            pendingToolPickerRecoveryWorkItem?.cancel()
+            pendingToolPickerRecoveryWorkItem = nil
+            pendingToolPickerRecoveryForceReattach = false
+            toolPickerRecoveryAttempts = 0
         }
 
         private func applyToolPickerAppearance(for toolPicker: PKToolPicker, on canvasView: PKCanvasView) {
