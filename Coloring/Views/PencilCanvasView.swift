@@ -109,7 +109,6 @@ struct PencilCanvasView: UIViewRepresentable {
         private var toolPicker: PKToolPicker?
         private var pencilInteraction: UIPencilInteraction?
         private var isToolPickerSuppressed = false
-        private var hasUserExplicitlyShownToolPicker = false
         private var lastInkTool: PKTool = PKInkingTool(.marker, color: .black, width: 12)
         private var isApplyingExternalDrawing = false
         var lastTemplateID: String?
@@ -177,10 +176,9 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            toolPicker.setVisible(true, forFirstResponder: canvasView)
+            canvasView.becomeFirstResponder()
             self.toolPicker = toolPicker
-
-            // Keep the native picker discoverable at launch in compact form.
-            minimizeToolPicker(on: canvasView)
 
             let interaction = UIPencilInteraction(delegate: self)
             canvasView.addInteraction(interaction)
@@ -324,12 +322,6 @@ struct PencilCanvasView: UIViewRepresentable {
             if let toolPicker {
                 applyToolPickerAppearance(for: toolPicker, on: canvasView)
             }
-
-            guard hasUserExplicitlyShownToolPicker else {
-                minimizeToolPicker(on: canvasView)
-                return
-            }
-
             toolPicker?.setVisible(true, forFirstResponder: canvasView)
             canvasView.becomeFirstResponder()
         }
@@ -613,17 +605,11 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func showToolPicker() {
-            hasUserExplicitlyShownToolPicker = true
             recoverToolPickerVisibilityIfNeeded()
         }
 
         private func hideToolPicker(on canvasView: PKCanvasView) {
             toolPicker?.setVisible(false, forFirstResponder: canvasView)
-            canvasView.resignFirstResponder()
-        }
-
-        private func minimizeToolPicker(on canvasView: PKCanvasView) {
-            toolPicker?.setVisible(true, forFirstResponder: canvasView)
             canvasView.resignFirstResponder()
         }
 
