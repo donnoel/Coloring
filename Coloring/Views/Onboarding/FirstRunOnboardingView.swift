@@ -345,7 +345,7 @@ private struct OnboardingPageView: View {
     let reduceMotion: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: heroToCopySpacing) {
             OnboardingHeroCard(page: page, colorScheme: colorScheme)
                 .frame(maxWidth: .infinity)
                 .frame(height: heroHeight)
@@ -386,6 +386,10 @@ private struct OnboardingPageView: View {
                 )
                 .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.32 : 0.11), radius: 16, x: 0, y: 10)
         )
+    }
+
+    private var heroToCopySpacing: CGFloat {
+        page.hero == .gallery ? 30 : 18
     }
 
     private var heroHeight: CGFloat {
@@ -537,22 +541,13 @@ private struct OnboardingHeroCard: View {
                                                 .padding(6)
                                             )
 
-                                        VStack(alignment: .leading, spacing: 7) {
-                                            Text("File")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-
+                                        VStack(alignment: .leading, spacing: 8) {
                                             Capsule(style: .continuous)
                                                 .fill(page.palette.primary.opacity(0.44))
                                                 .frame(width: 156, height: 9)
                                             Capsule(style: .continuous)
                                                 .fill(page.palette.secondary.opacity(0.38))
                                                 .frame(width: 144, height: 9)
-
-                                            Text("Winter Cabin")
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
 
                                             HStack(spacing: 6) {
                                                 Circle()
@@ -788,7 +783,7 @@ private struct OnboardingHeroCard: View {
                                                 .font(.caption2.weight(.semibold))
                                                 .foregroundStyle(page.palette.secondary)
                                         }
-                                        Text("Imported drawings and progress sync and auto-restore on your iPad.")
+                                        Text("Imported drawings and progress stay with you through iCloud.")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .lineLimit(2)
@@ -818,26 +813,26 @@ private struct OnboardingHeroCard: View {
             ZStack {
                 galleryArtworkCard(
                     imageName: "OnboardingGalleryPet",
-                    size: CGSize(width: 236, height: 148),
+                    size: CGSize(width: 252, height: 158),
                     rotation: -6.5
                 )
-                .offset(x: -124, y: -34)
+                .offset(x: -128, y: -34)
 
                 galleryArtworkCard(
                     imageName: "OnboardingGalleryForest",
-                    size: CGSize(width: 236, height: 148),
+                    size: CGSize(width: 252, height: 158),
                     rotation: 5.8
                 )
-                .offset(x: 124, y: -34)
+                .offset(x: 128, y: -34)
 
                 galleryArtworkCard(
                     imageName: "OnboardingGalleryVenice",
-                    size: CGSize(width: 360, height: 218),
+                    size: CGSize(width: 384, height: 232),
                     rotation: 0.0
                 )
-                .offset(y: 20)
+                .offset(y: 22)
             }
-            .frame(height: 272)
+            .frame(height: 286)
 
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { index in

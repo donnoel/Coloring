@@ -1602,6 +1602,23 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(resolution.selectedTemplateID, "builtin-1")
     }
 
+    func testReloadStateResolverFallsBackToFirstSidebarOrderedTemplate() {
+        let templates = [
+            Self.makeTemplate(id: "builtin-z", title: "Zebra Path"),
+            Self.makeTemplate(id: "builtin-a", title: "A Waterfall Valley")
+        ]
+
+        let resolution = TemplateReloadStateResolver.resolve(
+            loadedTemplates: templates,
+            hiddenTemplateIDs: [],
+            currentSelectedTemplateID: "",
+            lastSelectedTemplateID: nil,
+            recentTemplateIDs: []
+        )
+
+        XCTAssertEqual(resolution.selectedTemplateID, "builtin-a")
+    }
+
     func testFillImageResolverUsesCachedImageWithoutDecoding() {
         let cachedImage = UIImage(data: sampleTemplateImageData)
         XCTAssertNotNil(cachedImage)
@@ -2017,6 +2034,72 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(loadedOrder, categoryOrder)
     }
 
+    func testTemplateCategoryStoreServiceRestoresAllStateFromCloudAfterReinstall() async throws {
+        let firstDocumentsURL = try makeTemporaryDocumentsDirectory()
+        let secondDocumentsURL = try makeTemporaryDocumentsDirectory()
+        let cloudRootURL = try makeTemporaryDocumentsDirectory()
+        let firstStore = makeRealCategoryStore(documentsURL: firstDocumentsURL, cloudRootURL: cloudRootURL)
+        let secondStore = makeRealCategoryStore(documentsURL: secondDocumentsURL, cloudRootURL: cloudRootURL)
+
+        let categories = [
+            TemplateCategory(id: "user-1", name: "Favorites", isUserCreated: true),
+            TemplateCategory(id: "user-2", name: "Portrait Ideas", isUserCreated: true)
+        ]
+        let assignments = [
+            "builtin-1": "user-1",
+            "imported-2": "user-2"
+        ]
+        let categoryOrder = ["user-2", "user-1"]
+        let favorites: Set<String> = ["builtin-1", "imported-2"]
+        let completed: Set<String> = ["builtin-3", "imported-2"]
+        let recent = ["imported-2", "builtin-1", "builtin-3"]
+        let hidden: Set<String> = ["builtin-5"]
+
+        try await firstStore.saveUserCategories(categories)
+        try await firstStore.saveCategoryAssignments(assignments)
+        try await firstStore.saveCategoryOrder(categoryOrder)
+        try await firstStore.saveFavoriteTemplateIDs(favorites)
+        try await firstStore.saveCompletedTemplateIDs(completed)
+        try await firstStore.saveRecentTemplateIDs(recent)
+        try await firstStore.saveHiddenTemplateIDs(hidden)
+
+        let restoredCategories = try await secondStore.loadUserCategories()
+        let restoredAssignments = try await secondStore.loadCategoryAssignments()
+        let restoredCategoryOrder = try await secondStore.loadCategoryOrder()
+        let restoredFavorites = try await secondStore.loadFavoriteTemplateIDs()
+        let restoredCompleted = try await secondStore.loadCompletedTemplateIDs()
+        let restoredRecent = try await secondStore.loadRecentTemplateIDs()
+        let restoredHidden = try await secondStore.loadHiddenTemplateIDs()
+
+        XCTAssertEqual(restoredCategories, categories)
+        XCTAssertEqual(restoredAssignments, assignments)
+        XCTAssertEqual(restoredCategoryOrder, categoryOrder)
+        XCTAssertEqual(restoredFavorites, favorites)
+        XCTAssertEqual(restoredCompleted, completed)
+        XCTAssertEqual(restoredRecent, recent)
+        XCTAssertEqual(restoredHidden, hidden)
+    }
+
+    func testTemplateCategoryStoreServiceUsesLocalStateWhenCloudIsUnavailable() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let store = TemplateCategoryStoreService(
+            cloudContainerIdentifier: "iCloud.dn.coloring",
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+        let favorites: Set<String> = ["builtin-1"]
+        let completed: Set<String> = ["builtin-2"]
+
+        try await store.saveFavoriteTemplateIDs(favorites)
+        try await store.saveCompletedTemplateIDs(completed)
+
+        let loadedFavorites = try await store.loadFavoriteTemplateIDs()
+        let loadedCompleted = try await store.loadCompletedTemplateIDs()
+
+        XCTAssertEqual(loadedFavorites, favorites)
+        XCTAssertEqual(loadedCompleted, completed)
+    }
+
     func testGalleryStoreServiceSavesLoadsAndDeletesArtworkLocally() async throws {
         let documentsURL = try makeTemporaryDocumentsDirectory()
         let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
@@ -2046,6 +2129,89 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(entriesAfterDelete.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fullImageURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: thumbnailURL.path))
+    }
+
+    func testGalleryStoreServiceRestoresEntriesAndFilesFromCloudAfterReinstall() async throws {
+        let firstDocumentsURL = try makeTemporaryDocumentsDirectory()
+        let secondDocumentsURL = try makeTemporaryDocumentsDirectory()
+        let firstGalleryURL = firstDocumentsURL.appendingPathComponent("GalleryTestA", isDirectory: true)
+        let secondGalleryURL = secondDocumentsURL.appendingPathComponent("GalleryTestB", isDirectory: true)
+        let cloudRootURL = try makeTemporaryDocumentsDirectory()
+        let firstStore = makeRealGalleryStore(galleryURL: firstGalleryURL, cloudRootURL: cloudRootURL)
+        let secondStore = makeRealGalleryStore(galleryURL: secondGalleryURL, cloudRootURL: cloudRootURL)
+        let imageData = await MainActor.run {
+            solidColorTemplateImageData(.cyan, size: CGSize(width: 40, height: 28))
+        }
+
+        let originalEntry = try await firstStore.saveArtwork(
+            imageData: imageData,
+            sourceTemplateID: "builtin-2",
+            sourceTemplateName: "Template Two"
+        )
+
+        let restoredEntries = try await secondStore.loadEntries()
+        XCTAssertEqual(restoredEntries.count, 1)
+        XCTAssertEqual(restoredEntries.first?.id, originalEntry.id)
+        XCTAssertEqual(restoredEntries.first?.sourceTemplateName, "Template Two")
+
+        let restoredFullImageURL = secondGalleryURL.appendingPathComponent(originalEntry.fullImageFilename)
+        let restoredThumbnailURL = secondGalleryURL.appendingPathComponent(originalEntry.thumbnailFilename)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: restoredFullImageURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: restoredThumbnailURL.path))
+    }
+
+    func testGalleryStoreServiceDeletePropagatesToCloud() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
+        let cloudRootURL = try makeTemporaryDocumentsDirectory()
+        let store = makeRealGalleryStore(galleryURL: galleryURL, cloudRootURL: cloudRootURL)
+        let imageData = await MainActor.run {
+            solidColorTemplateImageData(.magenta, size: CGSize(width: 36, height: 24))
+        }
+
+        let entry = try await store.saveArtwork(
+            imageData: imageData,
+            sourceTemplateID: "builtin-3",
+            sourceTemplateName: "Template Three"
+        )
+        let cloudGalleryURL = cloudRootURL
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent("Gallery", isDirectory: true)
+        let cloudManifestURL = cloudGalleryURL.appendingPathComponent("manifest.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cloudManifestURL.path))
+
+        try await store.deleteEntry(entry.id)
+
+        let cloudFullImageURL = cloudGalleryURL.appendingPathComponent(entry.fullImageFilename)
+        let cloudThumbnailURL = cloudGalleryURL.appendingPathComponent(entry.thumbnailFilename)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cloudFullImageURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cloudThumbnailURL.path))
+
+        let manifestData = try Data(contentsOf: cloudManifestURL)
+        let entries = try JSONDecoder().decode([ArtworkEntry].self, from: manifestData)
+        XCTAssertTrue(entries.isEmpty)
+    }
+
+    func testGalleryStoreServiceUsesLocalStorageWhenCloudIsUnavailable() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
+        let store = GalleryStoreService(
+            galleryDirectoryURLProvider: { galleryURL },
+            cloudContainerIdentifier: "iCloud.dn.coloring",
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+        let imageData = await MainActor.run {
+            solidColorTemplateImageData(.green, size: CGSize(width: 32, height: 20))
+        }
+
+        let entry = try await store.saveArtwork(
+            imageData: imageData,
+            sourceTemplateID: "builtin-1",
+            sourceTemplateName: "Template One"
+        )
+        let entries = try await store.loadEntries()
+
+        XCTAssertEqual(entries.map(\.id), [entry.id])
     }
 
     func testGalleryStoreServiceNormalizesTransparentArtworkToOpaqueWhite() async throws {
@@ -3584,15 +3750,25 @@ final class ColoringTests: XCTestCase {
         )
     }
 
-    private func makeRealCategoryStore(documentsURL: URL) -> TemplateCategoryStoreService {
+    private func makeRealCategoryStore(
+        documentsURL: URL,
+        cloudRootURL: URL? = nil
+    ) -> TemplateCategoryStoreService {
         TemplateCategoryStoreService(
-            documentsDirectoryURLProvider: { documentsURL }
+            cloudContainerIdentifier: cloudRootURL == nil ? nil : "iCloud.dn.coloring",
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in cloudRootURL }
         )
     }
 
-    private func makeRealGalleryStore(galleryURL: URL) -> GalleryStoreService {
+    private func makeRealGalleryStore(
+        galleryURL: URL,
+        cloudRootURL: URL? = nil
+    ) -> GalleryStoreService {
         GalleryStoreService(
-            galleryDirectoryURLProvider: { galleryURL }
+            galleryDirectoryURLProvider: { galleryURL },
+            cloudContainerIdentifier: cloudRootURL == nil ? nil : "iCloud.dn.coloring",
+            ubiquityContainerURLProvider: { _ in cloudRootURL }
         )
     }
 }

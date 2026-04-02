@@ -58,6 +58,7 @@ struct TemplateStudioView: View {
 
             Task {
                 await viewModel.refreshTemplatesFromStorage()
+                viewModel.loadCategoriesIfNeeded()
             }
         }
         .onChange(of: viewModel.selectedTemplateID) { _, _ in

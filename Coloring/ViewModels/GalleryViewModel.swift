@@ -14,6 +14,10 @@ final class GalleryViewModel: ObservableObject {
     private var fullImageCache: [String: UIImage] = [:]
     private var loadingThumbnailPaths: Set<String> = []
     private var loadingFullImagePaths: Set<String> = []
+    private var thumbnailRetryCounts: [String: Int] = [:]
+    private var fullImageRetryCounts: [String: Int] = [:]
+    private let maxImageLoadRetries = 12
+    private let imageRetryDelayNanoseconds: UInt64 = 500_000_000
 
     init(galleryStore: any GalleryStoreProviding) {
         self.galleryStore = galleryStore
@@ -33,6 +37,8 @@ final class GalleryViewModel: ObservableObject {
             let fullImagePaths = Set(entries.map(\.fullImagePath))
             thumbnailCache = thumbnailCache.filter { thumbnailPaths.contains($0.key) }
             fullImageCache = fullImageCache.filter { fullImagePaths.contains($0.key) }
+            thumbnailRetryCounts = thumbnailRetryCounts.filter { thumbnailPaths.contains($0.key) }
+            fullImageRetryCounts = fullImageRetryCounts.filter { fullImagePaths.contains($0.key) }
         } catch {
             errorMessage = "Could not load gallery."
         }
@@ -84,10 +90,12 @@ final class GalleryViewModel: ObservableObject {
             loadingThumbnailPaths.remove(path)
 
             guard let image else {
+                scheduleRetryIfNeeded(forPath: path, imageKind: .thumbnail)
                 return
             }
 
             thumbnailCache[path] = image
+            thumbnailRetryCounts.removeValue(forKey: path)
             objectWillChange.send()
         }
     }
@@ -103,10 +111,36 @@ final class GalleryViewModel: ObservableObject {
             loadingFullImagePaths.remove(path)
 
             guard let image else {
+                scheduleRetryIfNeeded(forPath: path, imageKind: .fullImage)
                 return
             }
 
             fullImageCache[path] = image
+            fullImageRetryCounts.removeValue(forKey: path)
+            objectWillChange.send()
+        }
+    }
+
+    private func scheduleRetryIfNeeded(forPath path: String, imageKind: GalleryImageKind) {
+        switch imageKind {
+        case .thumbnail:
+            let currentRetryCount = thumbnailRetryCounts[path, default: 0]
+            guard currentRetryCount < maxImageLoadRetries else {
+                return
+            }
+
+            thumbnailRetryCounts[path] = currentRetryCount + 1
+        case .fullImage:
+            let currentRetryCount = fullImageRetryCounts[path, default: 0]
+            guard currentRetryCount < maxImageLoadRetries else {
+                return
+            }
+
+            fullImageRetryCounts[path] = currentRetryCount + 1
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: imageRetryDelayNanoseconds)
             objectWillChange.send()
         }
     }
@@ -120,4 +154,9 @@ private actor GalleryImageLoader {
         }
         return UIImage(data: data)
     }
+}
+
+private enum GalleryImageKind {
+    case thumbnail
+    case fullImage
 }

@@ -10,8 +10,12 @@ protocol GalleryStoreProviding {
 
 actor GalleryStoreService: GalleryStoreProviding {
     private let logger = Logger(subsystem: "Coloring", category: "GalleryStore")
+    private let fileManager: FileManager
+    private let cloudContainerIdentifier: String?
     nonisolated private let galleryDirectoryURLProvider: @Sendable () throws -> URL
+    nonisolated private let ubiquityContainerURLProvider: @Sendable (String?) -> URL?
     private var cachedEntries: [ArtworkEntry]?
+    private var artworkSyncTask: Task<Void, Never>?
 
     nonisolated static let galleryDirectoryURL: URL = {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -19,11 +23,19 @@ actor GalleryStoreService: GalleryStoreProviding {
     }()
 
     init(
-        galleryDirectoryURLProvider: (@Sendable () throws -> URL)? = nil
+        galleryDirectoryURLProvider: (@Sendable () throws -> URL)? = nil,
+        fileManager: FileManager = .default,
+        cloudContainerIdentifier: String? = "iCloud.dn.coloring",
+        ubiquityContainerURLProvider: @escaping @Sendable (String?) -> URL? = {
+            FileManager.default.url(forUbiquityContainerIdentifier: $0)
+        }
     ) {
         self.galleryDirectoryURLProvider = galleryDirectoryURLProvider ?? {
             GalleryStoreService.galleryDirectoryURL
         }
+        self.fileManager = fileManager
+        self.cloudContainerIdentifier = cloudContainerIdentifier
+        self.ubiquityContainerURLProvider = ubiquityContainerURLProvider
     }
 
     private func galleryDirectoryURL() throws -> URL {
@@ -34,17 +46,279 @@ actor GalleryStoreService: GalleryStoreProviding {
         try galleryDirectoryURL().appendingPathComponent("manifest.json")
     }
 
-    private func ensureDirectoryExists() throws {
-        let fileManager = FileManager.default
-        let directoryURL = try galleryDirectoryURL()
+    private func ensureDirectoryExists(at directoryURL: URL) throws {
         if !fileManager.fileExists(atPath: directoryURL.path) {
             try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         }
     }
 
+    private func ensureLocalDirectoryExists() throws {
+        let directoryURL = try galleryDirectoryURL()
+        try ensureDirectoryExists(at: directoryURL)
+    }
+
+    private func cloudGalleryDirectoryURL() -> URL? {
+        guard let cloudRootURL = cloudContainerRootURL() else {
+            return nil
+        }
+
+        let directoryURL = cloudRootURL
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent("Gallery", isDirectory: true)
+
+        do {
+            try ensureDirectoryExists(at: directoryURL)
+            return directoryURL
+        } catch {
+            logger.error("Could not access iCloud gallery folder: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func cloudContainerRootURL() -> URL? {
+        if let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) {
+            return cloudRootURL
+        }
+
+        guard cloudContainerIdentifier != nil else {
+            return nil
+        }
+
+        if let fallbackCloudRootURL = ubiquityContainerURLProvider(nil) {
+            logger.log("Using default iCloud container fallback for gallery sync.")
+            return fallbackCloudRootURL
+        }
+
+        return nil
+    }
+
+    private func cloudFileURL(for filename: String, in cloudDirectoryURL: URL) -> URL {
+        cloudDirectoryURL.appendingPathComponent(filename)
+    }
+
+    private func cloudPlaceholderURL(for filename: String, in cloudDirectoryURL: URL) -> URL {
+        cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
+    }
+
+    private func cloudFileURLIfExists(for filename: String, in cloudDirectoryURL: URL) -> URL? {
+        let cloudFileURL = cloudFileURL(for: filename, in: cloudDirectoryURL)
+        if fileManager.fileExists(atPath: cloudFileURL.path) {
+            return cloudFileURL
+        }
+
+        let placeholderURL = cloudPlaceholderURL(for: filename, in: cloudDirectoryURL)
+        if fileManager.fileExists(atPath: placeholderURL.path) {
+            return placeholderURL
+        }
+
+        return nil
+    }
+
+    private func readData(from sourceURL: URL) throws -> Data {
+        let fallbackDownloadedURL = fallbackDownloadedURLIfPlaceholder(for: sourceURL)
+        if let fallbackDownloadedURL {
+            requestUbiquitousDownloadIfNeeded(at: sourceURL)
+            requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
+
+            if let fallbackData = try? Data(contentsOf: fallbackDownloadedURL) {
+                return fallbackData
+            }
+
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+
+        do {
+            return try Data(contentsOf: sourceURL)
+        } catch {
+            requestUbiquitousDownloadIfNeeded(at: sourceURL)
+
+            var lastError: Error = error
+            for _ in 0..<8 {
+                do {
+                    return try Data(contentsOf: sourceURL)
+                } catch {
+                    lastError = error
+                }
+            }
+
+            throw lastError
+        }
+    }
+
+    private func fallbackDownloadedURLIfPlaceholder(for sourceURL: URL) -> URL? {
+        guard sourceURL.pathExtension.lowercased() == "icloud" else {
+            return nil
+        }
+
+        return sourceURL.deletingPathExtension()
+    }
+
+    private func requestUbiquitousDownloadIfNeeded(at sourceURL: URL) {
+        do {
+            try fileManager.startDownloadingUbiquitousItem(at: sourceURL)
+        } catch {
+            // Non-ubiquitous local files throw here; ignore and keep local read behavior.
+        }
+    }
+
+    private func cloudFileMatches(_ data: Data, existingFileURL: URL) -> Bool {
+        do {
+            let values = try existingFileURL.resourceValues(forKeys: [.fileSizeKey])
+            guard values.fileSize == data.count else {
+                return false
+            }
+
+            return try Data(contentsOf: existingFileURL) == data
+        } catch {
+            return false
+        }
+    }
+
+    private func syncDataToCloudIfNeeded(_ data: Data, filename: String, cloudDirectoryURL: URL) {
+        let cloudFileURL = cloudFileURL(for: filename, in: cloudDirectoryURL)
+        let placeholderURL = cloudPlaceholderURL(for: filename, in: cloudDirectoryURL)
+
+        do {
+            if fileManager.fileExists(atPath: cloudFileURL.path),
+               cloudFileMatches(data, existingFileURL: cloudFileURL)
+            {
+                return
+            }
+
+            if fileManager.fileExists(atPath: placeholderURL.path) {
+                try fileManager.removeItem(at: placeholderURL)
+            }
+            if fileManager.fileExists(atPath: cloudFileURL.path) {
+                try fileManager.removeItem(at: cloudFileURL)
+            }
+
+            try data.write(to: cloudFileURL, options: [.atomic])
+        } catch {
+            logger.error("Failed to sync gallery file to iCloud: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func syncFileBidirectionally(filename: String, localDirectoryURL: URL, cloudDirectoryURL: URL) throws {
+        let localFileURL = localDirectoryURL.appendingPathComponent(filename)
+
+        if fileManager.fileExists(atPath: localFileURL.path) {
+            let localData = try Data(contentsOf: localFileURL)
+            syncDataToCloudIfNeeded(localData, filename: filename, cloudDirectoryURL: cloudDirectoryURL)
+            return
+        }
+
+        guard let cloudSourceURL = cloudFileURLIfExists(for: filename, in: cloudDirectoryURL) else {
+            return
+        }
+
+        let cloudData = try readData(from: cloudSourceURL)
+        try cloudData.write(to: localFileURL, options: [.atomic])
+    }
+
+    private func syncManifestToCloudIfNeeded(_ entries: [ArtworkEntry], cloudDirectoryURL: URL) {
+        do {
+            let data = try JSONEncoder().encode(entries)
+            syncDataToCloudIfNeeded(data, filename: "manifest.json", cloudDirectoryURL: cloudDirectoryURL)
+        } catch {
+            logger.error("Failed to encode gallery manifest for iCloud sync: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func deleteCloudFileIfNeeded(filename: String, cloudDirectoryURL: URL) {
+        let cloudFileURL = cloudFileURL(for: filename, in: cloudDirectoryURL)
+        let placeholderURL = cloudPlaceholderURL(for: filename, in: cloudDirectoryURL)
+
+        do {
+            if fileManager.fileExists(atPath: cloudFileURL.path) {
+                try fileManager.removeItem(at: cloudFileURL)
+            }
+            if fileManager.fileExists(atPath: placeholderURL.path) {
+                try fileManager.removeItem(at: placeholderURL)
+            }
+        } catch {
+            logger.error("Failed to delete gallery cloud file: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func synchronizeLocalManifestWithCloud() {
+        guard let cloudDirectoryURL = cloudGalleryDirectoryURL() else {
+            return
+        }
+
+        do {
+            let localDirectoryURL = try galleryDirectoryURL()
+            try ensureDirectoryExists(at: localDirectoryURL)
+
+            let localManifestURL = localDirectoryURL.appendingPathComponent("manifest.json")
+
+            if !fileManager.fileExists(atPath: localManifestURL.path),
+               let cloudManifestURL = cloudFileURLIfExists(for: "manifest.json", in: cloudDirectoryURL)
+            {
+                let cloudManifestData = try readData(from: cloudManifestURL)
+                try cloudManifestData.write(to: localManifestURL, options: [.atomic])
+            }
+
+            guard fileManager.fileExists(atPath: localManifestURL.path) else {
+                return
+            }
+
+            let localManifestData = try Data(contentsOf: localManifestURL)
+            syncDataToCloudIfNeeded(localManifestData, filename: "manifest.json", cloudDirectoryURL: cloudDirectoryURL)
+        } catch {
+            logger.error("Gallery sync with iCloud failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func scheduleArtworkSync(entries: [ArtworkEntry]) {
+        artworkSyncTask?.cancel()
+
+        guard !entries.isEmpty else {
+            return
+        }
+
+        artworkSyncTask = Task { [entries] in
+            await self.syncArtworkFilesFromCloudIfNeeded(entries: entries)
+        }
+    }
+
+    private func syncArtworkFilesFromCloudIfNeeded(entries: [ArtworkEntry]) async {
+        guard let cloudDirectoryURL = cloudGalleryDirectoryURL() else {
+            return
+        }
+
+        do {
+            let localDirectoryURL = try galleryDirectoryURL()
+            try ensureDirectoryExists(at: localDirectoryURL)
+
+            for entry in entries {
+                if Task.isCancelled {
+                    return
+                }
+
+                do {
+                    try syncFileBidirectionally(
+                        filename: entry.fullImageFilename,
+                        localDirectoryURL: localDirectoryURL,
+                        cloudDirectoryURL: cloudDirectoryURL
+                    )
+                    try syncFileBidirectionally(
+                        filename: entry.thumbnailFilename,
+                        localDirectoryURL: localDirectoryURL,
+                        cloudDirectoryURL: cloudDirectoryURL
+                    )
+                } catch {
+                    logger.error("Failed to sync gallery artwork file: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } catch {
+            logger.error("Gallery artwork sync failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     func loadEntries() throws -> [ArtworkEntry] {
-        let fileManager = FileManager.default
-        try ensureDirectoryExists()
+        try ensureLocalDirectoryExists()
+        synchronizeLocalManifestWithCloud()
+
         let manifestURL = try manifestURL()
 
         guard fileManager.fileExists(atPath: manifestURL.path) else {
@@ -55,6 +329,7 @@ actor GalleryStoreService: GalleryStoreProviding {
         let data = try Data(contentsOf: manifestURL)
         let entries = try JSONDecoder().decode([ArtworkEntry].self, from: data)
         cachedEntries = entries
+        scheduleArtworkSync(entries: entries)
         return entries
     }
 
@@ -63,8 +338,7 @@ actor GalleryStoreService: GalleryStoreProviding {
         sourceTemplateID: String,
         sourceTemplateName: String
     ) throws -> ArtworkEntry {
-        let fileManager = FileManager.default
-        try ensureDirectoryExists()
+        try ensureLocalDirectoryExists()
         let directoryURL = try galleryDirectoryURL()
 
         let entryID = UUID().uuidString
@@ -72,17 +346,17 @@ actor GalleryStoreService: GalleryStoreProviding {
         let thumbnailFilename = "\(entryID)_thumb.png"
         let normalizedImageData = normalizeArtworkImageData(imageData)
 
-        // Save full image
         let fullImageURL = directoryURL.appendingPathComponent(fullImageFilename)
         let thumbnailURL = directoryURL.appendingPathComponent(thumbnailFilename)
         try normalizedImageData.write(to: fullImageURL, options: .atomic)
 
-        // Generate and save thumbnail
+        var thumbnailDataForCloud: Data?
         if let fullImage = UIImage(data: normalizedImageData) {
             let thumbnailData = generateThumbnail(from: fullImage, maxSize: 300)
             if let thumbnailData {
                 do {
                     try thumbnailData.write(to: thumbnailURL, options: .atomic)
+                    thumbnailDataForCloud = thumbnailData
                 } catch {
                     logger.error("Failed to write gallery thumbnail: \(error.localizedDescription, privacy: .public)")
                 }
@@ -103,6 +377,15 @@ actor GalleryStoreService: GalleryStoreProviding {
             entries.insert(entry, at: 0)
             try persistManifest(entries)
             cachedEntries = entries
+
+            if let cloudDirectoryURL = cloudGalleryDirectoryURL() {
+                syncDataToCloudIfNeeded(normalizedImageData, filename: fullImageFilename, cloudDirectoryURL: cloudDirectoryURL)
+                if let thumbnailDataForCloud {
+                    syncDataToCloudIfNeeded(thumbnailDataForCloud, filename: thumbnailFilename, cloudDirectoryURL: cloudDirectoryURL)
+                }
+                syncManifestToCloudIfNeeded(entries, cloudDirectoryURL: cloudDirectoryURL)
+            }
+
             return entry
         } catch {
             do {
@@ -120,7 +403,6 @@ actor GalleryStoreService: GalleryStoreProviding {
     }
 
     func deleteEntry(_ id: String) throws {
-        let fileManager = FileManager.default
         let directoryURL = try galleryDirectoryURL()
         let loadedEntries: [ArtworkEntry]
         do {
@@ -129,6 +411,7 @@ actor GalleryStoreService: GalleryStoreProviding {
             logger.error("Failed to load gallery manifest for delete: \(error.localizedDescription, privacy: .public)")
             return
         }
+
         var entries = loadedEntries
         guard let index = entries.firstIndex(where: { $0.id == id }) else {
             return
@@ -139,7 +422,6 @@ actor GalleryStoreService: GalleryStoreProviding {
         cachedEntries = entries
         try persistManifest(entries)
 
-        // Clean up files
         let fullImageURL = directoryURL.appendingPathComponent(entry.fullImageFilename)
         let thumbnailURL = directoryURL.appendingPathComponent(entry.thumbnailFilename)
         do {
@@ -151,6 +433,12 @@ actor GalleryStoreService: GalleryStoreProviding {
             try fileManager.removeItem(at: thumbnailURL)
         } catch {
             logger.error("Failed to delete gallery thumbnail file: \(error.localizedDescription, privacy: .public)")
+        }
+
+        if let cloudDirectoryURL = cloudGalleryDirectoryURL() {
+            deleteCloudFileIfNeeded(filename: entry.fullImageFilename, cloudDirectoryURL: cloudDirectoryURL)
+            deleteCloudFileIfNeeded(filename: entry.thumbnailFilename, cloudDirectoryURL: cloudDirectoryURL)
+            syncManifestToCloudIfNeeded(entries, cloudDirectoryURL: cloudDirectoryURL)
         }
     }
 
