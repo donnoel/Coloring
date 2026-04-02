@@ -348,7 +348,7 @@ private struct OnboardingPageView: View {
         VStack(alignment: .leading, spacing: 18) {
             OnboardingHeroCard(page: page, colorScheme: colorScheme)
                 .frame(maxWidth: .infinity)
-                .frame(height: page.hero == .gallery ? 372 : 344)
+                .frame(height: heroHeight)
                 .scaleEffect(!reduceMotion && isCurrentPage ? 1 : 0.986)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: isCurrentPage)
 
@@ -386,6 +386,17 @@ private struct OnboardingPageView: View {
                 )
                 .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.32 : 0.11), radius: 16, x: 0, y: 10)
         )
+    }
+
+    private var heroHeight: CGFloat {
+        switch page.hero {
+        case .importColor:
+            return 388
+        case .gallery:
+            return 372
+        default:
+            return 344
+        }
     }
 }
 
@@ -449,7 +460,7 @@ private struct OnboardingHeroCard: View {
 
                 VStack(spacing: 9) {
                     studioLibraryRow(
-                        title: "Winter Cabin",
+                        title: "Rainy Window Cat",
                         subtitle: "Built-in · Easy",
                         tint: page.palette.secondary,
                         accent: page.palette.tertiary
@@ -462,7 +473,7 @@ private struct OnboardingHeroCard: View {
                         isSelected: true
                     )
                     studioLibraryRow(
-                        title: "Winter Cabin",
+                        title: "Sunflower Path",
                         subtitle: "Built-in · Easy",
                         tint: page.palette.tertiary,
                         accent: page.palette.primary
@@ -615,7 +626,7 @@ private struct OnboardingHeroCard: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(height: 166)
+                            .frame(height: 214)
                             .overlay(
                                 VStack(spacing: 10) {
                                     HStack(spacing: 8) {
@@ -630,7 +641,7 @@ private struct OnboardingHeroCard: View {
 
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .fill(Color.white.opacity(0.84))
-                                        .frame(height: 122)
+                                        .frame(height: 168)
                                         .overlay(
                                             halfColoredArtworkPreview(
                                                 imageName: "OnboardingGalleryVenice",
@@ -687,14 +698,14 @@ private struct OnboardingHeroCard: View {
                                 .frame(width: 44, height: 44)
                                 .overlay(
                                     halfColoredArtworkPreview(
-                                        imageName: "OnboardingGalleryForest",
+                                        imageName: "OnboardingAlienAstronaut",
                                         cornerRadius: 8
                                     )
                                     .padding(3)
                                 )
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Baking Scene with Pie")
+                                Text("Astronaut on Alien Planet")
                                     .font(.subheadline.weight(.semibold))
                                 Text("In Progress · Synced")
                                     .font(.caption)
