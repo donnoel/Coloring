@@ -4,8 +4,3 @@ name = "Coloring"
 
 [setup]
 script = ""
-
-[[actions]]
-name = "Run"
-icon = "run"
-command = "./scripts/run-on-jacks.sh"
