@@ -66,6 +66,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
+- **Persistent Library Browsing**: Selecting a drawing keeps the sidebar open so you can quickly move through multiple drawings.
 - **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, `Imported`, shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`); built-in drawings can appear in multiple metadata-driven folders.
 - **Folder Management**: Open **Manage Categories** to create, rename, delete, and reorder custom folders alongside built-in folder ordering.
 - **Favorites / Completed / Hide**: Long-press a drawing in the sidebar to favorite it, mark it completed, or hide it.

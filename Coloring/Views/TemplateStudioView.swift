@@ -20,7 +20,7 @@ struct TemplateStudioView: View {
     @State private var isPhotoPickerPresented = false
     @State private var isFileImporterPresented = false
     // Default to showing the library so the user always has a reliable starting point.
-    // We still collapse to the canvas after a template is selected.
+    // Keep the library open after selection to support rapid drawing-to-drawing browsing.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var templatePendingRename: ColoringTemplate?
     @State private var renameDraftTitle = ""
@@ -402,9 +402,6 @@ struct TemplateStudioView: View {
             importedBadgeFill: importedTemplateBadgeFill,
             onSelect: {
                 viewModel.selectTemplate(template.id)
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    columnVisibility = .detailOnly
-                }
             }
         ) {
             Button {
