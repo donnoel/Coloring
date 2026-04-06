@@ -256,6 +256,13 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            // Do not steal first-responder from active text input (for example, rename alerts).
+            if let activeResponder = UIResponder.currentFirstResponder,
+               activeResponder !== canvasView,
+               activeResponder is UITextField || activeResponder is UITextView {
+                return
+            }
+
             installToolingIfPossible(on: canvasView)
             canvasView.becomeFirstResponder()
             guard let toolPicker else {
@@ -597,6 +604,20 @@ struct PencilCanvasView: UIViewRepresentable {
 
             return nil
         }
+    }
+}
+
+private extension UIResponder {
+    private static weak var trackedFirstResponder: UIResponder?
+
+    static var currentFirstResponder: UIResponder? {
+        trackedFirstResponder = nil
+        UIApplication.shared.sendAction(#selector(trackFirstResponder), to: nil, from: nil, for: nil)
+        return trackedFirstResponder
+    }
+
+    @objc func trackFirstResponder() {
+        UIResponder.trackedFirstResponder = self
     }
 }
 
