@@ -90,6 +90,7 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.updateActivationToken(activationToken, on: canvasView)
         context.coordinator.updateFillMode(fillMode, in: uiView)
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
+        context.coordinator.suppressEditMenuInteractions(on: canvasView)
         context.coordinator.updateOverlayImages(
             in: uiView,
             fillImage: fillImage,
@@ -143,6 +144,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
             installDrawingInteractionTracking(on: canvasView)
             installFillEraseGestureIfNeeded(on: canvasView)
+            suppressEditMenuInteractions(on: canvasView)
         }
 
         private func installToolingIfPossible(on canvasView: PKCanvasView) {
@@ -442,6 +444,17 @@ struct PencilCanvasView: UIViewRepresentable {
             lastAppliedBrushTool = normalizedBrushTool
             lastInkTool = normalizedBrushTool
             canvasView.tool = normalizedBrushTool
+        }
+
+        func suppressEditMenuInteractions(on canvasView: PKCanvasView) {
+            if #available(iOS 16.0, *) {
+                let views = [canvasView] + canvasView.subviewsRecursive
+                for view in views {
+                    for interaction in view.interactions where interaction is UIEditMenuInteraction {
+                        view.removeInteraction(interaction)
+                    }
+                }
+            }
         }
 
         func toolPickerSelectedToolDidChange(_ toolPicker: PKToolPicker) {
@@ -838,5 +851,11 @@ final class ZoomableCanvasContainerView: UIView {
 
         let scale = maxLongEdge / longEdge
         return CGSize(width: rawSize.width * scale, height: rawSize.height * scale)
+    }
+}
+
+private extension UIView {
+    var subviewsRecursive: [UIView] {
+        subviews + subviews.flatMap(\.subviewsRecursive)
     }
 }
