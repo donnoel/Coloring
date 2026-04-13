@@ -377,7 +377,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Coloring/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "The Coloring Room";
+				INFOPLIST_KEY_CFBundleDisplayName = "Coloring Room";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import drawings from your photo library to use as coloring templates.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -428,7 +428,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Coloring/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "The Coloring Room";
+				INFOPLIST_KEY_CFBundleDisplayName = "Coloring Room";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import drawings from your photo library to use as coloring templates.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
