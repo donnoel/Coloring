@@ -312,12 +312,6 @@ struct TemplateStudioView: View {
                 .listRowSeparator(.hidden)
             }
 
-            Section {
-                Text("App Version \(appVersionText)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .listRowSeparator(.hidden)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
@@ -332,22 +326,6 @@ struct TemplateStudioView: View {
             max: Self.sidebarMaxWidth
         )
         .toolbar(.hidden, for: .navigationBar)
-    }
-
-    private var appVersionText: String {
-        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-
-        switch (shortVersion, buildNumber) {
-        case let (version?, build?) where !version.isEmpty && !build.isEmpty:
-            return "\(version) (\(build))"
-        case let (version?, _) where !version.isEmpty:
-            return version
-        case let (_, build?) where !build.isEmpty:
-            return build
-        default:
-            return "Unavailable"
-        }
     }
 
     private var hasSidebarStatusMessages: Bool {
