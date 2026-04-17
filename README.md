@@ -54,6 +54,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
 | **High-Fidelity Gallery Stage** | The main gallery card uses full-resolution artwork while the bottom filmstrip uses lightweight thumbnails for quick scrolling. |
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
+| **Settings Version Row** | iOS/iPadOS Settings shows a non-editable `Version` row populated from `CFBundleShortVersionString (CFBundleVersion)`. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
 | **Per-Template Progress Recovery** | Pencil strokes, fills, and layer state are restored per template so work reappears when you return. |
 | **Library State Recovery** | Favorites, Completed, Recent, Hidden, and custom category organization restore after reinstall when iCloud is available. |
