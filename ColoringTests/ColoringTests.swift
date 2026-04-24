@@ -3398,6 +3398,39 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorReportsDrawingChangeBeforeBindingMutation() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let initialDrawing = PKDrawing()
+            let localDrawing = makeSampleTemplateDrawing(color: .blue)
+            var callbackObservedStrokeCount: Int?
+
+            drawingState.drawing = initialDrawing
+
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                ),
+                onDrawingChanged: { drawing in
+                    callbackObservedStrokeCount = drawingState.drawing.strokes.count
+                    drawingState.drawing = drawing
+                }
+            )
+
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+            canvasView.drawing = localDrawing
+
+            coordinator.canvasViewDrawingDidChange(canvasView)
+
+            XCTAssertEqual(callbackObservedStrokeCount, initialDrawing.strokes.count)
+            XCTAssertEqual(drawingState.drawing.strokes.count, localDrawing.strokes.count)
+        }
+    }
+
     func testPencilCanvasCoordinatorClearsPendingSyncWhenBindingCatchesUp() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()

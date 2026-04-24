@@ -558,8 +558,11 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             markLocalDrawingChanged(normalizedDrawingData)
-            parent.drawing = normalizedDrawing
-            parent.onDrawingChanged?(normalizedDrawing)
+            if let onDrawingChanged = parent.onDrawingChanged {
+                onDrawingChanged(normalizedDrawing)
+            } else {
+                parent.drawing = normalizedDrawing
+            }
         }
 
         @objc private func handleDrawingGestureStateChange(_ gesture: UIGestureRecognizer) {
