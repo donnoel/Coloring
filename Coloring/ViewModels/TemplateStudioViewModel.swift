@@ -1325,6 +1325,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             removeProgressSnapshot(for: templateID)
+            removeRecentColors(for: templateID)
         }
     }
 
@@ -1392,6 +1393,18 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         persistProgressSnapshots()
+    }
+
+    private func removeRecentColors(for templateID: String) {
+        guard recentColorsByTemplateID.removeValue(forKey: templateID) != nil else {
+            return
+        }
+
+        if selectedTemplateID == templateID {
+            assignIfChanged(\.recentColors, to: [])
+            activeColorToken = nil
+        }
+        persistRecentColors()
     }
 
     private func persistProgressSnapshots() {
@@ -1566,9 +1579,7 @@ final class TemplateStudioViewModel: ObservableObject {
         fillStateStore.removeAll(for: templateID)
         persistedColoringByTemplateID.removeValue(forKey: templateID)
         removeProgressSnapshot(for: templateID)
-        if recentColorsByTemplateID.removeValue(forKey: templateID) != nil {
-            persistRecentColors()
-        }
+        removeRecentColors(for: templateID)
         persistenceRevisionStore.removeRevisions(for: templateID)
         editHistoryStore.removeHistory(for: templateID)
         favoriteTemplateIDs.remove(templateID)

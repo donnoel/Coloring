@@ -1237,6 +1237,83 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testRecentColorsClearWhenTemplateStrokesAreCleared() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                recentColorsStore: StubRecentColorsStore()
+            )
+        }
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.recordSelectedColor(UIColor(red: 1, green: 0, blue: 0, alpha: 1))
+            viewModel.recordSelectedColor(UIColor(red: 0, green: 0, blue: 1, alpha: 1))
+            XCTAssertFalse(viewModel.recentColors.isEmpty)
+
+            viewModel.clearDrawing()
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+
+            viewModel.selectTemplate(secondTemplate.id)
+            viewModel.selectTemplate(firstTemplate.id)
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+        }
+    }
+
+    func testRecentColorsClearWhenTemplateFillsAreCleared() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.green, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                recentColorsStore: StubRecentColorsStore()
+            )
+        }
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: UIColor.green)
+        }
+
+        let didApplyFillAndRecordColor = await waitForCondition {
+            await MainActor.run {
+                viewModel.currentFillImage != nil && !viewModel.recentColors.isEmpty
+            }
+        }
+        XCTAssertTrue(didApplyFillAndRecordColor)
+
+        await MainActor.run {
+            viewModel.clearFills()
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+
+            viewModel.selectTemplate(secondTemplate.id)
+            viewModel.selectTemplate(firstTemplate.id)
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+        }
+    }
+
     func testRecentColorsViewModelRestoresEmptyListForInitialUIState() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let recentColorsStore = StubRecentColorsStore()
