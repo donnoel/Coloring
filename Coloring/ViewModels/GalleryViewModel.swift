@@ -2,6 +2,12 @@ import Combine
 import Foundation
 import UIKit
 
+enum GalleryImageLoadState {
+    case loading
+    case loaded(UIImage)
+    case failed
+}
+
 @MainActor
 final class GalleryViewModel: ObservableObject {
     @Published private(set) var entries: [ArtworkEntry] = []
@@ -79,6 +85,22 @@ final class GalleryViewModel: ObservableObject {
         return nil
     }
 
+    func fullImageLoadState(for entry: ArtworkEntry) -> GalleryImageLoadState {
+        let path = entry.fullImagePath
+        if let cachedImage = fullImageCache[path] {
+            return .loaded(cachedImage)
+        }
+
+        if !loadingFullImagePaths.contains(path),
+           fullImageRetryCounts[path, default: 0] >= maxImageLoadRetries
+        {
+            return .failed
+        }
+
+        scheduleFullImageLoadIfNeeded(atPath: path)
+        return .loading
+    }
+
     private func scheduleThumbnailLoadIfNeeded(atPath path: String) {
         guard !loadingThumbnailPaths.contains(path) else {
             return
@@ -126,6 +148,7 @@ final class GalleryViewModel: ObservableObject {
         case .thumbnail:
             let currentRetryCount = thumbnailRetryCounts[path, default: 0]
             guard currentRetryCount < maxImageLoadRetries else {
+                objectWillChange.send()
                 return
             }
 
@@ -133,6 +156,7 @@ final class GalleryViewModel: ObservableObject {
         case .fullImage:
             let currentRetryCount = fullImageRetryCounts[path, default: 0]
             guard currentRetryCount < maxImageLoadRetries else {
+                objectWillChange.send()
                 return
             }
 

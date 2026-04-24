@@ -8,11 +8,12 @@ struct ArtworkDetailView: View {
     @State private var isDeleteConfirmationPresented = false
 
     var body: some View {
-        let fullImage = viewModel.fullImage(for: entry)
+        let fullImageState = viewModel.fullImageLoadState(for: entry)
 
         NavigationStack {
             GeometryReader { geometry in
-                if let image = fullImage {
+                switch fullImageState {
+                case .loaded(let image):
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
@@ -20,7 +21,13 @@ struct ArtworkDetailView: View {
                             width: geometry.size.width,
                             height: geometry.size.height
                         )
-                } else {
+                case .loading:
+                    ProgressView("Loading Artwork…")
+                        .frame(
+                            width: geometry.size.width,
+                            height: geometry.size.height
+                        )
+                case .failed:
                     ContentUnavailableView(
                         "Image Not Found",
                         systemImage: "exclamationmark.triangle",
@@ -42,7 +49,7 @@ struct ArtworkDetailView: View {
                 }
 
                 ToolbarItem(placement: .primaryAction) {
-                    if fullImage != nil {
+                    if case .loaded = fullImageState {
                         Button {
                             presentShareSheet()
                         } label: {
@@ -77,7 +84,7 @@ struct ArtworkDetailView: View {
 
     private func presentShareSheet() {
         let activityItems: [Any]
-        if let image = viewModel.fullImage(for: entry) {
+        if case let .loaded(image) = viewModel.fullImageLoadState(for: entry) {
             activityItems = [image]
         } else {
             activityItems = [URL(fileURLWithPath: entry.fullImagePath)]

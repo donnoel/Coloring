@@ -230,6 +230,7 @@ struct TemplateStudioView: View {
                     Label("Send to Gallery", systemImage: "square.and.arrow.up")
                 }
                 .disabled(viewModel.selectedTemplateImage == nil || viewModel.isExporting)
+                .accessibilityIdentifier("studio.sendToGallery")
 
                 if viewModel.isExporting {
                     ProgressView("Exporting…")
@@ -549,6 +550,7 @@ struct TemplateStudioView: View {
                 activationToken: pencilKitActivationToken,
                 isToolPickerSuppressed: isToolPickerSuppressed
             )
+            .accessibilityIdentifier("studio.canvas")
 
             VStack(spacing: 0) {
                 if isPaletteAtTop {

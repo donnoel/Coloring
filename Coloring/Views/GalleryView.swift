@@ -17,14 +17,9 @@ struct GalleryView: View {
 
                     if viewModel.entries.isEmpty {
                         if viewModel.isLoading {
-                            ProgressView("Loading Artwork…")
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 12)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.52), lineWidth: 1)
-                                )
+                            galleryLoadingState
+                        } else if let errorMessage = viewModel.errorMessage {
+                            galleryErrorState(message: errorMessage)
                         } else {
                             ContentUnavailableView(
                                 "No Artwork Yet",
@@ -69,6 +64,10 @@ struct GalleryView: View {
         VStack(spacing: 18) {
             galleryHeader
 
+            if let errorMessage = viewModel.errorMessage {
+                galleryInlineError(message: errorMessage)
+            }
+
             artworkStage(in: size)
 
             carouselMeta
@@ -78,6 +77,62 @@ struct GalleryView: View {
         .padding(.horizontal, horizontalContentPadding(for: size))
         .padding(.top, 28)
         .padding(.bottom, 22)
+    }
+
+    private var galleryLoadingState: some View {
+        ProgressView("Loading Artwork…")
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.52), lineWidth: 1)
+            )
+    }
+
+    private func galleryErrorState(message: String) -> some View {
+        ContentUnavailableView {
+            Label("Gallery Unavailable", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            Button {
+                retryGalleryLoad()
+            } label: {
+                Label("Try Again", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.top, 60)
+    }
+
+    private func galleryInlineError(message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+
+            Text(message)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.88) : Color.primary.opacity(0.82))
+
+            Spacer(minLength: 8)
+
+            Button {
+                retryGalleryLoad()
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Retry Gallery Load")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(glassStrokeSoft, lineWidth: 1)
+        )
     }
 
     private func artworkStage(in size: CGSize) -> some View {
@@ -408,6 +463,13 @@ struct GalleryView: View {
 
         if carouselIndex >= viewModel.entries.count {
             carouselIndex = viewModel.entries.count - 1
+        }
+    }
+
+    private func retryGalleryLoad() {
+        Task {
+            await viewModel.loadEntries()
+            syncCarouselIndex()
         }
     }
 

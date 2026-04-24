@@ -17,6 +17,12 @@ struct ContentView: View {
     @State private var isStudioTabPillVisible = true
     @State private var studioTabPillAutoShowTask: Task<Void, Never>?
 
+    init() {
+        if ProcessInfo.processInfo.arguments.contains("-UITestSkipOnboarding") {
+            UserDefaults.standard.set(true, forKey: "onboarding.hasCompletedFirstRun")
+        }
+    }
+
     var body: some View {
         ZStack {
             backgroundGradient

@@ -74,6 +74,7 @@ struct TemplateStudioTemplateRowView<ContextMenuContent: View, SwipeActionsConte
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("template.row")
         .contextMenu {
             contextMenuContent()
         }

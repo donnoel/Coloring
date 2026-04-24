@@ -49,9 +49,28 @@ final class ColoringUITests: XCTestCase {
         XCTAssertFalse(app.tables.staticTexts["Layers"].exists)
     }
 
+    func testSelectsBuiltInDrawingAndShowsCanvasExportControls() throws {
+        let app = launchApp(skipOnboarding: true)
+        XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
+        XCTAssertTrue(waitForStudioContent(in: app))
+
+        let templateRow = app.buttons["template.row"].firstMatch
+        XCTAssertTrue(templateRow.waitForExistence(timeout: 15), "No built-in drawing row appeared")
+        templateRow.tap()
+
+        XCTAssertTrue(app.otherElements["studio.canvas"].waitForExistence(timeout: 15), "Canvas did not appear after selecting a drawing")
+
+        let sendToGallery = app.buttons["studio.sendToGallery"].firstMatch
+        XCTAssertTrue(sendToGallery.waitForExistence(timeout: 5), "Send to Gallery control was not reachable")
+        XCTAssertTrue(sendToGallery.isEnabled, "Send to Gallery should be enabled after a drawing loads")
+    }
+
     @discardableResult
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(skipOnboarding: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
+        if skipOnboarding {
+            app.launchArguments.append("-UITestSkipOnboarding")
+        }
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
         return app
