@@ -546,9 +546,6 @@ struct TemplateStudioView: View {
                 brushTool: viewModel.currentBrushTool,
                 activeColorOverride: viewModel.appliedRecentColor,
                 activeColorOverrideRevision: viewModel.appliedRecentColorRevision,
-                onActiveToolColorChanged: { color in
-                    viewModel.recordSelectedColor(color)
-                },
                 activationToken: pencilKitActivationToken,
                 isToolPickerSuppressed: isToolPickerSuppressed
             )

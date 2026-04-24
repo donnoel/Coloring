@@ -21,7 +21,6 @@ struct PencilCanvasView: UIViewRepresentable {
     var brushTool: PKInkingTool?
     var activeColorOverride: UIColor?
     var activeColorOverrideRevision: Int = 0
-    var onActiveToolColorChanged: ((UIColor) -> Void)?
     var activationToken: Int = 0
     var isToolPickerSuppressed: Bool = false
 
@@ -138,7 +137,6 @@ struct PencilCanvasView: UIViewRepresentable {
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
-        private var lastReportedToolColor: UIColor?
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
@@ -475,7 +473,6 @@ struct PencilCanvasView: UIViewRepresentable {
             )
             lastInkTool = updatedTool
             canvasView.tool = updatedTool
-            lastReportedToolColor = normalizedColor
         }
 
         func suppressEditMenuInteractions(on canvasView: PKCanvasView) {
@@ -503,24 +500,7 @@ struct PencilCanvasView: UIViewRepresentable {
                     using: self.colorResolutionTraitCollection(for: canvasView),
                     on: canvasView
                 )
-                self.reportActiveToolColorIfNeeded(from: canvasView)
             }
-        }
-
-        private func reportActiveToolColorIfNeeded(from canvasView: PKCanvasView) {
-            guard let inkingTool = canvasView.tool as? PKInkingTool else {
-                return
-            }
-
-            let normalizedColor = inkingTool.color.stableResolvedColor(
-                using: colorResolutionTraitCollection(for: canvasView)
-            )
-            guard lastReportedToolColor?.isEqual(normalizedColor) != true else {
-                return
-            }
-
-            lastReportedToolColor = normalizedColor
-            parent.onActiveToolColorChanged?(normalizedColor)
         }
 
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {

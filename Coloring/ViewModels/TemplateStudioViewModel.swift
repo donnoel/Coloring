@@ -360,12 +360,14 @@ final class TemplateStudioViewModel: ObservableObject {
             beginPendingStrokeEditChangeIfNeeded(for: templateID)
         }
 
+        let previousStrokeCount = currentDrawing.strokes.count
         let shouldRecordImmediately = !editHistoryStore.hasPendingStroke(for: templateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        recordUsedStrokeColorIfNeeded(from: drawing, previousStrokeCount: previousStrokeCount)
         if shouldRecordImmediately {
             recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         }
@@ -611,7 +613,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
-    func recordSelectedColor(_ color: UIColor) {
+    func recordUsedColor(_ color: UIColor) {
         guard !selectedTemplateID.isEmpty else {
             return
         }
@@ -630,7 +632,16 @@ final class TemplateStudioViewModel: ObservableObject {
         activeColorToken = token
         appliedRecentColor = token.uiColor
         appliedRecentColorRevision += 1
-        updateRecentColors(with: token)
+    }
+
+    private func recordUsedStrokeColorIfNeeded(from drawing: PKDrawing, previousStrokeCount: Int) {
+        guard drawing.strokes.count > previousStrokeCount,
+              let color = drawing.strokes.last?.ink.color
+        else {
+            return
+        }
+
+        recordUsedColor(color)
     }
 
     private func updateCurrentBrushTool() {
@@ -1035,7 +1046,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
             let previousSnapshot = snapshot(for: templateID)
             applyFillData(nextFillData, for: templateID)
-            recordSelectedColor(fillColor)
+            recordUsedColor(fillColor)
             recordEditChange(from: previousSnapshot, for: templateID)
         }
     }

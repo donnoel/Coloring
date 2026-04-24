@@ -1210,7 +1210,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(restoredColors, colors)
     }
 
-    func testRecentColorsViewModelRecordsAndAppliesPerTemplateRecentColor() async {
+    func testRecentColorsViewModelRecordsUsedColorsPerTemplate() async {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
         let recentColorsStore = StubRecentColorsStore()
@@ -1232,8 +1232,8 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             XCTAssertEqual(viewModel.selectedTemplateID, firstTemplate.id)
             XCTAssertTrue(viewModel.recentColors.isEmpty)
-            viewModel.recordSelectedColor(UIColor(red: 1, green: 0, blue: 0, alpha: 1))
-            viewModel.recordSelectedColor(UIColor(red: 0, green: 0, blue: 1, alpha: 1))
+            viewModel.updateDrawing(makeSampleTemplateDrawing(color: .red))
+            viewModel.updateDrawing(makeTemplateDrawing(colors: [.red, .blue]))
         }
 
         await MainActor.run {
@@ -1241,7 +1241,7 @@ final class ColoringTests: XCTestCase {
             let red = viewModel.recentColors[1]
             viewModel.applyRecentColor(red)
             XCTAssertEqual(viewModel.activeColorToken, red)
-            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#FF0000FF", "#0000FFFF"])
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#0000FFFF", "#FF0000FF"])
             XCTAssertNotNil(viewModel.appliedRecentColor)
             XCTAssertEqual(viewModel.appliedRecentColorRevision, 1)
         }
@@ -1250,11 +1250,38 @@ final class ColoringTests: XCTestCase {
             viewModel.selectTemplate(secondTemplate.id)
             XCTAssertTrue(viewModel.recentColors.isEmpty)
 
-            viewModel.recordSelectedColor(UIColor(red: 0, green: 1, blue: 0, alpha: 1))
+            viewModel.updateDrawing(makeSampleTemplateDrawing(color: .green))
             XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#00FF00FF"])
 
             viewModel.selectTemplate(firstTemplate.id)
-            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#FF0000FF", "#0000FFFF"])
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#0000FFFF", "#FF0000FF"])
+        }
+    }
+
+    func testRecentColorsViewModelIgnoresSelectedButUnusedColor() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                recentColorsStore: StubRecentColorsStore()
+            )
+        }
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.applyRecentColor(RecentColorToken(red: 255, green: 0, blue: 0, alpha: 255))
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+            XCTAssertEqual(viewModel.appliedRecentColorRevision, 1)
+
+            viewModel.updateDrawing(makeSampleTemplateDrawing(color: .red))
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#FF0000FF"])
         }
     }
 
@@ -1279,8 +1306,6 @@ final class ColoringTests: XCTestCase {
 
         await MainActor.run {
             viewModel.updateDrawing(sampleDrawing)
-            viewModel.recordSelectedColor(UIColor(red: 1, green: 0, blue: 0, alpha: 1))
-            viewModel.recordSelectedColor(UIColor(red: 0, green: 0, blue: 1, alpha: 1))
             XCTAssertFalse(viewModel.recentColors.isEmpty)
 
             viewModel.clearDrawing()
@@ -4089,6 +4114,11 @@ final class ColoringTests: XCTestCase {
         let path = PKStrokePath(controlPoints: points, creationDate: Date())
         let stroke = PKStroke(ink: ink, path: path)
         return PKDrawing(strokes: [stroke])
+    }
+
+    @MainActor
+    private func makeTemplateDrawing(colors: [UIColor]) -> PKDrawing {
+        PKDrawing(strokes: colors.flatMap { makeSampleTemplateDrawing(color: $0).strokes })
     }
 
     @MainActor

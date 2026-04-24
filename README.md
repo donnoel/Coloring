@@ -1,4 +1,4 @@
-# **Coloring**
+# **Coloring Room**
 ### *An iPad-first coloring studio with Apple Pencil-native drawing and resilient iCloud recovery.*
 
 <p align="center">
@@ -10,9 +10,9 @@
 
 ---
 
-## What is Coloring?
+## What is Coloring Room?
 
-**Coloring** is a fullscreen iPad coloring app designed around a direct workflow:
+**Coloring Room** is a fullscreen iPad coloring app designed around a direct workflow:
 
 - choose a built-in or imported template,
 - color with native PencilKit tools,
@@ -101,7 +101,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 
 ## How it works
 
-Coloring follows a predictable persistence and rendering pipeline:
+Coloring Room follows a predictable persistence and rendering pipeline:
 
 1. Load built-in templates from bundled manifest/resources.
 2. Load imported template metadata from local storage.
