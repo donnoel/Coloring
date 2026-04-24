@@ -32,7 +32,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
 | **80 Built-In Templates** | Manifest-driven built-ins across eight shelf categories with orientation metadata for filtering/layout. |
-| **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills and shows a live count badge. |
+| **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills, shows a live count badge, and restores quiet per-drawing progress estimates in the library. |
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
 | **Imported Default Folder** | Imported drawings with no custom folder assignment appear in the built-in `Imported` folder. |
 | **Reversible Hidden Templates** | Long-press any built-in or imported drawing to hide it from normal browsing and recover it later from a dedicated `Hidden` management view. |
@@ -41,6 +41,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Custom Folder Management** | Create, rename, delete, and reorder custom folders from Manage Categories, and assign imported drawings into them. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
+| **Recent Colors** | Recently chosen PencilKit colors appear per drawing as a quiet swatch row in the floating palette for quick reselection. |
 | **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
 | **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels, using the active PencilKit tool color. |
 | **Fill Erasing in Coloring Mode** | The PencilKit eraser can remove touched fill regions after you switch back from fill mode. |
@@ -56,7 +57,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **PNG Export + Share** | Export template and stroke composite as a share-ready PNG. |
 | **Settings Version Row** | iOS/iPadOS Settings shows a non-editable `Version` row populated from `CFBundleShortVersionString (CFBundleVersion)`. |
 | **Imported Template iCloud Recovery** | Imported images are mirrored to iCloud and restored when local files are missing. |
-| **Per-Template Progress Recovery** | Pencil strokes, fills, and layer state are restored per template so work reappears when you return. |
+| **Per-Template Progress Recovery** | Pencil strokes, fills, layer state, and library progress snapshots are restored per template so work reappears when you return. |
 | **Library State Recovery** | Favorites, Completed, Recent, Hidden, and custom category organization restore after reinstall when iCloud is available. |
 | **Gallery Recovery** | Gallery manifest and artwork files mirror to iCloud so exported pieces return after reinstall. |
 | **Destructive Action Confirmations** | Confirmation prompts for clear strokes, clear fills, and imported drawing deletions. |
@@ -73,10 +74,12 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Favorites / Completed / Hide**: Long-press a drawing in the sidebar to favorite it, mark it completed, or hide it.
 - **Hidden Management**: Tap the `eye.slash` button in the Drawings header to open `Hidden`, where you can unhide individual drawings or use `Unhide All`.
 - **Recent**: The `Recent` folder shows the most recently opened drawings first.
+- **Library Progress**: Drawings with saved edits show a subtle progress bar in the library row; explicitly completed drawings resolve to 100%.
 - **Sidebar Updates**: Library refreshes automatically after launch, foreground, and import/delete actions (no manual pull-to-refresh).
 - **Sidebar Resize**: Drag the sidebar's trailing handle to set your preferred library width.
 - **Sidebar Status Messages**: Import/export and restore messages are shown inline without a separate "Status" section title.
 - **Coloring**: Draw directly with PencilKit tools and Apple Pencil gestures.
+- **Recent Colors**: Explicit PencilKit color choices and committed fill colors are remembered per drawing; tap a swatch in the floating palette to make it active again.
 - **Zoom and Pan**: Pinch to zoom and move around the canvas naturally.
 - **Initial Fit Centering**: New templates open centered at fit scale, including portrait drawings on landscape iPad screens.
 - **Fill**: Switch to fill mode from the floating palette and tap enclosed regions to color them.
@@ -107,10 +110,11 @@ Coloring follows a predictable persistence and rendering pipeline:
 5. Filter hidden template IDs out of normal library browsing and metadata-driven built-in folder counts.
 6. Load selected template image into the studio.
 7. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
-8. Persist drawing, fill, and layer-stack updates per template locally.
-9. Mirror drawing/fill/imported-template/category-state/gallery data to iCloud when available.
-10. Restore drawing/fill/layer state, library metadata state, and gallery entries on reload/reinstall.
-11. Export template image + fills + layer composites + active strokes into a composited PNG.
+8. Persist recent color choices per drawing as small sRGB RGBA tokens for quick palette reselection.
+9. Persist drawing, fill, layer-stack, and lightweight progress snapshot updates per template locally.
+10. Mirror drawing/fill/imported-template/progress/category-state/gallery data to iCloud when available.
+11. Restore drawing/fill/layer state, progress snapshots, library metadata state, and gallery entries on reload/reinstall.
+12. Export template image + fills + layer composites + active strokes into a composited PNG.
 
 ---
 
@@ -131,6 +135,14 @@ Coloring follows a predictable persistence and rendering pipeline:
 ### **TemplateDrawingStoreService (actor)**
 - Owns per-template drawing persistence.
 - Mirrors drawing data to iCloud Documents and restores when local data is missing.
+
+### **TemplateProgressEstimator / TemplateProgressSnapshotStoreService (actors)**
+- Estimate visible edit coverage from strokes, visible layers, and fills.
+- Persist lightweight per-template progress snapshots for fast library reloads.
+
+### **RecentColorsStoreService (actor)**
+- Persists small per-template, newest-first lists of quantized sRGB color tokens.
+- Deduplicates visually matching colors and keeps recent-color IO off the main actor.
 
 ### **TemplateArtworkExportService (actor)**
 - Composites selected template bitmap + `PKDrawing` data.
@@ -221,7 +233,7 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=i
 ## Roadmap
 
 - [ ] Search by drawing title.
-- [ ] Custom color palettes or recent colors.
+- [ ] Custom color palettes.
 - [ ] Additional automated test coverage and reduced simulator flakiness.
 
 ---

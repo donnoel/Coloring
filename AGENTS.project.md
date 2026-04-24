@@ -82,6 +82,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Fill color selection should rely on the active native PencilKit color rather than a separate in-app swatch palette.
+- Recent color swatches should be scoped to the selected drawing, with fresh drawings starting with no recent-color row.
 - The native PencilKit palette should remain available in both draw and fill modes so users can change colors without mode switching.
 - During first-run onboarding presentation, the native PencilKit palette should remain hidden and restore after onboarding is dismissed.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.

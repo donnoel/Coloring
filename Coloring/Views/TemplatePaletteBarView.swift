@@ -4,30 +4,76 @@ struct TemplatePaletteBarView: View {
     @Binding var isFillModeActive: Bool
     var canUndo: Bool
     var canRedo: Bool
+    var recentColors: [RecentColorToken]
+    var activeColorToken: RecentColorToken?
     var isPaletteAtTop: Bool
     var isLibraryVisible: Bool
     var onToggleLibrary: () -> Void
     var onTogglePalettePlacement: () -> Void
     var onUndo: () -> Void
     var onRedo: () -> Void
+    var onSelectRecentColor: (RecentColorToken) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                fillToggle
+        VStack(spacing: 8) {
+            fillToggle
+
+            if !recentColors.isEmpty {
+                Divider()
+                    .frame(width: 220)
+                    .opacity(0.55)
+
+                recentColorSwatches
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.26), lineWidth: 1)
-                    )
-            }
-            .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                )
+        }
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+    }
+
+    private var recentColorSwatches: some View {
+        HStack(spacing: 8) {
+            ForEach(recentColors) { token in
+                recentColorButton(token)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func recentColorButton(_ token: RecentColorToken) -> some View {
+        let isSelected = token == activeColorToken
+
+        return Button {
+            onSelectRecentColor(token)
+        } label: {
+            Circle()
+                .fill(Color(uiColor: token.uiColor))
+                .frame(width: 22, height: 22)
+                .overlay {
+                    Circle()
+                        .stroke(Color.primary.opacity(0.18), lineWidth: 1)
+                }
+                .padding(3)
+                .overlay {
+                    if isSelected {
+                        Circle()
+                            .stroke(Color.accentColor.opacity(0.85), lineWidth: 2)
+                    }
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Recent Color")
+        .accessibilityValue(token.hexString)
+        .accessibilityHint("Sets this as the active drawing color.")
     }
 
     private var fillToggle: some View {

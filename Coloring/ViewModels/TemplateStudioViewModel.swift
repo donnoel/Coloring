@@ -41,6 +41,10 @@ final class TemplateStudioViewModel: ObservableObject {
     }
     @Published private(set) var currentBrushTool: PKInkingTool = PKInkingTool(.marker, color: .black, width: 12)
     @Published private(set) var userBrushPresets: [BrushPreset] = []
+    @Published private(set) var recentColors: [RecentColorToken] = []
+    @Published private(set) var activeColorToken: RecentColorToken?
+    @Published private(set) var appliedRecentColor: UIColor?
+    @Published private(set) var appliedRecentColorRevision: Int = 0
     @Published private(set) var canUndoEdit: Bool = false
     @Published private(set) var canRedoEdit: Bool = false
 
@@ -54,6 +58,7 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var favoriteTemplateIDs: Set<String> = []
     @Published private(set) var completedTemplateIDs: Set<String> = []
     @Published private(set) var hiddenTemplateIDs: Set<String> = []
+    @Published private(set) var progressSnapshotsByTemplateID: [String: TemplateProgressSnapshot] = [:]
     var visibleInProgressTemplateIDs: Set<String> {
         inProgressTemplateIDs
             .subtracting(completedTemplateIDs)
@@ -75,15 +80,19 @@ final class TemplateStudioViewModel: ObservableObject {
     private var persistedColoringByTemplateID: [String: Bool] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var recentTemplateIDs: [String] = []
+    private var recentColorsByTemplateID: [String: [RecentColorToken]] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let importMutationCoordinator: TemplateImportMutationCoordinator
     private let exportCoordinator: TemplateExportCoordinator
     private let persistenceCoordinator: TemplateColoringPersistenceCoordinator
     private let coloringPersistenceInspector: TemplateColoringPersistenceInspector
+    private let progressEstimator: TemplateProgressEstimator
+    private let progressSnapshotStore: any TemplateProgressSnapshotStoreProviding
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
     private let brushPresetStore: any BrushPresetStoreProviding
+    private let recentColorsStore: any RecentColorsStoreProviding
     private let categoryPersistenceCoordinator: TemplateCategoryPersistenceCoordinator
     private var hasLoadedTemplates = false
     private var loadedTemplateImageID: String?
@@ -91,6 +100,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var drawingRestoreTask: Task<Void, Never>?
     private var cloudRestoreTask: Task<Void, Never>?
     private var debouncedPersistTask: Task<Void, Never>?
+    private var debouncedProgressTask: Task<Void, Never>?
     private var fillOverlayTask: Task<Void, Never>?
     private var fillOverlayOperationID = 0
     private var fillRestoreTask: Task<Void, Never>?
@@ -108,7 +118,9 @@ final class TemplateStudioViewModel: ObservableObject {
         layerCompositor: any LayerCompositing,
         brushPresetStore: any BrushPresetStoreProviding,
         categoryStore: any TemplateCategoryStoreProviding,
-        galleryStore: any GalleryStoreProviding
+        galleryStore: any GalleryStoreProviding,
+        recentColorsStore: any RecentColorsStoreProviding = RecentColorsStoreService(),
+        progressSnapshotStore: any TemplateProgressSnapshotStoreProviding = TemplateProgressSnapshotStoreService()
     ) {
         self.templateLibrary = templateLibrary
         self.importMutationCoordinator = TemplateImportMutationCoordinator(
@@ -125,10 +137,13 @@ final class TemplateStudioViewModel: ObservableObject {
         self.coloringPersistenceInspector = TemplateColoringPersistenceInspector(
             drawingStore: drawingStore
         )
+        self.progressEstimator = TemplateProgressEstimator()
+        self.progressSnapshotStore = progressSnapshotStore
         self.drawingStore = drawingStore
         self.floodFillService = floodFillService
         self.layerCompositor = layerCompositor
         self.brushPresetStore = brushPresetStore
+        self.recentColorsStore = recentColorsStore
         self.categoryPersistenceCoordinator = TemplateCategoryPersistenceCoordinator(
             categoryStore: categoryStore
         )
@@ -144,7 +159,8 @@ final class TemplateStudioViewModel: ObservableObject {
             layerCompositor: LayerCompositorService(),
             brushPresetStore: BrushPresetStoreService(),
             categoryStore: TemplateCategoryStoreService(),
-            galleryStore: GalleryStoreService()
+            galleryStore: GalleryStoreService(),
+            recentColorsStore: RecentColorsStoreService()
         )
     }
 
@@ -235,6 +251,12 @@ final class TemplateStudioViewModel: ObservableObject {
             layerStacksByTemplateID = layerStacksByTemplateID.filter { validTemplateIDs.contains($0.key) }
             fillStateStore.retainEntries(for: validTemplateIDs)
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            progressSnapshotsByTemplateID = progressSnapshotsByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            let filteredRecentColorsByTemplateID = recentColorsByTemplateID.filter { validTemplateIDs.contains($0.key) }
+            if filteredRecentColorsByTemplateID != recentColorsByTemplateID {
+                recentColorsByTemplateID = filteredRecentColorsByTemplateID
+                persistRecentColors()
+            }
             persistenceRevisionStore.retainRevisions(for: validTemplateIDs)
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
@@ -256,12 +278,14 @@ final class TemplateStudioViewModel: ObservableObject {
                 // Only clear when selection changed; preserving same-template image avoids launch flicker.
                 selectedTemplateImage = nil
                 loadedTemplateImageID = nil
+                refreshRecentColorsForSelectedTemplate()
             }
 
             restoreDrawingForSelectedTemplate()
             restoreFillForSelectedTemplate()
             await loadSelectedTemplateImage(for: selectedTemplateID)
             await restoreInProgressTemplateIDs(for: loadedTemplates.map(\.id))
+            await restoreProgressSnapshots(for: validTemplateIDs)
             return true
         } catch {
             importErrorMessage = "Could not load templates: \(error.localizedDescription)"
@@ -285,6 +309,7 @@ final class TemplateStudioViewModel: ObservableObject {
         persistCurrentFill()
         cancelPendingFillOverlayWork()
         selectedTemplateID = templateID
+        refreshRecentColorsForSelectedTemplate()
         persistLastSelectedTemplateID(templateID)
         markTemplateAsRecent(templateID)
         refreshEditAvailability()
@@ -345,6 +370,7 @@ final class TemplateStudioViewModel: ObservableObject {
             recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         }
         refreshInProgressState(for: selectedTemplateID)
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         debouncedPersistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
@@ -358,6 +384,7 @@ final class TemplateStudioViewModel: ObservableObject {
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
@@ -397,6 +424,7 @@ final class TemplateStudioViewModel: ObservableObject {
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         _ = newLayer
@@ -419,6 +447,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         invalidateExport()
@@ -443,6 +472,7 @@ final class TemplateStudioViewModel: ObservableObject {
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         invalidateExport()
     }
 
@@ -459,6 +489,7 @@ final class TemplateStudioViewModel: ObservableObject {
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         invalidateExport()
     }
 
@@ -477,6 +508,7 @@ final class TemplateStudioViewModel: ObservableObject {
         restoreActiveLayerDrawing()
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
         refreshInProgressState(for: selectedTemplateID)
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         recompositeLayerOverlays()
         invalidateExport()
@@ -556,6 +588,51 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
+    func loadRecentColorsIfNeeded() {
+        Task { [recentColorsStore] in
+            do {
+                let colorsByTemplateID = try await recentColorsStore.loadRecentColorsByTemplateID()
+                let validTemplateIDs = Set(self.templates.map(\.id))
+                if validTemplateIDs.isEmpty {
+                    self.recentColorsByTemplateID = colorsByTemplateID
+                } else {
+                    let filteredColorsByTemplateID = colorsByTemplateID.filter { validTemplateIDs.contains($0.key) }
+                    self.recentColorsByTemplateID = filteredColorsByTemplateID
+                    if filteredColorsByTemplateID.count != colorsByTemplateID.count {
+                        self.persistRecentColors()
+                    }
+                }
+                self.refreshRecentColorsForSelectedTemplate()
+            } catch {
+                self.recentColorsByTemplateID = [:]
+                self.assignIfChanged(\.recentColors, to: [])
+                self.activeColorToken = nil
+            }
+        }
+    }
+
+    func recordSelectedColor(_ color: UIColor) {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+        guard let token = RecentColorToken(uiColor: color) else {
+            return
+        }
+
+        activeColorToken = token
+        updateRecentColors(with: token)
+    }
+
+    func applyRecentColor(_ token: RecentColorToken) {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+        activeColorToken = token
+        appliedRecentColor = token.uiColor
+        appliedRecentColorRevision += 1
+        updateRecentColors(with: token)
+    }
+
     private func updateCurrentBrushTool() {
         currentBrushTool = PKInkingTool(
             activeBrushPreset.inkType.pkInkType,
@@ -564,10 +641,36 @@ final class TemplateStudioViewModel: ObservableObject {
         )
     }
 
+    private func updateRecentColors(with token: RecentColorToken) {
+        let updatedColors = RecentColorsStoreService.inserting(
+            token,
+            into: recentColorsByTemplateID[selectedTemplateID] ?? []
+        )
+        guard updatedColors != recentColorsByTemplateID[selectedTemplateID] else {
+            return
+        }
+
+        recentColorsByTemplateID[selectedTemplateID] = updatedColors
+        recentColors = updatedColors
+        persistRecentColors()
+    }
+
+    private func refreshRecentColorsForSelectedTemplate() {
+        assignIfChanged(\.recentColors, to: recentColorsByTemplateID[selectedTemplateID] ?? [])
+        activeColorToken = nil
+    }
+
     private func persistUserPresets() {
         let presets = userBrushPresets
         Task { [brushPresetStore, presets] in
             try? await brushPresetStore.saveUserPresets(presets)
+        }
+    }
+
+    private func persistRecentColors() {
+        let colorsByTemplateID = recentColorsByTemplateID
+        Task { [recentColorsStore, colorsByTemplateID] in
+            try? await recentColorsStore.saveRecentColorsByTemplateID(colorsByTemplateID)
         }
     }
 
@@ -676,6 +779,7 @@ final class TemplateStudioViewModel: ObservableObject {
         )
 
         persistCompletedTemplateIDs()
+        scheduleProgressSnapshotUpdate(for: templateID)
     }
 
     func hideTemplate(_ templateID: String) {
@@ -722,6 +826,20 @@ final class TemplateStudioViewModel: ObservableObject {
 
     func isCompleted(_ templateID: String) -> Bool {
         completedTemplateIDs.contains(templateID)
+    }
+
+    func displayedProgress(for templateID: String) -> Double? {
+        if completedTemplateIDs.contains(templateID) {
+            return 1
+        }
+
+        guard visibleInProgressTemplateIDs.contains(templateID),
+              let snapshot = progressSnapshotsByTemplateID[templateID]
+        else {
+            return nil
+        }
+
+        return snapshot.estimatedProgress
     }
 
     func isHidden(_ templateID: String) -> Bool {
@@ -917,6 +1035,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
             let previousSnapshot = snapshot(for: templateID)
             applyFillData(nextFillData, for: templateID)
+            recordSelectedColor(fillColor)
             recordEditChange(from: previousSnapshot, for: templateID)
         }
     }
@@ -1204,6 +1323,81 @@ final class TemplateStudioViewModel: ObservableObject {
             if persistedColoringByTemplateID[templateID] != false {
                 persistedColoringByTemplateID[templateID] = false
             }
+
+            removeProgressSnapshot(for: templateID)
+        }
+    }
+
+    private func restoreProgressSnapshots(for validTemplateIDs: Set<String>) async {
+        do {
+            let storedSnapshots = try await progressSnapshotStore.loadSnapshots()
+            let sanitizedSnapshots = storedSnapshots.filter { validTemplateIDs.contains($0.key) }
+            assignIfChanged(\.progressSnapshotsByTemplateID, to: sanitizedSnapshots)
+
+            if sanitizedSnapshots.count != storedSnapshots.count {
+                persistProgressSnapshots()
+            }
+        } catch {
+            assignIfChanged(\.progressSnapshotsByTemplateID, to: [:])
+        }
+    }
+
+    private func scheduleProgressSnapshotUpdate(for templateID: String) {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        debouncedProgressTask?.cancel()
+        debouncedProgressTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.updateProgressSnapshot(for: templateID)
+        }
+    }
+
+    private func updateProgressSnapshot(for templateID: String) async {
+        guard hasColoring(for: templateID) else {
+            removeProgressSnapshot(for: templateID)
+            return
+        }
+
+        let layerStack = layerStacksByTemplateID[templateID]
+        let fallbackDrawingData = drawingsByTemplateID[templateID]?.dataRepresentation()
+        let fillData = fillStateStore.fillData(for: templateID)
+        let canvasSize = bestExportSize(for: selectedTemplateID == templateID ? selectedTemplateImage : nil)
+        let progress = await progressEstimator.estimateProgress(
+            layerStack: layerStack,
+            fallbackDrawingData: fallbackDrawingData,
+            fillData: fillData,
+            canvasSize: canvasSize
+        )
+
+        guard let progress else {
+            removeProgressSnapshot(for: templateID)
+            return
+        }
+
+        let snapshot = TemplateProgressSnapshot(templateID: templateID, estimatedProgress: progress)
+        guard progressSnapshotsByTemplateID[templateID] != snapshot else {
+            return
+        }
+
+        progressSnapshotsByTemplateID[templateID] = snapshot
+        persistProgressSnapshots()
+    }
+
+    private func removeProgressSnapshot(for templateID: String) {
+        guard progressSnapshotsByTemplateID.removeValue(forKey: templateID) != nil else {
+            return
+        }
+
+        persistProgressSnapshots()
+    }
+
+    private func persistProgressSnapshots() {
+        let snapshots = progressSnapshotsByTemplateID
+        Task { [progressSnapshotStore, snapshots] in
+            try? await progressSnapshotStore.saveSnapshots(snapshots)
         }
     }
 
@@ -1326,6 +1520,18 @@ final class TemplateStudioViewModel: ObservableObject {
         if let hasPersistedColoring = persistedColoringByTemplateID.removeValue(forKey: oldTemplateID) {
             persistedColoringByTemplateID[newTemplateID] = hasPersistedColoring
         }
+        if let progressSnapshot = progressSnapshotsByTemplateID.removeValue(forKey: oldTemplateID) {
+            progressSnapshotsByTemplateID[newTemplateID] = TemplateProgressSnapshot(
+                templateID: newTemplateID,
+                estimatedProgress: progressSnapshot.estimatedProgress,
+                updatedAt: progressSnapshot.updatedAt
+            )
+            persistProgressSnapshots()
+        }
+        if let recentColors = recentColorsByTemplateID.removeValue(forKey: oldTemplateID) {
+            recentColorsByTemplateID[newTemplateID] = recentColors
+            persistRecentColors()
+        }
         persistenceRevisionStore.renameRevisions(from: oldTemplateID, to: newTemplateID)
 
         if favoriteTemplateIDs.remove(oldTemplateID) != nil {
@@ -1359,6 +1565,10 @@ final class TemplateStudioViewModel: ObservableObject {
         layerStacksByTemplateID.removeValue(forKey: templateID)
         fillStateStore.removeAll(for: templateID)
         persistedColoringByTemplateID.removeValue(forKey: templateID)
+        removeProgressSnapshot(for: templateID)
+        if recentColorsByTemplateID.removeValue(forKey: templateID) != nil {
+            persistRecentColors()
+        }
         persistenceRevisionStore.removeRevisions(for: templateID)
         editHistoryStore.removeHistory(for: templateID)
         favoriteTemplateIDs.remove(templateID)
@@ -1513,6 +1723,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         refreshInProgressState(for: templateID)
+        scheduleProgressSnapshotUpdate(for: templateID)
         persistLayerStack(for: templateID)
         persistFill(for: templateID)
         invalidateExport()
@@ -1607,6 +1818,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 recompositeLayerOverlays()
             }
             refreshInProgressState(for: templateID)
+            scheduleProgressSnapshotUpdate(for: templateID)
         case let .migratedLegacyDrawing(drawing, layerStack):
             guard drawingsByTemplateID[templateID] == nil else {
                 return
@@ -1628,6 +1840,7 @@ final class TemplateStudioViewModel: ObservableObject {
             }
 
             refreshInProgressState(for: templateID)
+            scheduleProgressSnapshotUpdate(for: templateID)
             persistLayerStack(for: templateID)
         }
     }
@@ -1666,6 +1879,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         refreshInProgressState(for: templateID)
+        scheduleProgressSnapshotUpdate(for: templateID)
         persistFill(for: templateID)
         invalidateExport()
     }
@@ -1756,6 +1970,7 @@ final class TemplateStudioViewModel: ObservableObject {
                     currentFillImage = nil
                 }
                 refreshInProgressState(for: templateID)
+                scheduleProgressSnapshotUpdate(for: templateID)
                 return
             }
 
@@ -1770,6 +1985,7 @@ final class TemplateStudioViewModel: ObservableObject {
                 )
             }
             refreshInProgressState(for: templateID)
+            scheduleProgressSnapshotUpdate(for: templateID)
         } catch {
             // Keep existing fill state if persistence read fails.
         }

@@ -19,6 +19,9 @@ struct PencilCanvasView: UIViewRepresentable {
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
     var brushTool: PKInkingTool?
+    var activeColorOverride: UIColor?
+    var activeColorOverrideRevision: Int = 0
+    var onActiveToolColorChanged: ((UIColor) -> Void)?
     var activationToken: Int = 0
     var isToolPickerSuppressed: Bool = false
 
@@ -90,6 +93,11 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.updateActivationToken(activationToken, on: canvasView)
         context.coordinator.updateFillMode(fillMode, in: uiView)
         context.coordinator.updateBrushTool(brushTool, on: canvasView)
+        context.coordinator.applyActiveColorOverride(
+            activeColorOverride,
+            revision: activeColorOverrideRevision,
+            on: canvasView
+        )
         context.coordinator.suppressEditMenuInteractions(on: canvasView)
         context.coordinator.updateOverlayImages(
             in: uiView,
@@ -129,6 +137,8 @@ struct PencilCanvasView: UIViewRepresentable {
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
+        private var lastColorOverrideRevision = 0
+        private var lastReportedToolColor: UIColor?
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
@@ -446,6 +456,28 @@ struct PencilCanvasView: UIViewRepresentable {
             canvasView.tool = normalizedBrushTool
         }
 
+        func applyActiveColorOverride(_ color: UIColor?, revision: Int, on canvasView: PKCanvasView) {
+            guard revision != lastColorOverrideRevision else {
+                return
+            }
+
+            lastColorOverrideRevision = revision
+            guard let color else {
+                return
+            }
+
+            let normalizedColor = color.stableResolvedColor(using: colorResolutionTraitCollection(for: canvasView))
+            let sourceTool = (canvasView.tool as? PKInkingTool) ?? (lastInkTool as? PKInkingTool)
+            let updatedTool = PKInkingTool(
+                sourceTool?.inkType ?? .marker,
+                color: normalizedColor,
+                width: sourceTool?.width ?? 12
+            )
+            lastInkTool = updatedTool
+            canvasView.tool = updatedTool
+            lastReportedToolColor = normalizedColor
+        }
+
         func suppressEditMenuInteractions(on canvasView: PKCanvasView) {
             if #available(iOS 16.0, *) {
                 let views = [canvasView] + canvasView.subviewsRecursive
@@ -471,7 +503,24 @@ struct PencilCanvasView: UIViewRepresentable {
                     using: self.colorResolutionTraitCollection(for: canvasView),
                     on: canvasView
                 )
+                self.reportActiveToolColorIfNeeded(from: canvasView)
             }
+        }
+
+        private func reportActiveToolColorIfNeeded(from canvasView: PKCanvasView) {
+            guard let inkingTool = canvasView.tool as? PKInkingTool else {
+                return
+            }
+
+            let normalizedColor = inkingTool.color.stableResolvedColor(
+                using: colorResolutionTraitCollection(for: canvasView)
+            )
+            guard lastReportedToolColor?.isEqual(normalizedColor) != true else {
+                return
+            }
+
+            lastReportedToolColor = normalizedColor
+            parent.onActiveToolColorChanged?(normalizedColor)
         }
 
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {

@@ -50,6 +50,7 @@ struct TemplateStudioView: View {
         .task {
             await viewModel.loadTemplatesIfNeeded()
             viewModel.loadBrushPresetsIfNeeded()
+            viewModel.loadRecentColorsIfNeeded()
             viewModel.loadCategoriesIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -375,6 +376,7 @@ struct TemplateStudioView: View {
             isSelected: isSelected,
             isFavorite: isFavorite,
             isCompleted: isCompleted,
+            progress: viewModel.displayedProgress(for: template.id),
             rowFill: templateRowFill(isSelected: isSelected),
             rowStroke: templateRowStroke(isSelected: isSelected),
             importedBadgeFill: importedTemplateBadgeFill,
@@ -542,6 +544,11 @@ struct TemplateStudioView: View {
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
                 brushTool: viewModel.currentBrushTool,
+                activeColorOverride: viewModel.appliedRecentColor,
+                activeColorOverrideRevision: viewModel.appliedRecentColorRevision,
+                onActiveToolColorChanged: { color in
+                    viewModel.recordSelectedColor(color)
+                },
                 activationToken: pencilKitActivationToken,
                 isToolPickerSuppressed: isToolPickerSuppressed
             )
@@ -575,6 +582,8 @@ struct TemplateStudioView: View {
             isFillModeActive: $viewModel.isFillModeActive,
             canUndo: viewModel.canUndoEdit,
             canRedo: viewModel.canRedoEdit,
+            recentColors: viewModel.recentColors,
+            activeColorToken: viewModel.activeColorToken,
             isPaletteAtTop: isPaletteAtTop,
             isLibraryVisible: columnVisibility != .detailOnly,
             onToggleLibrary: {
@@ -586,7 +595,10 @@ struct TemplateStudioView: View {
                 togglePalettePlacement()
             },
             onUndo: { viewModel.undoLastEdit() },
-            onRedo: { viewModel.redoLastEdit() }
+            onRedo: { viewModel.redoLastEdit() },
+            onSelectRecentColor: { token in
+                viewModel.applyRecentColor(token)
+            }
         )
         .padding(.horizontal, 20)
     }

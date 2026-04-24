@@ -998,6 +998,274 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testProgressEstimatorReturnsNilForNoEditsAndProgressForVisibleEdits() async {
+        let estimator = TemplateProgressEstimator()
+        let emptyProgress = await estimator.estimateProgress(
+            layerStack: .singleLayer(),
+            fallbackDrawingData: nil,
+            fillData: nil,
+            canvasSize: CGSize(width: 200, height: 160)
+        )
+        XCTAssertNil(emptyProgress)
+
+        let drawing = await MainActor.run { makeSampleTemplateDrawing() }
+        let layerStack = LayerStack.singleLayer(drawingData: drawing.dataRepresentation())
+        let editedProgress = await estimator.estimateProgress(
+            layerStack: layerStack,
+            fallbackDrawingData: nil,
+            fillData: nil,
+            canvasSize: CGSize(width: 200, height: 160)
+        )
+
+        let progress = try? XCTUnwrap(editedProgress)
+        XCTAssertGreaterThan(progress ?? 0, 0)
+        XCTAssertLessThan(progress ?? 1, 1)
+    }
+
+    func testProgressSnapshotStorePersistsAndRestoresSnapshots() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("progress-snapshots-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+
+        let store = TemplateProgressSnapshotStoreService(
+            cloudContainerIdentifier: nil,
+            documentsDirectoryURLProvider: { directoryURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+        let snapshot = TemplateProgressSnapshot(templateID: "template-1", estimatedProgress: 0.42)
+        try await store.saveSnapshots([snapshot.templateID: snapshot])
+
+        let restoredSnapshots = try await store.loadSnapshots()
+        XCTAssertEqual(restoredSnapshots[snapshot.templateID], snapshot)
+    }
+
+    func testProgressSnapshotsRestoreButUntouchedTemplatesDoNotShowProgress() async throws {
+        let editedTemplate = Self.makeTemplate(id: "builtin-edited", title: "Edited")
+        let untouchedTemplate = Self.makeTemplate(id: "builtin-untouched", title: "Untouched")
+        let drawingStore = StubTemplateDrawingStore()
+        let progressStore = StubProgressSnapshotStore()
+        let drawing = await MainActor.run { makeSampleTemplateDrawing() }
+        let layerStack = LayerStack.singleLayer(drawingData: drawing.dataRepresentation())
+        try await drawingStore.saveLayerStackData(try JSONEncoder().encode(layerStack), for: editedTemplate.id)
+        try await progressStore.saveSnapshots([
+            editedTemplate.id: TemplateProgressSnapshot(templateID: editedTemplate.id, estimatedProgress: 0.36),
+            untouchedTemplate.id: TemplateProgressSnapshot(templateID: untouchedTemplate.id, estimatedProgress: 0.52)
+        ])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [editedTemplate, untouchedTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                progressSnapshotStore: progressStore
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.displayedProgress(for: editedTemplate.id), 0.36)
+            XCTAssertNil(viewModel.displayedProgress(for: untouchedTemplate.id))
+        }
+    }
+
+    func testProgressViewModelUpdatesForEditsClearAndCompletedState() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let progressStore = StubProgressSnapshotStore()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                progressSnapshotStore: progressStore
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            XCTAssertNil(viewModel.displayedProgress(for: template.id))
+            viewModel.updateDrawing(makeSampleTemplateDrawing())
+        }
+
+        let didShowProgress = await waitForCondition {
+            await MainActor.run {
+                viewModel.displayedProgress(for: template.id) != nil
+            }
+        }
+        XCTAssertTrue(didShowProgress)
+
+        await MainActor.run {
+            viewModel.clearDrawing()
+        }
+        let didClearProgress = await waitForCondition {
+            await MainActor.run {
+                viewModel.displayedProgress(for: template.id) == nil
+            }
+        }
+        XCTAssertTrue(didClearProgress)
+
+        await MainActor.run {
+            viewModel.toggleCompleted(for: template.id)
+            XCTAssertEqual(viewModel.displayedProgress(for: template.id), 1)
+        }
+    }
+
+    func testRecentColorTokenSerializesStableRGBAChannels() throws {
+        let token = RecentColorToken(red: 10, green: 120, blue: 240, alpha: 255)
+        let data = try JSONEncoder().encode(token)
+        let decodedToken = try JSONDecoder().decode(RecentColorToken.self, from: data)
+
+        XCTAssertEqual(decodedToken, token)
+        XCTAssertEqual(decodedToken.hexString, "#0A78F0FF")
+    }
+
+    func testRecentColorTokenQuantizesUIColorToSRGBChannels() throws {
+        let token = try XCTUnwrap(RecentColorToken(uiColor: UIColor(red: 0.5, green: 0.25, blue: 1, alpha: 0.75)))
+
+        XCTAssertEqual(token.red, 128)
+        XCTAssertEqual(token.green, 64)
+        XCTAssertEqual(token.blue, 255)
+        XCTAssertEqual(token.alpha, 191)
+    }
+
+    func testRecentColorsDeduplicateAndKeepNewestFirst() {
+        let red = RecentColorToken(red: 255, green: 0, blue: 0, alpha: 255)
+        let blue = RecentColorToken(red: 0, green: 0, blue: 255, alpha: 255)
+        let green = RecentColorToken(red: 0, green: 255, blue: 0, alpha: 255)
+
+        let colors = [red, blue]
+        let updatedColors = RecentColorsStoreService.inserting(green, into: colors)
+        let movedColors = RecentColorsStoreService.inserting(red, into: updatedColors)
+
+        XCTAssertEqual(updatedColors, [green, red, blue])
+        XCTAssertEqual(movedColors, [red, green, blue])
+    }
+
+    func testRecentColorsClampToMaxCount() {
+        let colors = (0..<RecentColorsStoreService.maxColorCount).map {
+            RecentColorToken(red: UInt8($0), green: 0, blue: 0, alpha: 255)
+        }
+        let newestColor = RecentColorToken(red: 250, green: 0, blue: 0, alpha: 255)
+
+        let updatedColors = RecentColorsStoreService.inserting(newestColor, into: colors)
+
+        XCTAssertEqual(updatedColors.count, RecentColorsStoreService.maxColorCount)
+        XCTAssertEqual(updatedColors.first, newestColor)
+        XCTAssertFalse(updatedColors.contains(colors.last!))
+    }
+
+    func testRecentColorsStorePersistsAndRestoresPerTemplateColors() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("recent-colors-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+
+        let store = RecentColorsStoreService(documentsDirectoryURLProvider: { directoryURL })
+        let colors = [
+            "template-1": [
+                RecentColorToken(red: 255, green: 0, blue: 0, alpha: 255),
+                RecentColorToken(red: 0, green: 0, blue: 255, alpha: 255)
+            ],
+            "template-2": [
+                RecentColorToken(red: 0, green: 255, blue: 0, alpha: 255)
+            ]
+        ]
+        try await store.saveRecentColorsByTemplateID(colors)
+
+        let restoredColors = try await store.loadRecentColorsByTemplateID()
+        XCTAssertEqual(restoredColors, colors)
+    }
+
+    func testRecentColorsViewModelRecordsAndAppliesPerTemplateRecentColor() async {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let recentColorsStore = StubRecentColorsStore()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [firstTemplate, secondTemplate]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                recentColorsStore: recentColorsStore
+            )
+        }
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.selectedTemplateID, firstTemplate.id)
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+            viewModel.recordSelectedColor(UIColor(red: 1, green: 0, blue: 0, alpha: 1))
+            viewModel.recordSelectedColor(UIColor(red: 0, green: 0, blue: 1, alpha: 1))
+        }
+
+        await MainActor.run {
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#0000FFFF", "#FF0000FF"])
+            let red = viewModel.recentColors[1]
+            viewModel.applyRecentColor(red)
+            XCTAssertEqual(viewModel.activeColorToken, red)
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#FF0000FF", "#0000FFFF"])
+            XCTAssertNotNil(viewModel.appliedRecentColor)
+            XCTAssertEqual(viewModel.appliedRecentColorRevision, 1)
+        }
+
+        await MainActor.run {
+            viewModel.selectTemplate(secondTemplate.id)
+            XCTAssertTrue(viewModel.recentColors.isEmpty)
+
+            viewModel.recordSelectedColor(UIColor(red: 0, green: 1, blue: 0, alpha: 1))
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#00FF00FF"])
+
+            viewModel.selectTemplate(firstTemplate.id)
+            XCTAssertEqual(viewModel.recentColors.map(\.hexString), ["#FF0000FF", "#0000FFFF"])
+        }
+    }
+
+    func testRecentColorsViewModelRestoresEmptyListForInitialUIState() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let recentColorsStore = StubRecentColorsStore()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                recentColorsStore: recentColorsStore
+            )
+        }
+
+        await MainActor.run {
+            viewModel.loadRecentColorsIfNeeded()
+        }
+
+        let didLoadEmptyRecents = await waitForCondition {
+            await MainActor.run {
+                viewModel.recentColors.isEmpty
+            }
+        }
+        XCTAssertTrue(didLoadEmptyRecents)
+    }
+
     func testPersistedCompletedTemplateIsExcludedFromInProgressAfterCategoryRestore() async throws {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
@@ -4071,6 +4339,30 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func fillDeleteCount(for templateID: String) -> Int {
         fillDeleteCountByTemplateID[templateID, default: 0]
+    }
+}
+
+private actor StubProgressSnapshotStore: TemplateProgressSnapshotStoreProviding {
+    private var snapshots: [String: TemplateProgressSnapshot] = [:]
+
+    func loadSnapshots() throws -> [String: TemplateProgressSnapshot] {
+        snapshots
+    }
+
+    func saveSnapshots(_ snapshots: [String: TemplateProgressSnapshot]) throws {
+        self.snapshots = snapshots
+    }
+}
+
+private actor StubRecentColorsStore: RecentColorsStoreProviding {
+    private var colorsByTemplateID: [String: [RecentColorToken]] = [:]
+
+    func loadRecentColorsByTemplateID() throws -> [String: [RecentColorToken]] {
+        colorsByTemplateID
+    }
+
+    func saveRecentColorsByTemplateID(_ colorsByTemplateID: [String: [RecentColorToken]]) throws {
+        self.colorsByTemplateID = colorsByTemplateID
     }
 }
 

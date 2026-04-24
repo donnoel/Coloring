@@ -5,6 +5,7 @@ struct TemplateStudioTemplateRowView<ContextMenuContent: View, SwipeActionsConte
     let isSelected: Bool
     let isFavorite: Bool
     let isCompleted: Bool
+    let progress: Double?
     let rowFill: Color
     let rowStroke: Color
     let importedBadgeFill: Color
@@ -25,6 +26,11 @@ struct TemplateStudioTemplateRowView<ContextMenuContent: View, SwipeActionsConte
                     Text(template.source == .imported ? "Imported" : template.category)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+
+                    if let progress {
+                        progressStatus(progress)
+                            .padding(.top, 3)
+                    }
                 }
 
                 Spacer()
@@ -74,5 +80,29 @@ struct TemplateStudioTemplateRowView<ContextMenuContent: View, SwipeActionsConte
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             swipeActionsContent()
         }
+    }
+
+    private func progressStatus(_ progress: Double) -> some View {
+        HStack(spacing: 8) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.16))
+
+                    Capsule()
+                        .fill(isCompleted ? Color.green.opacity(0.78) : Color.accentColor.opacity(0.62))
+                        .frame(width: proxy.size.width * min(max(progress, 0), 1))
+                }
+            }
+            .frame(width: 92, height: 4)
+
+            Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Progress")
+        .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
     }
 }
