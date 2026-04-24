@@ -1022,6 +1022,27 @@ final class ColoringTests: XCTestCase {
         XCTAssertLessThan(progress ?? 1, 1)
     }
 
+    func testProgressEstimatorWeightsTranslucentEditsConservatively() async throws {
+        let estimator = TemplateProgressEstimator()
+        let translucentFillData = await MainActor.run {
+            translucentTemplateImageData(
+                UIColor.red.withAlphaComponent(0.25),
+                size: CGSize(width: 32, height: 32)
+            )
+        }
+
+        let estimatedProgress = await estimator.estimateProgress(
+            layerStack: nil,
+            fallbackDrawingData: nil,
+            fillData: translucentFillData,
+            canvasSize: CGSize(width: 32, height: 32)
+        )
+        let progress = try XCTUnwrap(estimatedProgress)
+
+        XCTAssertGreaterThan(progress, 0.2)
+        XCTAssertLessThan(progress, 0.4)
+    }
+
     func testProgressSnapshotStorePersistsAndRestoresSnapshots() async throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("progress-snapshots-\(UUID().uuidString)", isDirectory: true)
@@ -4008,6 +4029,21 @@ final class ColoringTests: XCTestCase {
             UIRectFill(CGRect(origin: .zero, size: imageSize))
         }
         return transparentImage.pngData() ?? sampleTemplateImageData
+    }
+
+    @MainActor
+    private func translucentTemplateImageData(
+        _ color: UIColor,
+        size imageSize: CGSize
+    ) -> Data {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
+        let image = renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: imageSize))
+        }
+        return image.pngData() ?? sampleTemplateImageData
     }
 
     @MainActor

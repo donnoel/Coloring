@@ -23,19 +23,17 @@ actor TemplateProgressEstimator {
             return nil
         }
 
-        let occupiedSampleCount = Self.occupiedSampleCount(
+        let weightedCoverage = Self.weightedCoverage(
             layerStack: layerStack,
             fallbackDrawingData: fallbackDrawingData,
             fillData: fillData,
             canvasSize: canvasSize
         )
-        let totalSampleCount = Int(Self.sampleSize.width * Self.sampleSize.height)
-        guard totalSampleCount > 0, occupiedSampleCount > 0 else {
+        guard weightedCoverage > 0 else {
             return 0.01
         }
 
-        let coverage = Double(occupiedSampleCount) / Double(totalSampleCount)
-        return min(max(coverage, 0.01), Self.maxEstimatedProgress)
+        return min(max(weightedCoverage, 0.01), Self.maxEstimatedProgress)
     }
 
     private static func hasVisibleStrokeEdits(
@@ -53,12 +51,12 @@ actor TemplateProgressEstimator {
         return TemplateColoringPersistenceInspector.drawingDataContainsVisibleStrokes(fallbackDrawingData)
     }
 
-    private static func occupiedSampleCount(
+    private static func weightedCoverage(
         layerStack: LayerStack?,
         fallbackDrawingData: Data?,
         fillData: Data?,
         canvasSize: CGSize
-    ) -> Int {
+    ) -> Double {
         let renderSize = Self.sampleSize
         let sourceRect = CGRect(origin: .zero, size: canvasSize)
         let format = UIGraphicsImageRendererFormat()
@@ -100,17 +98,21 @@ actor TemplateProgressEstimator {
             return 0
         }
 
-        var occupiedCount = 0
+        var weightedAlpha = 0.0
         for y in 0..<cgImage.height {
             for x in 0..<cgImage.width {
                 let offset = (y * cgImage.bytesPerRow) + (x * bytesPerPixel)
                 let alpha = bytes[offset + 3]
                 if alpha > 0 {
-                    occupiedCount += 1
+                    weightedAlpha += Double(alpha) / 255
                 }
             }
         }
 
-        return occupiedCount
+        let totalSampleCount = cgImage.width * cgImage.height
+        guard totalSampleCount > 0 else {
+            return 0
+        }
+        return weightedAlpha / Double(totalSampleCount)
     }
 }
