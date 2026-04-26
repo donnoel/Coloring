@@ -181,38 +181,18 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
         return directoryURL
     }
 
-    private func cloudDrawingsDirectoryURL() -> URL? {
-        guard let cloudRootURL = cloudContainerRootURL() else {
-            return nil
-        }
-
-        let directoryURL = cloudRootURL
-            .appendingPathComponent("Documents", isDirectory: true)
-            .appendingPathComponent("TemplateDrawings", isDirectory: true)
-        do {
-            try ensureDirectoryExists(at: directoryURL)
-            return directoryURL
-        } catch {
-            logger.error("Could not access iCloud drawing folder: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
+    private var cloudStore: ICloudDocumentsFileStore {
+        ICloudDocumentsFileStore(
+            fileManager: fileManager,
+            logger: logger,
+            cloudContainerIdentifier: cloudContainerIdentifier,
+            ubiquityContainerURLProvider: ubiquityContainerURLProvider,
+            fallbackLogMessage: "Using default iCloud container fallback for drawing sync."
+        )
     }
 
-    private func cloudContainerRootURL() -> URL? {
-        if let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) {
-            return cloudRootURL
-        }
-
-        guard cloudContainerIdentifier != nil else {
-            return nil
-        }
-
-        if let fallbackCloudRootURL = ubiquityContainerURLProvider(nil) {
-            logger.log("Using default iCloud container fallback for drawing sync.")
-            return fallbackCloudRootURL
-        }
-
-        return nil
+    private func cloudDrawingsDirectoryURL() -> URL? {
+        cloudStore.directory(named: "TemplateDrawings", accessDescription: "iCloud drawing folder")
     }
 
     private func syncDrawingDataToCloudIfNeeded(_ drawingData: Data, filename: String) {
@@ -225,24 +205,8 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             return
         }
 
-        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
-        let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
         do {
-            if fileManager.fileExists(atPath: cloudFileURL.path),
-               cloudFileMatches(drawingData, existingFileURL: cloudFileURL)
-            {
-                lastCloudSyncedFingerprintByFilename[filename] = newFingerprint
-                return
-            }
-
-            if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
-                try fileManager.removeItem(at: cloudPlaceholderURL)
-            }
-            if fileManager.fileExists(atPath: cloudFileURL.path) {
-                try fileManager.removeItem(at: cloudFileURL)
-            }
-
-            try drawingData.write(to: cloudFileURL, options: [.atomic])
+            try cloudStore.mirrorDataIfNeeded(drawingData, filename: filename, in: cloudDirectoryURL)
             lastCloudSyncedFingerprintByFilename[filename] = newFingerprint
         } catch {
             logger.error("Failed to sync drawing to iCloud: \(error.localizedDescription, privacy: .public)")
@@ -256,10 +220,10 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             return
         }
 
-        let oldCloudURL = cloudDirectoryURL.appendingPathComponent(oldFilename)
-        let oldCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(oldFilename).icloud")
-        let newCloudURL = cloudDirectoryURL.appendingPathComponent(newFilename)
-        let newCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(newFilename).icloud")
+        let oldCloudURL = cloudStore.fileURL(named: oldFilename, in: cloudDirectoryURL)
+        let oldCloudPlaceholderURL = cloudStore.placeholderURL(named: oldFilename, in: cloudDirectoryURL)
+        let newCloudURL = cloudStore.fileURL(named: newFilename, in: cloudDirectoryURL)
+        let newCloudPlaceholderURL = cloudStore.placeholderURL(named: newFilename, in: cloudDirectoryURL)
         do {
             if fileManager.fileExists(atPath: newCloudPlaceholderURL.path) {
                 try fileManager.removeItem(at: newCloudPlaceholderURL)
@@ -288,31 +252,11 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             return
         }
 
-        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
-        let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
         do {
-            if fileManager.fileExists(atPath: cloudFileURL.path) {
-                try fileManager.removeItem(at: cloudFileURL)
-            }
-            if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
-                try fileManager.removeItem(at: cloudPlaceholderURL)
-            }
+            try cloudStore.deleteFileIfNeeded(filename: filename, in: cloudDirectoryURL)
             lastCloudSyncedFingerprintByFilename.removeValue(forKey: filename)
         } catch {
             logger.error("Failed to delete drawing from iCloud: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private func cloudFileMatches(_ drawingData: Data, existingFileURL: URL) -> Bool {
-        do {
-            let values = try existingFileURL.resourceValues(forKeys: [.fileSizeKey])
-            guard values.fileSize == drawingData.count else {
-                return false
-            }
-
-            return try Data(contentsOf: existingFileURL) == drawingData
-        } catch {
-            return false
         }
     }
 
@@ -321,81 +265,17 @@ actor TemplateDrawingStoreService: TemplateDrawingStoreProviding {
             return nil
         }
 
-        let cloudURL = cloudDirectoryURL.appendingPathComponent(filename)
-        if fileManager.fileExists(atPath: cloudURL.path) {
-            return cloudURL
-        }
-
-        let placeholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
-        if fileManager.fileExists(atPath: placeholderURL.path) {
-            return placeholderURL
-        }
-
-        return nil
+        return cloudStore.existingFileURL(named: filename, in: cloudDirectoryURL)
     }
 
     private func readDrawingData(from sourceURL: URL) throws -> Data {
-        let fallbackDownloadedURL = fallbackDownloadedURLIfPlaceholder(for: sourceURL)
-        do {
-            return try Data(contentsOf: sourceURL)
-        } catch {
-            if let fallbackDownloadedURL,
-               let fallbackData = try? Data(contentsOf: fallbackDownloadedURL) {
-                return fallbackData
-            }
-
-            requestUbiquitousDownloadIfNeeded(at: sourceURL)
-            if let fallbackDownloadedURL {
-                requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
-            }
-
-            var lastError: Error = error
-            for _ in 0..<8 {
-                // Avoid blocking the actor with a thread sleep while iCloud
-                // download hydration catches up.
-                do {
-                    return try Data(contentsOf: sourceURL)
-                } catch {
-                    lastError = error
-                }
-
-                if let fallbackDownloadedURL {
-                    do {
-                        return try Data(contentsOf: fallbackDownloadedURL)
-                    } catch {
-                        lastError = error
-                    }
-                }
-            }
-
-            throw lastError
-        }
-    }
-
-    private func fallbackDownloadedURLIfPlaceholder(for sourceURL: URL) -> URL? {
-        guard isICloudPlaceholderFile(sourceURL) else {
-            return nil
-        }
-
-        return sourceURL.deletingPathExtension()
-    }
-
-    private func requestUbiquitousDownloadIfNeeded(at sourceURL: URL) {
-        do {
-            try fileManager.startDownloadingUbiquitousItem(at: sourceURL)
-        } catch {
-            // Non-ubiquitous local files throw here; ignore and keep local read behavior.
-        }
+        try cloudStore.readDataResolvingPlaceholder(from: sourceURL)
     }
 
     private func ensureDirectoryExists(at directoryURL: URL) throws {
         if !fileManager.fileExists(atPath: directoryURL.path) {
             try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         }
-    }
-
-    private func isICloudPlaceholderFile(_ fileURL: URL) -> Bool {
-        fileURL.pathExtension.lowercased() == "icloud"
     }
 
     nonisolated private static func drawingFilename(for templateID: String) -> String {
@@ -920,38 +800,18 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         return directoryURL
     }
 
-    private func cloudImportedDirectoryURL() -> URL? {
-        guard let cloudRootURL = cloudContainerRootURL() else {
-            return nil
-        }
-
-        let directoryURL = cloudRootURL
-            .appendingPathComponent("Documents", isDirectory: true)
-            .appendingPathComponent("ImportedTemplates", isDirectory: true)
-        do {
-            try ensureDirectoryExists(at: directoryURL)
-            return directoryURL
-        } catch {
-            logger.error("Could not access iCloud template folder: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
+    private var cloudStore: ICloudDocumentsFileStore {
+        ICloudDocumentsFileStore(
+            fileManager: fileManager,
+            logger: logger,
+            cloudContainerIdentifier: cloudContainerIdentifier,
+            ubiquityContainerURLProvider: ubiquityContainerURLProvider,
+            fallbackLogMessage: "Using default iCloud container fallback for imported template sync."
+        )
     }
 
-    private func cloudContainerRootURL() -> URL? {
-        if let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) {
-            return cloudRootURL
-        }
-
-        guard cloudContainerIdentifier != nil else {
-            return nil
-        }
-
-        if let fallbackCloudRootURL = ubiquityContainerURLProvider(nil) {
-            logger.log("Using default iCloud container fallback for imported template sync.")
-            return fallbackCloudRootURL
-        }
-
-        return nil
+    private func cloudImportedDirectoryURL() -> URL? {
+        cloudStore.directory(named: "ImportedTemplates", accessDescription: "iCloud template folder")
     }
 
     private func ensureDirectoryExists(at directoryURL: URL) throws {
@@ -1027,7 +887,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             }
 
             for (filename, localURL) in localByName where cloudByName[filename] == nil {
-                let cloudURL = cloudDirectoryURL.appendingPathComponent(filename)
+                let cloudURL = cloudStore.fileURL(named: filename, in: cloudDirectoryURL)
                 try writeImageData(from: localURL, to: cloudURL)
             }
         } catch {
@@ -1040,7 +900,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             return
         }
 
-        let cloudFileURL = cloudDirectoryURL.appendingPathComponent(localFileURL.lastPathComponent)
+        let cloudFileURL = cloudStore.fileURL(named: localFileURL.lastPathComponent, in: cloudDirectoryURL)
         do {
             try writeImageData(from: localFileURL, to: cloudFileURL)
         } catch {
@@ -1055,10 +915,10 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             return
         }
 
-        let oldCloudURL = cloudDirectoryURL.appendingPathComponent(oldFileName)
-        let oldCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(oldFileName).icloud")
-        let newCloudURL = cloudDirectoryURL.appendingPathComponent(newFileName)
-        let newCloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(newFileName).icloud")
+        let oldCloudURL = cloudStore.fileURL(named: oldFileName, in: cloudDirectoryURL)
+        let oldCloudPlaceholderURL = cloudStore.placeholderURL(named: oldFileName, in: cloudDirectoryURL)
+        let newCloudURL = cloudStore.fileURL(named: newFileName, in: cloudDirectoryURL)
+        let newCloudPlaceholderURL = cloudStore.placeholderURL(named: newFileName, in: cloudDirectoryURL)
 
         // Coordinate the rename to prevent races with concurrent sync operations.
         var coordinatorError: NSError?
@@ -1099,15 +959,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         }
 
         do {
-            let cloudFileURL = cloudDirectoryURL.appendingPathComponent(filename)
-            if fileManager.fileExists(atPath: cloudFileURL.path) {
-                try fileManager.removeItem(at: cloudFileURL)
-            }
-
-            let cloudPlaceholderURL = cloudDirectoryURL.appendingPathComponent("\(filename).icloud")
-            if fileManager.fileExists(atPath: cloudPlaceholderURL.path) {
-                try fileManager.removeItem(at: cloudPlaceholderURL)
-            }
+            try cloudStore.deleteFileIfNeeded(filename: filename, in: cloudDirectoryURL)
         } catch {
             logger.error("Failed to delete iCloud template file: \(error.localizedDescription, privacy: .public)")
         }
@@ -1150,56 +1002,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private func readImageData(from sourceURL: URL) throws -> Data {
-        let fallbackDownloadedURL = fallbackDownloadedURLIfPlaceholder(for: sourceURL)
-        do {
-            return try Data(contentsOf: sourceURL)
-        } catch {
-            if let fallbackDownloadedURL,
-               let fallbackData = try? Data(contentsOf: fallbackDownloadedURL) {
-                return fallbackData
-            }
-
-            requestUbiquitousDownloadIfNeeded(at: sourceURL)
-            if let fallbackDownloadedURL {
-                requestUbiquitousDownloadIfNeeded(at: fallbackDownloadedURL)
-            }
-            var lastError: Error = error
-            for _ in 0..<8 {
-                // Avoid blocking the actor with a thread sleep while iCloud
-                // download hydration catches up.
-                do {
-                    return try Data(contentsOf: sourceURL)
-                } catch {
-                    lastError = error
-                }
-
-                if let fallbackDownloadedURL {
-                    do {
-                        return try Data(contentsOf: fallbackDownloadedURL)
-                    } catch {
-                        lastError = error
-                    }
-                }
-            }
-
-            throw lastError
-        }
-    }
-
-    private func fallbackDownloadedURLIfPlaceholder(for sourceURL: URL) -> URL? {
-        guard isICloudPlaceholderFile(sourceURL) else {
-            return nil
-        }
-
-        return sourceURL.deletingPathExtension()
-    }
-
-    private func requestUbiquitousDownloadIfNeeded(at sourceURL: URL) {
-        do {
-            try fileManager.startDownloadingUbiquitousItem(at: sourceURL)
-        } catch {
-            // Non-ubiquitous local files throw here; ignore and keep local read behavior.
-        }
+        try cloudStore.readDataResolvingPlaceholder(from: sourceURL)
     }
 
     private func importedTemplate(matchingID id: String) throws -> ColoringTemplate {

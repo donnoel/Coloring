@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import OSLog
 import PencilKit
 import SwiftUI
 import UIKit
@@ -2491,6 +2492,33 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(loadedCompleted, completed)
     }
 
+    func testICloudDocumentsFileStoreReadsPlaceholderFallbackData() throws {
+        let directoryURL = try makeTemporaryDocumentsDirectory()
+        let hydratedData = Data("hydrated-data".utf8)
+        let hydratedURL = directoryURL.appendingPathComponent("template.png")
+        let placeholderURL = directoryURL.appendingPathComponent("template.png.icloud", isDirectory: true)
+        try FileManager.default.createDirectory(at: placeholderURL, withIntermediateDirectories: true)
+        let store = makeICloudDocumentsFileStore()
+
+        XCTAssertEqual(store.existingFileURL(named: "template.png", in: directoryURL), placeholderURL)
+        try hydratedData.write(to: hydratedURL, options: [.atomic])
+        XCTAssertEqual(try store.readDataResolvingPlaceholder(from: placeholderURL), hydratedData)
+    }
+
+    func testICloudDocumentsFileStoreMirrorReplacesPlaceholderAtomically() throws {
+        let directoryURL = try makeTemporaryDocumentsDirectory()
+        let placeholderURL = directoryURL.appendingPathComponent("state.json.icloud", isDirectory: true)
+        try FileManager.default.createDirectory(at: placeholderURL, withIntermediateDirectories: true)
+        let store = makeICloudDocumentsFileStore()
+        let data = Data(#"{"ready":true}"#.utf8)
+
+        try store.mirrorDataIfNeeded(data, filename: "state.json", in: directoryURL)
+
+        let fileURL = directoryURL.appendingPathComponent("state.json")
+        XCTAssertEqual(try Data(contentsOf: fileURL), data)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: placeholderURL.path))
+    }
+
     func testGalleryStoreServiceSavesLoadsAndDeletesArtworkLocally() async throws {
         let documentsURL = try makeTemporaryDocumentsDirectory()
         let galleryURL = documentsURL.appendingPathComponent("GalleryTest", isDirectory: true)
@@ -4311,6 +4339,15 @@ final class ColoringTests: XCTestCase {
             galleryDirectoryURLProvider: { galleryURL },
             cloudContainerIdentifier: cloudRootURL == nil ? nil : "iCloud.dn.coloring",
             ubiquityContainerURLProvider: { _ in cloudRootURL }
+        )
+    }
+
+    private func makeICloudDocumentsFileStore() -> ICloudDocumentsFileStore {
+        ICloudDocumentsFileStore(
+            fileManager: .default,
+            logger: Logger(subsystem: "ColoringTests", category: "ICloudDocumentsFileStore"),
+            cloudContainerIdentifier: nil,
+            ubiquityContainerURLProvider: { _ in nil }
         )
     }
 }

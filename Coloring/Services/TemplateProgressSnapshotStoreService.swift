@@ -61,36 +61,17 @@ actor TemplateProgressSnapshotStoreService: TemplateProgressSnapshotStoreProvidi
         try storeDirectory().appendingPathComponent(filename)
     }
 
-    private func cloudFileURL() -> URL? {
-        guard let cloudRootURL = cloudContainerRootURL() else {
-            return nil
-        }
-
-        let directory = cloudRootURL
-            .appendingPathComponent("Documents", isDirectory: true)
-            .appendingPathComponent("TemplateProgress", isDirectory: true)
-
-        do {
-            if !fileManager.fileExists(atPath: directory.path) {
-                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            }
-            return directory.appendingPathComponent(filename)
-        } catch {
-            logger.error("Could not access iCloud progress folder: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
+    private var cloudStore: ICloudDocumentsFileStore {
+        ICloudDocumentsFileStore(
+            fileManager: fileManager,
+            logger: logger,
+            cloudContainerIdentifier: cloudContainerIdentifier,
+            ubiquityContainerURLProvider: ubiquityContainerURLProvider
+        )
     }
 
-    private func cloudContainerRootURL() -> URL? {
-        if let cloudRootURL = ubiquityContainerURLProvider(cloudContainerIdentifier) {
-            return cloudRootURL
-        }
-
-        guard cloudContainerIdentifier != nil else {
-            return nil
-        }
-
-        return ubiquityContainerURLProvider(nil)
+    private func cloudDirectoryURL() -> URL? {
+        cloudStore.directory(named: "TemplateProgress", accessDescription: "iCloud progress folder")
     }
 
     private func loadData() throws -> Data? {
@@ -101,13 +82,13 @@ actor TemplateProgressSnapshotStoreService: TemplateProgressSnapshotStoreProvidi
             return localData
         }
 
-        guard let cloudURL = cloudFileURL(),
-              fileManager.fileExists(atPath: cloudURL.path)
+        guard let cloudDirectoryURL = cloudDirectoryURL(),
+              let cloudURL = cloudStore.existingFileURL(named: filename, in: cloudDirectoryURL)
         else {
             return nil
         }
 
-        let cloudData = try Data(contentsOf: cloudURL)
+        let cloudData = try cloudStore.readDataResolvingPlaceholder(from: cloudURL)
         try cloudData.write(to: localURL, options: [.atomic])
         return cloudData
     }
@@ -119,17 +100,12 @@ actor TemplateProgressSnapshotStoreService: TemplateProgressSnapshotStoreProvidi
     }
 
     private func syncDataToCloudIfNeeded(_ data: Data) {
-        guard let cloudURL = cloudFileURL() else {
+        guard let cloudDirectoryURL = cloudDirectoryURL() else {
             return
         }
 
         do {
-            if fileManager.fileExists(atPath: cloudURL.path),
-               (try? Data(contentsOf: cloudURL)) == data
-            {
-                return
-            }
-            try data.write(to: cloudURL, options: [.atomic])
+            try cloudStore.mirrorDataIfNeeded(data, filename: filename, in: cloudDirectoryURL)
         } catch {
             logger.error("Failed to sync progress snapshots to iCloud: \(error.localizedDescription, privacy: .public)")
         }
