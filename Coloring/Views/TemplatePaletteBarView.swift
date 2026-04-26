@@ -8,10 +8,8 @@ struct TemplatePaletteBarView: View {
     var canRedo: Bool
     var recentColors: [RecentColorToken]
     var activeColorToken: RecentColorToken?
-    var isPaletteAtTop: Bool
     var isLibraryVisible: Bool
     var onToggleLibrary: () -> Void
-    var onTogglePalettePlacement: () -> Void
     var onUndo: () -> Void
     var onRedo: () -> Void
     var onSelectRecentColor: (RecentColorToken) -> Void
@@ -98,18 +96,16 @@ struct TemplatePaletteBarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Toggle Library")
+            .accessibilityIdentifier("studio.toggleLibrary")
 
-            Button {
-                onTogglePalettePlacement()
-            } label: {
-                controlChrome(isSelected: false) {
-                    Image(systemName: isPaletteAtTop ? "arrow.down.circle" : "arrow.up.circle")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+            controlChrome(isSelected: false) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isPaletteAtTop ? "Move Toolbar to Bottom" : "Move Toolbar to Top")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Drag Toolbar")
+            .accessibilityHint("Drag to move the toolbar around the canvas.")
 
             Capsule()
                 .fill(paletteSeparatorColor)

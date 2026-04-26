@@ -6,10 +6,8 @@ struct TemplateStudioView: View {
     private static let defaultSidebarWidth: Double = 390
     private static let sidebarMinWidth: CGFloat = 300
     private static let sidebarMaxWidth: CGFloat = 640
-    private enum PalettePlacement: String {
-        case bottom
-        case top
-    }
+    private static let defaultPaletteAnchor = CGPoint(x: 0.5, y: 0.92)
+    private static let paletteEdgePadding: CGFloat = 18
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
@@ -32,10 +30,14 @@ struct TemplateStudioView: View {
     @State private var isHiddenManagementPresented = false
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
+    @State private var paletteDragStartPosition: CGPoint?
+    @State private var livePalettePosition: CGPoint?
+    @State private var measuredPaletteSize: CGSize = .zero
     @State private var pencilKitActivationToken = 0
     @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
     @State private var liveSidebarWidth: Double = Self.defaultSidebarWidth
-    @SceneStorage("templateStudio.palettePlacement") private var palettePlacementRawValue: String = PalettePlacement.bottom.rawValue
+    @SceneStorage("templateStudio.paletteAnchorX") private var paletteAnchorX: Double = Self.defaultPaletteAnchor.x
+    @SceneStorage("templateStudio.paletteAnchorY") private var paletteAnchorY: Double = Self.defaultPaletteAnchor.y
     @State private var sidebarResizeStartWidth: Double?
 
     var body: some View {
@@ -317,6 +319,7 @@ struct TemplateStudioView: View {
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
+        .accessibilityIdentifier("studio.library")
         .scrollContentBackground(.hidden)
         .background(sidebarBackground)
         .overlay(alignment: .trailing) {
@@ -552,25 +555,18 @@ struct TemplateStudioView: View {
             )
             .accessibilityIdentifier("studio.canvas")
 
-            VStack(spacing: 0) {
-                if isPaletteAtTop {
-                    if isPaletteChromeVisible {
-                        paletteBar
-                            .padding(.top, 56)
-                            .transition(paletteHiddenTransition)
-                    }
-                }
-
-                Spacer(minLength: 0)
-
-                if !isPaletteAtTop {
-                    if isPaletteChromeVisible {
-                        paletteBar
-                            .padding(.bottom, 20)
-                            .transition(paletteHiddenTransition)
-                    }
+            GeometryReader { proxy in
+                if isPaletteChromeVisible {
+                    paletteBar
+                        .position(clampedPalettePosition(in: proxy.size))
+                        .transition(paletteHiddenTransition)
+                        .simultaneousGesture(paletteDragGesture(in: proxy.size))
+                        .onChange(of: proxy.size) { _, newSize in
+                            persistPalettePosition(clampedPalettePosition(in: newSize), in: newSize)
+                        }
                 }
             }
+            .ignoresSafeArea(edges: .horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .horizontal)
@@ -583,15 +579,11 @@ struct TemplateStudioView: View {
             canRedo: viewModel.canRedoEdit,
             recentColors: viewModel.recentColors,
             activeColorToken: viewModel.activeColorToken,
-            isPaletteAtTop: isPaletteAtTop,
             isLibraryVisible: columnVisibility != .detailOnly,
             onToggleLibrary: {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
                 }
-            },
-            onTogglePalettePlacement: {
-                togglePalettePlacement()
             },
             onUndo: { viewModel.undoLastEdit() },
             onRedo: { viewModel.redoLastEdit() },
@@ -600,6 +592,17 @@ struct TemplateStudioView: View {
             }
         )
         .padding(.horizontal, 20)
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        measuredPaletteSize = proxy.size
+                    }
+                    .onChange(of: proxy.size) { _, newSize in
+                        measuredPaletteSize = newSize
+                    }
+            }
+        }
     }
 
     private var sidebarBackground: some View {
@@ -820,16 +823,12 @@ struct TemplateStudioView: View {
         }
     }
 
-    private var palettePlacement: PalettePlacement {
-        PalettePlacement(rawValue: palettePlacementRawValue) ?? .bottom
-    }
-
-    private var isPaletteAtTop: Bool {
-        palettePlacement == .top
+    private var storedPaletteAnchor: CGPoint {
+        CGPoint(x: paletteAnchorX, y: paletteAnchorY)
     }
 
     private var paletteHiddenOffset: CGFloat {
-        isPaletteAtTop ? -24 : 24
+        storedPaletteAnchor.y < 0.5 ? -24 : 24
     }
 
     private var isPaletteChromeVisible: Bool {
@@ -840,13 +839,71 @@ struct TemplateStudioView: View {
         .offset(y: paletteHiddenOffset)
     }
 
-    private func togglePalettePlacement() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            palettePlacementRawValue = isPaletteAtTop
-                ? PalettePlacement.bottom.rawValue
-                : PalettePlacement.top.rawValue
-            isPaletteVisible = true
+    private func paletteDragGesture(in canvasSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .local)
+            .onChanged { value in
+                if paletteDragStartPosition == nil {
+                    paletteDragStartPosition = clampedPalettePosition(in: canvasSize)
+                    showPaletteImmediately()
+                }
+
+                guard let paletteDragStartPosition else {
+                    return
+                }
+
+                livePalettePosition = clampedPalettePosition(
+                    CGPoint(
+                        x: paletteDragStartPosition.x + value.translation.width,
+                        y: paletteDragStartPosition.y + value.translation.height
+                    ),
+                    in: canvasSize
+                )
+            }
+            .onEnded { _ in
+                let finalPosition = clampedPalettePosition(
+                    livePalettePosition ?? clampedPalettePosition(in: canvasSize),
+                    in: canvasSize
+                )
+                persistPalettePosition(finalPosition, in: canvasSize)
+                paletteDragStartPosition = nil
+                livePalettePosition = nil
+            }
+    }
+
+    private func clampedPalettePosition(in canvasSize: CGSize) -> CGPoint {
+        if let livePalettePosition {
+            return clampedPalettePosition(livePalettePosition, in: canvasSize)
         }
+
+        return clampedPalettePosition(
+            CGPoint(
+                x: canvasSize.width * storedPaletteAnchor.x,
+                y: canvasSize.height * storedPaletteAnchor.y
+            ),
+            in: canvasSize
+        )
+    }
+
+    private func clampedPalettePosition(_ position: CGPoint, in canvasSize: CGSize) -> CGPoint {
+        let halfWidth = max(measuredPaletteSize.width / 2, 0)
+        let halfHeight = max(measuredPaletteSize.height / 2, 0)
+        let horizontalInset = min(halfWidth + Self.paletteEdgePadding, max(0, canvasSize.width / 2))
+        let verticalInset = min(halfHeight + Self.paletteEdgePadding, max(0, canvasSize.height / 2))
+
+        return CGPoint(
+            x: min(max(position.x, horizontalInset), max(horizontalInset, canvasSize.width - horizontalInset)),
+            y: min(max(position.y, verticalInset), max(verticalInset, canvasSize.height - verticalInset))
+        )
+    }
+
+    private func persistPalettePosition(_ position: CGPoint, in canvasSize: CGSize) {
+        guard canvasSize.width > 0, canvasSize.height > 0 else {
+            return
+        }
+
+        let clampedPosition = clampedPalettePosition(position, in: canvasSize)
+        paletteAnchorX = clampedPosition.x / canvasSize.width
+        paletteAnchorY = clampedPosition.y / canvasSize.height
     }
 
     private func clampedSidebarWidth(_ proposedWidth: Double) -> Double {

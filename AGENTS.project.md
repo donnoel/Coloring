@@ -89,7 +89,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
 - The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.
 - Undo and redo should preserve the combined per-template edit history for strokes, fills, fill erasing, clears, and layer operations.
-- The floating palette should support top/bottom placement, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
+- The floating palette should support drag placement within the visible canvas, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
 - Studio and Gallery chrome should adapt to the current system light/dark appearance without changing canvas readability or altering artwork colors.
 - The native PencilKit tool picker should stay in sync with the active system appearance while preserving light-canvas color mapping so black/white inks do not invert.
 - Gallery exports and thumbnails should be normalized to an opaque white-backed image so transparent regions never appear dark in gallery previews.

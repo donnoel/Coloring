@@ -2547,8 +2547,11 @@ final class ColoringTests: XCTestCase {
 
         let restoredFullImageURL = secondGalleryURL.appendingPathComponent(originalEntry.fullImageFilename)
         let restoredThumbnailURL = secondGalleryURL.appendingPathComponent(originalEntry.thumbnailFilename)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: restoredFullImageURL.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: restoredThumbnailURL.path))
+        let restoredFilesExist = await waitForCondition(timeout: 3.0) {
+            FileManager.default.fileExists(atPath: restoredFullImageURL.path)
+                && FileManager.default.fileExists(atPath: restoredThumbnailURL.path)
+        }
+        XCTAssertTrue(restoredFilesExist, "Expected gallery files to restore from cloud after manifest restore.")
     }
 
     func testGalleryStoreServiceDeletePropagatesToCloud() async throws {

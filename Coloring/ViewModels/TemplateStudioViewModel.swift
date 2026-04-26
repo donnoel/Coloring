@@ -1067,7 +1067,8 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let previousSnapshot = snapshot(for: selectedTemplateID)
-        applyFillData(eraseResult.fillData, for: selectedTemplateID, cachedImage: eraseResult.fillImage)
+        let nextFillData = eraseResult.fillData ?? Data()
+        applyFillData(nextFillData, for: selectedTemplateID, cachedImage: eraseResult.fillImage)
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
     }
 
@@ -1085,7 +1086,7 @@ final class TemplateStudioViewModel: ObservableObject {
         cancelPendingFillRestoreWork()
         cancelPendingFillOverlayWork()
         let previousSnapshot = snapshot(for: selectedTemplateID)
-        applyFillData(nil, for: selectedTemplateID)
+        applyFillData(Data(), for: selectedTemplateID)
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
     }
 
