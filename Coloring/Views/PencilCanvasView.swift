@@ -134,6 +134,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var hasPendingLocalDrawingSync = false
         var lastDrawingSyncToken = 0
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
+        private let localDrawingSyncGraceInterval: TimeInterval = 0.5
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
@@ -307,10 +308,8 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func resetLocalDrawingSyncTracking() {
-            pendingLocalSyncResetWorkItem?.cancel()
-            pendingLocalSyncResetWorkItem = nil
+            clearPendingLocalDrawingSync()
             latestLocalDrawingData = nil
-            hasPendingLocalDrawingSync = false
         }
 
         private func installFillEraseGestureIfNeeded(on canvasView: PKCanvasView) {
@@ -333,17 +332,13 @@ struct PencilCanvasView: UIViewRepresentable {
             forceExternalUpdate: Bool = false
         ) -> Bool {
             if forceExternalUpdate {
-                hasPendingLocalDrawingSync = false
-                pendingLocalSyncResetWorkItem?.cancel()
-                pendingLocalSyncResetWorkItem = nil
+                clearPendingLocalDrawingSync()
                 return currentCanvasDrawing != externalDrawing
             }
 
             let externalData = externalDrawing.dataRepresentation()
             if let latestLocalDrawingData, latestLocalDrawingData == externalData {
-                hasPendingLocalDrawingSync = false
-                pendingLocalSyncResetWorkItem?.cancel()
-                pendingLocalSyncResetWorkItem = nil
+                clearPendingLocalDrawingSync()
                 return false
             } else if currentCanvasDrawing == externalDrawing {
                 return false
@@ -368,10 +363,19 @@ struct PencilCanvasView: UIViewRepresentable {
 
             pendingLocalSyncResetWorkItem?.cancel()
             let workItem = DispatchWorkItem { [weak self] in
-                self?.hasPendingLocalDrawingSync = false
+                self?.clearPendingLocalDrawingSync()
             }
             pendingLocalSyncResetWorkItem = workItem
-            DispatchQueue.main.async(execute: workItem)
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + localDrawingSyncGraceInterval,
+                execute: workItem
+            )
+        }
+
+        private func clearPendingLocalDrawingSync() {
+            hasPendingLocalDrawingSync = false
+            pendingLocalSyncResetWorkItem?.cancel()
+            pendingLocalSyncResetWorkItem = nil
         }
 
         private func handleAppearanceChange(previousTraitCollection _: UITraitCollection?) {
