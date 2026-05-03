@@ -189,6 +189,18 @@ final class TemplateStudioViewModel: ObservableObject {
         TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: selectedTemplateImage)
     }
 
+    private func isShowingLiveImage(for templateID: String) -> Bool {
+        loadedTemplateImageID == templateID && selectedTemplateImage != nil
+    }
+
+    private func shouldClearVisibleCanvasBeforePreparing(templateID: String) -> Bool {
+        guard !isShowingLiveImage(for: templateID) else {
+            return false
+        }
+
+        return loadedTemplateImageID != nil || selectedTemplateImage != nil
+    }
+
     @discardableResult
     private func assignIfChanged<T: Equatable>(
         _ keyPath: ReferenceWritableKeyPath<TemplateStudioViewModel, T>,
@@ -1213,7 +1225,8 @@ final class TemplateStudioViewModel: ObservableObject {
 
         let hasCachedDrawing = restoreCachedDrawingForSelectedTemplate()
         let hasCachedFill = restoreCachedFillForSelectedTemplate()
-        if !hasCachedDrawing || !hasCachedFill {
+        if (!hasCachedDrawing || !hasCachedFill) && shouldClearVisibleCanvasBeforePreparing(templateID: templateID) {
+            clearRestoredArtworkPreview()
             selectedTemplateImage = nil
             loadedTemplateImageID = nil
         }
@@ -1249,7 +1262,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        if loadedTemplateImageID == templateID, selectedTemplateImage != nil {
+        if isShowingLiveImage(for: templateID) {
             return
         }
 
@@ -1657,6 +1670,10 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func showRestoredArtworkPreviewIfNeeded(for templateID: String, templateImage: UIImage) {
+        guard !isShowingLiveImage(for: templateID) else {
+            clearRestoredArtworkPreview()
+            return
+        }
         guard selectedTemplateID == templateID,
               hasColoring(for: templateID),
               let previewImage = makeRestoredArtworkPreview(templateImage: templateImage)
