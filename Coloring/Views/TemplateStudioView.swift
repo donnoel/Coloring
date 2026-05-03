@@ -184,12 +184,12 @@ struct TemplateStudioView: View {
 
             Section {
                 librarySearchField
-                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 8, trailing: 12))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
                 categoryFilterChips
-                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 12, trailing: 12))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
@@ -199,7 +199,7 @@ struct TemplateStudioView: View {
                 } else {
                     ForEach(sortedTemplates) { template in
                         templateRow(template)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                            .listRowInsets(EdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
@@ -224,6 +224,7 @@ struct TemplateStudioView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.bottom, 2)
             }
 
             Section("Artwork") {
