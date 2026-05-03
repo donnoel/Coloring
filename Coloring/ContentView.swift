@@ -24,62 +24,55 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack {
-            backgroundGradient
-
-            TabView(selection: selectedTabBinding) {
-                TemplateStudioView(
-                    viewModel: templateViewModel,
-                    isToolPickerSuppressed: shouldSuppressStudioToolPicker,
-                    onColoringInteractionChanged: handleStudioColoringInteractionChanged
-                )
-                    .tabItem {
-                        Label("Studio", systemImage: "paintbrush.pointed")
-                    }
-                    .tag(RootTab.studio)
-
-                GalleryView(viewModel: galleryViewModel)
-                    .tabItem {
-                        Label("Gallery", systemImage: "photo.on.rectangle.angled")
-                    }
-                    .tag(RootTab.gallery)
-            }
-            .overlay(alignment: .top) {
-                if shouldMaskStudioTabPill {
-                    Rectangle()
-                        .fill(topChromeMaskFill)
-                        .frame(height: 84)
-                        .offset(y: -60)
-                        .ignoresSafeArea(edges: .top)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
+        Group {
+            if isOnboardingPresented {
+                FirstRunOnboardingView {
+                    hasCompletedFirstRunOnboarding = true
+                    hasShownOnboardingThisLaunch = true
                 }
-            }
-        }
-        .onChange(of: selectedTabRawValue) { _, newValue in
-            if newValue != RootTab.studio.rawValue {
-                showStudioTabPillImmediately()
-            }
-        }
-        .onDisappear {
-            studioTabPillAutoShowTask?.cancel()
-            studioTabPillAutoShowTask = nil
-            isStudioTabPillVisible = true
-        }
-        .fullScreenCover(isPresented: onboardingPresentationBinding) {
-            FirstRunOnboardingView {
-                hasCompletedFirstRunOnboarding = true
-            }
-        }
-    }
+            } else {
+                ZStack {
+                    backgroundGradient
 
-    private var onboardingPresentationBinding: Binding<Bool> {
-        Binding {
-            isOnboardingPresented
-        } set: { isPresented in
-            if !isPresented {
-                hasCompletedFirstRunOnboarding = true
-                hasShownOnboardingThisLaunch = true
+                    TabView(selection: selectedTabBinding) {
+                        TemplateStudioView(
+                            viewModel: templateViewModel,
+                            isToolPickerSuppressed: shouldSuppressStudioToolPicker,
+                            onColoringInteractionChanged: handleStudioColoringInteractionChanged
+                        )
+                            .tabItem {
+                                Label("Studio", systemImage: "paintbrush.pointed")
+                            }
+                            .tag(RootTab.studio)
+
+                        GalleryView(viewModel: galleryViewModel)
+                            .tabItem {
+                                Label("Gallery", systemImage: "photo.on.rectangle.angled")
+                            }
+                            .tag(RootTab.gallery)
+                    }
+                    .overlay(alignment: .top) {
+                        if shouldMaskStudioTabPill {
+                            Rectangle()
+                                .fill(topChromeMaskFill)
+                                .frame(height: 84)
+                                .offset(y: -60)
+                                .ignoresSafeArea(edges: .top)
+                                .allowsHitTesting(false)
+                                .transition(.opacity)
+                        }
+                    }
+                }
+                .onChange(of: selectedTabRawValue) { _, newValue in
+                    if newValue != RootTab.studio.rawValue {
+                        showStudioTabPillImmediately()
+                    }
+                }
+                .onDisappear {
+                    studioTabPillAutoShowTask?.cancel()
+                    studioTabPillAutoShowTask = nil
+                    isStudioTabPillVisible = true
+                }
             }
         }
     }
