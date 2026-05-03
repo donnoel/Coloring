@@ -100,10 +100,10 @@ final class TemplateStudioViewModel: ObservableObject {
     private var templateImageLoadTask: Task<Void, Never>?
     private var cloudRestoreTask: Task<Void, Never>?
     private var debouncedPersistTask: Task<Void, Never>?
-    private var debouncedProgressTask: Task<Void, Never>?
     private var fillRestoreOperationID = 0
     private var restoredArtworkPreviewDismissTask: Task<Void, Never>?
     private let fillOverlayCoordinator = TemplateFillOverlayCoordinator()
+    private let progressSnapshotCoordinator = TemplateProgressSnapshotCoordinator()
     private var pendingPersistTemplateIDs: Set<String> = []
     private var persistenceRevisionStore = TemplatePersistenceRevisionStore()
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
@@ -1390,47 +1390,41 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func scheduleProgressSnapshotUpdate(for templateID: String) {
-        guard !templateID.isEmpty else {
-            return
-        }
+        progressSnapshotCoordinator.scheduleUpdate(
+            for: templateID,
+            progressEstimator: progressEstimator,
+            makeInput: { [weak self] in
+                guard let self else {
+                    return TemplateProgressSnapshotCoordinator.Input.empty
+                }
 
-        debouncedProgressTask?.cancel()
-        debouncedProgressTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            guard !Task.isCancelled else { return }
-            await self?.updateProgressSnapshot(for: templateID)
-        }
+                return self.makeProgressSnapshotInput(for: templateID)
+            },
+            onResult: { [weak self] result in
+                self?.applyProgressSnapshotResult(result)
+            }
+        )
     }
 
-    private func updateProgressSnapshot(for templateID: String) async {
-        guard hasColoring(for: templateID) else {
-            removeProgressSnapshot(for: templateID)
-            return
-        }
-
-        let layerStack = layerStacksByTemplateID[templateID]
-        let fallbackDrawingData = drawingsByTemplateID[templateID]?.dataRepresentation()
-        let fillData = fillStateStore.fillData(for: templateID)
-        let canvasSize = bestExportSize(for: selectedTemplateID == templateID ? selectedTemplateImage : nil)
-        let progress = await progressEstimator.estimateProgress(
-            layerStack: layerStack,
-            fallbackDrawingData: fallbackDrawingData,
-            fillData: fillData,
-            canvasSize: canvasSize
+    private func makeProgressSnapshotInput(for templateID: String) -> TemplateProgressSnapshotCoordinator.Input {
+        TemplateProgressSnapshotCoordinator.Input(
+            hasColoring: hasColoring(for: templateID),
+            layerStack: layerStacksByTemplateID[templateID],
+            fallbackDrawingData: drawingsByTemplateID[templateID]?.dataRepresentation(),
+            fillData: fillStateStore.fillData(for: templateID),
+            canvasSize: bestExportSize(for: selectedTemplateID == templateID ? selectedTemplateImage : nil),
+            currentSnapshot: progressSnapshotsByTemplateID[templateID]
         )
+    }
 
-        guard let progress else {
+    private func applyProgressSnapshotResult(_ result: TemplateProgressSnapshotCoordinator.Result) {
+        switch result {
+        case .remove(let templateID):
             removeProgressSnapshot(for: templateID)
-            return
+        case .update(let snapshot):
+            progressSnapshotsByTemplateID[snapshot.templateID] = snapshot
+            persistProgressSnapshots()
         }
-
-        let snapshot = TemplateProgressSnapshot(templateID: templateID, estimatedProgress: progress)
-        guard progressSnapshotsByTemplateID[templateID] != snapshot else {
-            return
-        }
-
-        progressSnapshotsByTemplateID[templateID] = snapshot
-        persistProgressSnapshots()
     }
 
     private func removeProgressSnapshot(for templateID: String) {
