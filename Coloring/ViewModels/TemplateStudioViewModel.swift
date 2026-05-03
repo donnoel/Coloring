@@ -9,8 +9,6 @@ final class TemplateStudioViewModel: ObservableObject {
         static let lastSelectedTemplateID = "lastSelectedTemplateID"
     }
 
-    private static let restoredArtworkPreviewHoldNanoseconds: UInt64 = 1_200_000_000
-
     @Published private(set) var templates: [ColoringTemplate] = []
     @Published var selectedTemplateID: String = ""
     @Published var currentDrawing: PKDrawing
@@ -1742,7 +1740,9 @@ final class TemplateStudioViewModel: ObservableObject {
         restoredArtworkPreviewDismissTask?.cancel()
         restoredArtworkPreviewImage = previewImage
         restoredArtworkPreviewDismissTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.restoredArtworkPreviewHoldNanoseconds)
+            try? await Task.sleep(
+                nanoseconds: TemplateRestoredArtworkPreviewCoordinator.previewHoldNanoseconds
+            )
             guard !Task.isCancelled else {
                 return
             }
@@ -1752,28 +1752,16 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func makeRestoredArtworkPreview(templateImage: UIImage) -> UIImage? {
-        let canvasSize = bestExportSize(for: templateImage)
-        guard canvasSize.width > 0, canvasSize.height > 0 else {
-            return nil
-        }
-
-        let canvasRect = CGRect(origin: .zero, size: canvasSize)
-        let exportTraitCollection = UITraitCollection(userInterfaceStyle: .light)
-        let normalizedDrawing = currentDrawing.stableColorDrawing(using: exportTraitCollection)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
-
-        return renderer.image { context in
-            UIColor.white.setFill()
-            context.fill(canvasRect)
-            templateImage.stableDisplayImage().draw(in: canvasRect)
-            currentFillImage?.stableDisplayImage().draw(in: canvasRect)
-            belowLayerImage?.stableDisplayImage().draw(in: canvasRect)
-            let drawingImage = normalizedDrawing.image(from: canvasRect, scale: 2.0)
-            drawingImage.draw(in: canvasRect)
-            aboveLayerImage?.stableDisplayImage().draw(in: canvasRect)
-        }
+        TemplateRestoredArtworkPreviewCoordinator.makePreview(
+            from: TemplateRestoredArtworkPreviewCoordinator.RenderInput(
+                templateImage: templateImage,
+                drawing: currentDrawing,
+                fillImage: currentFillImage,
+                belowLayerImage: belowLayerImage,
+                aboveLayerImage: aboveLayerImage,
+                canvasSize: bestExportSize(for: templateImage)
+            )
+        )
     }
 
     private func dismissRestoredArtworkPreview(for templateID: String) {
