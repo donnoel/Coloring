@@ -101,10 +101,9 @@ final class TemplateStudioViewModel: ObservableObject {
     private var cloudRestoreTask: Task<Void, Never>?
     private var debouncedPersistTask: Task<Void, Never>?
     private var debouncedProgressTask: Task<Void, Never>?
-    private var fillOverlayTask: Task<Void, Never>?
-    private var fillOverlayOperationID = 0
     private var fillRestoreOperationID = 0
     private var restoredArtworkPreviewDismissTask: Task<Void, Never>?
+    private let fillOverlayCoordinator = TemplateFillOverlayCoordinator()
     private var pendingPersistTemplateIDs: Set<String> = []
     private var persistenceRevisionStore = TemplatePersistenceRevisionStore()
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
@@ -1013,45 +1012,29 @@ final class TemplateStudioViewModel: ObservableObject {
 
         cancelPendingFillRestoreWork()
         let templateID = selectedTemplateID
-        let currentFillData = fillStateStore.fillData(for: templateID)
         let request = FillOverlayRequest(
             templateImage: templateImage,
             existingFillImage: currentFillImage,
             normalizedPoint: normalizedPoint,
             fillColor: fillColor
         )
-        let floodFillService = floodFillService
 
-        cancelPendingFillOverlayWork()
-        let operationID = fillOverlayOperationID
-
-        fillOverlayTask = Task { [templateID, currentFillData, request] in
-            defer {
-                if fillOverlayOperationID == operationID {
-                    fillOverlayTask = nil
-                }
-            }
-
-            let nextFillData = await Task.detached(priority: .userInitiated) {
-                FillOverlayRenderer.makeFillOverlayData(
-                    request: request,
-                    floodFillService: floodFillService
-                )
-            }.value
-
-            guard !Task.isCancelled,
-                  selectedTemplateID == templateID,
-                  fillOverlayOperationID == operationID,
-                  let nextFillData,
-                  nextFillData != currentFillData
+        fillOverlayCoordinator.start(
+            templateID: templateID,
+            currentFillData: fillStateStore.fillData(for: templateID),
+            request: request,
+            floodFillService: floodFillService
+        ) { [weak self] result in
+            guard let self,
+                  self.selectedTemplateID == result.templateID
             else {
                 return
             }
 
-            let previousSnapshot = snapshot(for: templateID)
-            applyFillData(nextFillData, for: templateID)
-            recordUsedColor(fillColor)
-            recordEditChange(from: previousSnapshot, for: templateID)
+            let previousSnapshot = self.snapshot(for: result.templateID)
+            self.applyFillData(result.nextFillData, for: result.templateID)
+            self.recordUsedColor(result.fillColor)
+            self.recordEditChange(from: previousSnapshot, for: result.templateID)
         }
     }
 
@@ -1797,9 +1780,7 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func cancelPendingFillOverlayWork() {
-        fillOverlayTask?.cancel()
-        fillOverlayTask = nil
-        fillOverlayOperationID += 1
+        fillOverlayCoordinator.cancel()
     }
 
     private func cancelPendingFillRestoreWork() {
