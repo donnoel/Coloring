@@ -183,6 +183,11 @@ struct TemplateStudioView: View {
             }
 
             Section {
+                librarySearchField
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
                 categoryFilterChips
                     .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                     .listRowBackground(Color.clear)
@@ -329,6 +334,15 @@ struct TemplateStudioView: View {
             max: Self.sidebarMaxWidth
         )
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var librarySearchField: some View {
+        TemplateStudioLibrarySearchField(
+            text: $viewModel.searchText,
+            placeholder: "Search Drawings"
+        )
+        .frame(height: 42)
+        .accessibilityIdentifier("studio.library.search")
     }
 
     private var hasSidebarStatusMessages: Bool {
@@ -1138,6 +1152,54 @@ private final class PalettePassthroughView: UIView {
 
         let convertedPoint = paletteView.convert(point, from: self)
         return paletteView.hitTest(convertedPoint, with: event)
+    }
+}
+
+private struct TemplateStudioLibrarySearchField: UIViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeUIView(context: Context) -> UISearchBar {
+        let searchBar = UISearchBar(frame: .zero)
+        searchBar.delegate = context.coordinator
+        searchBar.placeholder = placeholder
+        searchBar.searchBarStyle = .minimal
+        searchBar.autocapitalizationType = .none
+        searchBar.autocorrectionType = .no
+        searchBar.returnKeyType = .search
+        searchBar.searchTextField.clearButtonMode = .whileEditing
+        searchBar.searchTextField.accessibilityIdentifier = "studio.library.search.field"
+        return searchBar
+    }
+
+    func updateUIView(_ searchBar: UISearchBar, context _: Context) {
+        if searchBar.text ?? "" != text {
+            searchBar.text = text
+        }
+
+        if searchBar.placeholder != placeholder {
+            searchBar.placeholder = placeholder
+        }
+    }
+
+    final class Coordinator: NSObject, UISearchBarDelegate {
+        private let text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+            text.wrappedValue = searchText
+        }
+
+        func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+            searchBar.resignFirstResponder()
+        }
     }
 }
 

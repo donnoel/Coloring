@@ -302,6 +302,113 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testTemplateSearchEmptyTextPreservesCategoryFilteredResults() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-forest", title: "Forest Trail", shelfCategory: "nature"),
+            Self.makeTemplate(id: "builtin-river", title: "River Walk", shelfCategory: "nature"),
+            Self.makeTemplate(id: "builtin-rocket", title: "Rocket Launch", shelfCategory: "scifi")
+        ]
+        let viewModel = await MainActor.run {
+            Self.makeTemplateStudioViewModel(templates: templates)
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            guard let natureCategoryID = viewModel.allCategories.first(where: { $0.name == "Nature" })?.id else {
+                XCTFail("Expected Nature category.")
+                return
+            }
+
+            viewModel.selectedCategoryFilter = natureCategoryID
+            viewModel.searchText = "  \n  "
+
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set(["builtin-forest", "builtin-river"]))
+        }
+    }
+
+    func testTemplateSearchFiltersByTitle() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-forest", title: "Forest Trail"),
+            Self.makeTemplate(id: "builtin-rocket", title: "Rocket Launch"),
+            Self.makeTemplate(id: "builtin-river", title: "River Walk")
+        ]
+        let viewModel = await MainActor.run {
+            Self.makeTemplateStudioViewModel(templates: templates)
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.searchText = "Rocket"
+
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), ["builtin-rocket"])
+        }
+    }
+
+    func testTemplateSearchIsCaseInsensitive() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-ocean", title: "Ocean View"),
+            Self.makeTemplate(id: "builtin-forest", title: "Forest Trail")
+        ]
+        let viewModel = await MainActor.run {
+            Self.makeTemplateStudioViewModel(templates: templates)
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.searchText = "oCeAn"
+
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), ["builtin-ocean"])
+        }
+    }
+
+    func testTemplateSearchStaysScopedToSelectedCategory() async {
+        let favoriteTemplate = Self.makeTemplate(id: "builtin-favorite", title: "Neon Favorite")
+        let nonFavoriteTemplate = Self.makeTemplate(id: "builtin-forest", title: "Neon Forest")
+        let viewModel = await MainActor.run {
+            Self.makeTemplateStudioViewModel(templates: [favoriteTemplate, nonFavoriteTemplate])
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.toggleFavorite(for: favoriteTemplate.id)
+            viewModel.selectedCategoryFilter = TemplateCategory.favoritesCategory.id
+            viewModel.searchText = "neon"
+
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), [favoriteTemplate.id])
+        }
+    }
+
+    func testTemplateSearchClearingTextRestoresFilteredList() async {
+        let templates = [
+            Self.makeTemplate(id: "builtin-forest", title: "Forest Trail", shelfCategory: "nature"),
+            Self.makeTemplate(id: "builtin-river", title: "River Walk", shelfCategory: "nature"),
+            Self.makeTemplate(id: "builtin-rocket", title: "Rocket Launch", shelfCategory: "scifi")
+        ]
+        let viewModel = await MainActor.run {
+            Self.makeTemplateStudioViewModel(templates: templates)
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            guard let natureCategoryID = viewModel.allCategories.first(where: { $0.name == "Nature" })?.id else {
+                XCTFail("Expected Nature category.")
+                return
+            }
+
+            viewModel.selectedCategoryFilter = natureCategoryID
+            viewModel.searchText = "Forest"
+            XCTAssertEqual(viewModel.filteredTemplates.map(\.id), ["builtin-forest"])
+
+            viewModel.searchText = ""
+            XCTAssertEqual(Set(viewModel.filteredTemplates.map(\.id)), Set(["builtin-forest", "builtin-river"]))
+        }
+    }
+
     func testMoveCategoriesReordersFolderChips() async {
         let templates = [
             Self.makeTemplate(
@@ -4126,6 +4233,20 @@ final class ColoringTests: XCTestCase {
             session: source == .builtIn ? "standard" : nil,
             lineWeight: source == .builtIn ? "balanced" : nil,
             featured: source == .builtIn ? false : nil
+        )
+    }
+
+    @MainActor
+    private static func makeTemplateStudioViewModel(templates: [ColoringTemplate]) -> TemplateStudioViewModel {
+        TemplateStudioViewModel(
+            templateLibrary: StubTemplateLibrary(templates: templates),
+            exportService: StubTemplateExportService(),
+            drawingStore: StubTemplateDrawingStore(),
+            floodFillService: FloodFillService(),
+            layerCompositor: LayerCompositorService(),
+            brushPresetStore: StubBrushPresetStore(),
+            categoryStore: StubCategoryStore(),
+            galleryStore: StubGalleryStore()
         )
     }
 

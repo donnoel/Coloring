@@ -50,6 +50,7 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var canRedoEdit: Bool = false
 
     // Category state
+    @Published var searchText: String = ""
     @Published var selectedCategoryFilter: String = TemplateCategory.allCategory.id
     @Published private(set) var builtInCategories: [TemplateCategory] = []
     @Published private(set) var userCategories: [TemplateCategory] = []
@@ -658,7 +659,7 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Template Categories
 
     var filteredTemplates: [ColoringTemplate] {
-        TemplateCategoryViewStateBuilder.filteredTemplates(
+        let categoryFilteredTemplates = TemplateCategoryViewStateBuilder.filteredTemplates(
             templates: visibleTemplates,
             selectedCategoryFilter: selectedCategoryFilter,
             visibleInProgressTemplateIDs: visibleInProgressTemplateIDs,
@@ -669,6 +670,15 @@ final class TemplateStudioViewModel: ObservableObject {
             builtInCategories: builtInCategories,
             builtInCategoryNamesByTemplateID: builtInCategoryNamesByTemplateID
         )
+
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return categoryFilteredTemplates
+        }
+
+        return categoryFilteredTemplates.filter {
+            $0.title.localizedCaseInsensitiveContains(query)
+        }
     }
 
     func createUserCategory(name: String) {
