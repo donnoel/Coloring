@@ -81,10 +81,10 @@ final class TemplateStudioViewModel: ObservableObject {
     private var persistedColoringByTemplateID: [String: Bool] = [:]
     private var builtInCategoryNamesByTemplateID: [String: Set<String>] = [:]
     private var recentTemplateIDs: [String] = []
-    private var recentColorsByTemplateID: [String: [RecentColorToken]] = [:]
     private let templateLibrary: any TemplateLibraryProviding
     private let importMutationCoordinator: TemplateImportMutationCoordinator
     private let exportCoordinator: TemplateExportCoordinator
+    private let brushRecentColorCoordinator: TemplateBrushRecentColorCoordinator
     private let persistenceCoordinator: TemplateColoringPersistenceCoordinator
     private let coloringPersistenceInspector: TemplateColoringPersistenceInspector
     private let progressEstimator: TemplateProgressEstimator
@@ -92,8 +92,6 @@ final class TemplateStudioViewModel: ObservableObject {
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
-    private let brushPresetStore: any BrushPresetStoreProviding
-    private let recentColorsStore: any RecentColorsStoreProviding
     private let categoryPersistenceCoordinator: TemplateCategoryPersistenceCoordinator
     private var hasLoadedTemplates = false
     private var loadedTemplateImageID: String?
@@ -141,8 +139,10 @@ final class TemplateStudioViewModel: ObservableObject {
         self.drawingStore = drawingStore
         self.floodFillService = floodFillService
         self.layerCompositor = layerCompositor
-        self.brushPresetStore = brushPresetStore
-        self.recentColorsStore = recentColorsStore
+        self.brushRecentColorCoordinator = TemplateBrushRecentColorCoordinator(
+            brushPresetStore: brushPresetStore,
+            recentColorsStore: recentColorsStore
+        )
         self.categoryPersistenceCoordinator = TemplateCategoryPersistenceCoordinator(
             categoryStore: categoryStore
         )
@@ -250,11 +250,12 @@ final class TemplateStudioViewModel: ObservableObject {
             fillStateStore.retainEntries(for: validTemplateIDs)
             persistedColoringByTemplateID = persistedColoringByTemplateID.filter { validTemplateIDs.contains($0.key) }
             progressSnapshotsByTemplateID = progressSnapshotsByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            let filteredRecentColorsByTemplateID = recentColorsByTemplateID.filter { validTemplateIDs.contains($0.key) }
-            if filteredRecentColorsByTemplateID != recentColorsByTemplateID {
-                recentColorsByTemplateID = filteredRecentColorsByTemplateID
-                persistRecentColors()
-            }
+            applyBrushRecentColorState(
+                brushRecentColorCoordinator.retainRecentColors(
+                    for: validTemplateIDs,
+                    selectedTemplateID: selectedTemplateID
+                )
+            )
             persistenceRevisionStore.retainRevisions(for: validTemplateIDs)
             editHistoryStore.retainHistories(for: validTemplateIDs)
             assignIfChanged(\.favoriteTemplateIDs, to: favoriteTemplateIDs.intersection(validTemplateIDs))
@@ -549,90 +550,60 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Brush Customization
 
     var allBrushPresets: [BrushPreset] {
-        BrushPreset.builtInPresets + userBrushPresets
+        brushRecentColorCoordinator.allBrushPresets
     }
 
     func selectBrushPreset(_ preset: BrushPreset) {
-        activeBrushPreset = preset
+        applyBrushRecentColorState(brushRecentColorCoordinator.selectBrushPreset(preset))
         customBrushWidth = preset.width
         customBrushOpacity = preset.opacity
         // updateCurrentBrushTool() is triggered by didSet on width/opacity
     }
 
     func saveCurrentAsPreset(name: String) {
-        let preset = BrushPreset(
-            id: "custom-\(UUID().uuidString)",
-            name: name,
-            inkType: activeBrushPreset.inkType,
-            width: customBrushWidth,
-            opacity: customBrushOpacity,
-            isBuiltIn: false
+        applyBrushRecentColorState(
+            brushRecentColorCoordinator.saveCurrentAsPreset(
+                name: name,
+                width: customBrushWidth,
+                opacity: customBrushOpacity
+            )
         )
-        userBrushPresets.append(preset)
-        persistUserPresets()
     }
 
     func deleteCustomPreset(_ id: String) {
-        userBrushPresets.removeAll { $0.id == id }
-        if activeBrushPreset.id == id {
-            selectBrushPreset(BrushPreset.builtInPresets[0])
+        let previousActiveBrushPresetID = activeBrushPreset.id
+        applyBrushRecentColorState(brushRecentColorCoordinator.deleteCustomPreset(id))
+        if previousActiveBrushPresetID == id {
+            customBrushWidth = activeBrushPreset.width
+            customBrushOpacity = activeBrushPreset.opacity
         }
-        persistUserPresets()
     }
 
     func loadBrushPresetsIfNeeded() {
-        Task { [brushPresetStore] in
-            do {
-                let presets = try await brushPresetStore.loadUserPresets()
-                self.userBrushPresets = presets
-            } catch {
-                // Silently ignore - user starts with built-in presets only
-            }
+        brushRecentColorCoordinator.loadBrushPresets { [weak self] state in
+            self?.applyBrushRecentColorState(state)
         }
     }
 
     func loadRecentColorsIfNeeded() {
-        Task { [recentColorsStore] in
-            do {
-                let colorsByTemplateID = try await recentColorsStore.loadRecentColorsByTemplateID()
-                let validTemplateIDs = Set(self.templates.map(\.id))
-                if validTemplateIDs.isEmpty {
-                    self.recentColorsByTemplateID = colorsByTemplateID
-                } else {
-                    let filteredColorsByTemplateID = colorsByTemplateID.filter { validTemplateIDs.contains($0.key) }
-                    self.recentColorsByTemplateID = filteredColorsByTemplateID
-                    if filteredColorsByTemplateID.count != colorsByTemplateID.count {
-                        self.persistRecentColors()
-                    }
-                }
-                self.refreshRecentColorsForSelectedTemplate()
-            } catch {
-                self.recentColorsByTemplateID = [:]
-                self.assignIfChanged(\.recentColors, to: [])
-                self.activeColorToken = nil
-            }
+        brushRecentColorCoordinator.loadRecentColors(
+            validTemplateIDs: Set(templates.map(\.id)),
+            selectedTemplateID: selectedTemplateID
+        ) { [weak self] state in
+            self?.applyBrushRecentColorState(state)
         }
     }
 
     func recordUsedColor(_ color: UIColor) {
-        guard !selectedTemplateID.isEmpty else {
-            return
-        }
-        guard let token = RecentColorToken(uiColor: color) else {
-            return
-        }
-
-        activeColorToken = token
-        updateRecentColors(with: token)
+        applyBrushRecentColorState(
+            brushRecentColorCoordinator.recordUsedColor(color, selectedTemplateID: selectedTemplateID)
+        )
     }
 
     func applyRecentColor(_ token: RecentColorToken) {
-        guard !selectedTemplateID.isEmpty else {
-            return
-        }
-        activeColorToken = token
-        appliedRecentColor = token.uiColor
-        appliedRecentColorRevision += 1
+        applyBrushRecentColorState(
+            brushRecentColorCoordinator.applyRecentColor(token, selectedTemplateID: selectedTemplateID)
+        )
     }
 
     private func recordUsedStrokeColorIfNeeded(from drawing: PKDrawing, previousStrokeCount: Int) {
@@ -653,37 +624,23 @@ final class TemplateStudioViewModel: ObservableObject {
         )
     }
 
-    private func updateRecentColors(with token: RecentColorToken) {
-        let updatedColors = RecentColorsStoreService.inserting(
-            token,
-            into: recentColorsByTemplateID[selectedTemplateID] ?? []
+    private func refreshRecentColorsForSelectedTemplate() {
+        applyBrushRecentColorState(
+            brushRecentColorCoordinator.refreshRecentColors(for: selectedTemplateID)
         )
-        guard updatedColors != recentColorsByTemplateID[selectedTemplateID] else {
+    }
+
+    private func applyBrushRecentColorState(_ state: TemplateBrushRecentColorCoordinator.State?) {
+        guard let state else {
             return
         }
 
-        recentColorsByTemplateID[selectedTemplateID] = updatedColors
-        recentColors = updatedColors
-        persistRecentColors()
-    }
-
-    private func refreshRecentColorsForSelectedTemplate() {
-        assignIfChanged(\.recentColors, to: recentColorsByTemplateID[selectedTemplateID] ?? [])
-        activeColorToken = nil
-    }
-
-    private func persistUserPresets() {
-        let presets = userBrushPresets
-        Task { [brushPresetStore, presets] in
-            try? await brushPresetStore.saveUserPresets(presets)
-        }
-    }
-
-    private func persistRecentColors() {
-        let colorsByTemplateID = recentColorsByTemplateID
-        Task { [recentColorsStore, colorsByTemplateID] in
-            try? await recentColorsStore.saveRecentColorsByTemplateID(colorsByTemplateID)
-        }
+        activeBrushPreset = state.activeBrushPreset
+        userBrushPresets = state.userBrushPresets
+        assignIfChanged(\.recentColors, to: state.recentColors)
+        activeColorToken = state.activeColorToken
+        appliedRecentColor = state.appliedRecentColor
+        appliedRecentColorRevision = state.appliedRecentColorRevision
     }
 
     // MARK: - Template Categories
@@ -1436,15 +1393,12 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func removeRecentColors(for templateID: String) {
-        guard recentColorsByTemplateID.removeValue(forKey: templateID) != nil else {
-            return
-        }
-
-        if selectedTemplateID == templateID {
-            assignIfChanged(\.recentColors, to: [])
-            activeColorToken = nil
-        }
-        persistRecentColors()
+        applyBrushRecentColorState(
+            brushRecentColorCoordinator.removeRecentColors(
+                for: templateID,
+                selectedTemplateID: selectedTemplateID
+            )
+        )
     }
 
     private func persistProgressSnapshots() {
@@ -1576,10 +1530,7 @@ final class TemplateStudioViewModel: ObservableObject {
             )
             persistProgressSnapshots()
         }
-        if let recentColors = recentColorsByTemplateID.removeValue(forKey: oldTemplateID) {
-            recentColorsByTemplateID[newTemplateID] = recentColors
-            persistRecentColors()
-        }
+        brushRecentColorCoordinator.renameRecentColors(from: oldTemplateID, to: newTemplateID)
         persistenceRevisionStore.renameRevisions(from: oldTemplateID, to: newTemplateID)
 
         if favoriteTemplateIDs.remove(oldTemplateID) != nil {
