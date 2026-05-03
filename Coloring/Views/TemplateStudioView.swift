@@ -339,7 +339,10 @@ struct TemplateStudioView: View {
 
     private var librarySearchField: some View {
         TemplateStudioLibrarySearchField(
-            text: $viewModel.searchText,
+            text: Binding(
+                get: { viewModel.searchText },
+                set: { viewModel.searchText = $0 }
+            ),
             placeholder: "Search Drawings"
         )
         .frame(height: 42)
@@ -1164,8 +1167,8 @@ private struct TemplateStudioLibrarySearchField: UIViewRepresentable {
         Coordinator(text: $text)
     }
 
-    func makeUIView(context: Context) -> UISearchBar {
-        let searchBar = UISearchBar(frame: .zero)
+    func makeUIView(context: Context) -> StableAppearanceSearchBar {
+        let searchBar = StableAppearanceSearchBar(frame: .zero)
         searchBar.delegate = context.coordinator
         searchBar.placeholder = placeholder
         searchBar.searchBarStyle = .minimal
@@ -1174,10 +1177,11 @@ private struct TemplateStudioLibrarySearchField: UIViewRepresentable {
         searchBar.returnKeyType = .search
         searchBar.searchTextField.clearButtonMode = .whileEditing
         searchBar.searchTextField.accessibilityIdentifier = "studio.library.search.field"
+        searchBar.applyStableAppearance()
         return searchBar
     }
 
-    func updateUIView(_ searchBar: UISearchBar, context _: Context) {
+    func updateUIView(_ searchBar: StableAppearanceSearchBar, context _: Context) {
         if searchBar.text ?? "" != text {
             searchBar.text = text
         }
@@ -1185,6 +1189,8 @@ private struct TemplateStudioLibrarySearchField: UIViewRepresentable {
         if searchBar.placeholder != placeholder {
             searchBar.placeholder = placeholder
         }
+
+        searchBar.applyStableAppearance()
     }
 
     final class Coordinator: NSObject, UISearchBarDelegate {
@@ -1200,6 +1206,61 @@ private struct TemplateStudioLibrarySearchField: UIViewRepresentable {
 
         func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
             searchBar.resignFirstResponder()
+        }
+    }
+}
+
+private final class StableAppearanceSearchBar: UISearchBar {
+    private let lightFieldBackgroundColor = UIColor(red: 0.94, green: 0.95, blue: 0.95, alpha: 0.98)
+    private let darkFieldBackgroundColor = UIColor(red: 0.16, green: 0.20, blue: 0.26, alpha: 0.98)
+    private let lightPlaceholderColor = UIColor.secondaryLabel
+    private let darkPlaceholderColor = UIColor(red: 0.72, green: 0.78, blue: 0.85, alpha: 1.0)
+    private var traitRegistration: UITraitChangeRegistration?
+    private var hasRegisteredForTraitChanges = false
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        applyStableAppearance()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+
+        guard !hasRegisteredForTraitChanges else {
+            return
+        }
+
+        hasRegisteredForTraitChanges = true
+        traitRegistration = registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (searchBar: Self, _) in
+            searchBar.applyStableAppearance()
+        }
+    }
+
+    func applyStableAppearance() {
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+        let textField = searchTextField
+        let backgroundColor = isDarkMode ? darkFieldBackgroundColor : lightFieldBackgroundColor
+        let placeholderColor = isDarkMode ? darkPlaceholderColor : lightPlaceholderColor
+        let placeholderText = placeholder ?? ""
+
+        UIView.performWithoutAnimation {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+
+            textField.backgroundColor = backgroundColor
+            textField.layer.cornerRadius = 14
+            textField.layer.cornerCurve = .continuous
+            textField.layer.masksToBounds = true
+            textField.textColor = isDarkMode ? .white : .label
+            textField.tintColor = isDarkMode ? .white : .label
+            textField.leftView?.tintColor = placeholderColor
+            textField.attributedPlaceholder = NSAttributedString(
+                string: placeholderText,
+                attributes: [.foregroundColor: placeholderColor]
+            )
+            layoutIfNeeded()
+
+            CATransaction.commit()
         }
     }
 }
