@@ -6,6 +6,10 @@
 	objectVersion = 70;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5A63FFF62F44E9F400885BD6 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5A63FFF72F44E9F400885BD6 /* AppIntents.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		5A63FFDB2F44E19C00885BD6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		5A63FFF72F44E9F400885BD6 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		5A63FFC92F44E19C00885BD6 /* Coloring.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Coloring.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A63FFDA2F44E19C00885BD6 /* ColoringTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColoringTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A63FFE42F44E19C00885BD6 /* ColoringUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColoringUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -50,6 +55,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A63FFF62F44E9F400885BD6 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,8 +82,17 @@
 				5A63FFCB2F44E19C00885BD6 /* Coloring */,
 				5A63FFDD2F44E19C00885BD6 /* ColoringTests */,
 				5A63FFE72F44E19C00885BD6 /* ColoringUITests */,
+				5A63FFF82F44E9F400885BD6 /* Frameworks */,
 				5A63FFCA2F44E19C00885BD6 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		5A63FFF82F44E9F400885BD6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5A63FFF72F44E9F400885BD6 /* AppIntents.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		5A63FFCA2F44E19C00885BD6 /* Products */ = {
