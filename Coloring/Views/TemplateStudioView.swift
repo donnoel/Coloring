@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct TemplateStudioView: View {
@@ -30,9 +31,6 @@ struct TemplateStudioView: View {
     @State private var isHiddenManagementPresented = false
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
-    @State private var paletteDragStartPosition: CGPoint?
-    @State private var livePalettePosition: CGPoint?
-    @State private var measuredPaletteSize: CGSize = .zero
     @State private var pencilKitActivationToken = 0
     @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
     @State private var liveSidebarWidth: Double = Self.defaultSidebarWidth
@@ -555,18 +553,15 @@ struct TemplateStudioView: View {
             )
             .accessibilityIdentifier("studio.canvas")
 
-            GeometryReader { proxy in
-                if isPaletteChromeVisible {
+            if isPaletteChromeVisible {
+                UIKitPaletteOverlay(
+                    anchor: paletteAnchorBinding,
+                    edgePadding: Self.paletteEdgePadding
+                ) {
                     paletteBar
-                        .position(clampedPalettePosition(in: proxy.size))
-                        .transition(paletteHiddenTransition)
-                        .simultaneousGesture(paletteDragGesture(in: proxy.size))
-                        .onChange(of: proxy.size) { _, newSize in
-                            persistPalettePosition(clampedPalettePosition(in: newSize), in: newSize)
-                        }
                 }
+                .transition(paletteHiddenTransition)
             }
-            .ignoresSafeArea(edges: .horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .horizontal)
@@ -592,17 +587,6 @@ struct TemplateStudioView: View {
             }
         )
         .padding(.horizontal, 20)
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear {
-                        measuredPaletteSize = proxy.size
-                    }
-                    .onChange(of: proxy.size) { _, newSize in
-                        measuredPaletteSize = newSize
-                    }
-            }
-        }
     }
 
     private var sidebarBackground: some View {
@@ -827,6 +811,16 @@ struct TemplateStudioView: View {
         CGPoint(x: paletteAnchorX, y: paletteAnchorY)
     }
 
+    private var paletteAnchorBinding: Binding<CGPoint> {
+        Binding(
+            get: { storedPaletteAnchor },
+            set: { newAnchor in
+                paletteAnchorX = newAnchor.x
+                paletteAnchorY = newAnchor.y
+            }
+        )
+    }
+
     private var paletteHiddenOffset: CGFloat {
         storedPaletteAnchor.y < 0.5 ? -24 : 24
     }
@@ -837,73 +831,6 @@ struct TemplateStudioView: View {
 
     private var paletteHiddenTransition: AnyTransition {
         .offset(y: paletteHiddenOffset)
-    }
-
-    private func paletteDragGesture(in canvasSize: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .local)
-            .onChanged { value in
-                if paletteDragStartPosition == nil {
-                    paletteDragStartPosition = clampedPalettePosition(in: canvasSize)
-                    showPaletteImmediately()
-                }
-
-                guard let paletteDragStartPosition else {
-                    return
-                }
-
-                livePalettePosition = clampedPalettePosition(
-                    CGPoint(
-                        x: paletteDragStartPosition.x + value.translation.width,
-                        y: paletteDragStartPosition.y + value.translation.height
-                    ),
-                    in: canvasSize
-                )
-            }
-            .onEnded { _ in
-                let finalPosition = clampedPalettePosition(
-                    livePalettePosition ?? clampedPalettePosition(in: canvasSize),
-                    in: canvasSize
-                )
-                persistPalettePosition(finalPosition, in: canvasSize)
-                paletteDragStartPosition = nil
-                livePalettePosition = nil
-            }
-    }
-
-    private func clampedPalettePosition(in canvasSize: CGSize) -> CGPoint {
-        if let livePalettePosition {
-            return clampedPalettePosition(livePalettePosition, in: canvasSize)
-        }
-
-        return clampedPalettePosition(
-            CGPoint(
-                x: canvasSize.width * storedPaletteAnchor.x,
-                y: canvasSize.height * storedPaletteAnchor.y
-            ),
-            in: canvasSize
-        )
-    }
-
-    private func clampedPalettePosition(_ position: CGPoint, in canvasSize: CGSize) -> CGPoint {
-        let halfWidth = max(measuredPaletteSize.width / 2, 0)
-        let halfHeight = max(measuredPaletteSize.height / 2, 0)
-        let horizontalInset = min(halfWidth + Self.paletteEdgePadding, max(0, canvasSize.width / 2))
-        let verticalInset = min(halfHeight + Self.paletteEdgePadding, max(0, canvasSize.height / 2))
-
-        return CGPoint(
-            x: min(max(position.x, horizontalInset), max(horizontalInset, canvasSize.width - horizontalInset)),
-            y: min(max(position.y, verticalInset), max(verticalInset, canvasSize.height - verticalInset))
-        )
-    }
-
-    private func persistPalettePosition(_ position: CGPoint, in canvasSize: CGSize) {
-        guard canvasSize.width > 0, canvasSize.height > 0 else {
-            return
-        }
-
-        let clampedPosition = clampedPalettePosition(position, in: canvasSize)
-        paletteAnchorX = clampedPosition.x / canvasSize.width
-        paletteAnchorY = clampedPosition.y / canvasSize.height
     }
 
     private func clampedSidebarWidth(_ proposedWidth: Double) -> Double {
@@ -1013,6 +940,194 @@ struct TemplateStudioView: View {
                 }
             }
         }
+    }
+}
+
+private struct UIKitPaletteOverlay<Content: View>: UIViewControllerRepresentable {
+    @Binding var anchor: CGPoint
+    var edgePadding: CGFloat
+    var content: Content
+
+    init(
+        anchor: Binding<CGPoint>,
+        edgePadding: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) {
+        _anchor = anchor
+        self.edgePadding = edgePadding
+        self.content = content()
+    }
+
+    func makeUIViewController(context _: Context) -> Controller {
+        Controller(rootView: content)
+    }
+
+    func updateUIViewController(_ controller: Controller, context _: Context) {
+        let anchorBinding = $anchor
+        controller.edgePadding = edgePadding
+        controller.anchor = anchor
+        controller.onAnchorChanged = { newAnchor in
+            anchorBinding.wrappedValue = newAnchor
+        }
+        controller.updateRootView(content)
+    }
+
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        var anchor: CGPoint = .zero
+        var edgePadding: CGFloat = 18
+        var onAnchorChanged: ((CGPoint) -> Void)?
+
+        private let hostingController: UIHostingController<Content>
+        private let overlayView = PalettePassthroughView()
+        private var dragStartCenter: CGPoint?
+
+        init(rootView: Content) {
+            hostingController = UIHostingController(rootView: rootView)
+            super.init(nibName: nil, bundle: nil)
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func loadView() {
+            view = overlayView
+        }
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+
+            guard let hostedView = hostingController.view else {
+                return
+            }
+
+            view.backgroundColor = .clear
+            addChild(hostingController)
+            hostedView.backgroundColor = .clear
+            hostedView.translatesAutoresizingMaskIntoConstraints = true
+            overlayView.paletteView = hostedView
+            view.addSubview(hostedView)
+            hostingController.didMove(toParent: self)
+
+            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            panGesture.cancelsTouchesInView = false
+            panGesture.delegate = self
+            hostedView.addGestureRecognizer(panGesture)
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            layoutPalette(keepCurrentCenter: dragStartCenter != nil)
+        }
+
+        func updateRootView(_ rootView: Content) {
+            hostingController.rootView = rootView
+            view.setNeedsLayout()
+        }
+
+        func gestureRecognizer(
+            _: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith _: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+            guard let paletteView = hostingController.view else {
+                return
+            }
+
+            switch gesture.state {
+            case .began:
+                dragStartCenter = paletteView.center
+            case .changed:
+                let startCenter = dragStartCenter ?? paletteView.center
+                let translation = gesture.translation(in: view)
+                paletteView.center = clampedCenter(
+                    CGPoint(x: startCenter.x + translation.x, y: startCenter.y + translation.y),
+                    paletteSize: paletteView.bounds.size
+                )
+            case .ended, .cancelled, .failed:
+                paletteView.center = clampedCenter(paletteView.center, paletteSize: paletteView.bounds.size)
+                onAnchorChanged?(normalizedAnchor(for: paletteView.center))
+                dragStartCenter = nil
+            default:
+                break
+            }
+        }
+
+        private func layoutPalette(keepCurrentCenter: Bool) {
+            guard let paletteView = hostingController.view,
+                  view.bounds.width > 0,
+                  view.bounds.height > 0
+            else {
+                return
+            }
+
+            let fittingSize = CGSize(
+                width: max(view.bounds.width - (edgePadding * 2), 44),
+                height: max(view.bounds.height - (edgePadding * 2), 44)
+            )
+            let measuredSize = hostingController.sizeThatFits(in: fittingSize)
+            let paletteSize = CGSize(
+                width: max(min(measuredSize.width, fittingSize.width), 44),
+                height: max(min(measuredSize.height, fittingSize.height), 44)
+            )
+
+            paletteView.bounds = CGRect(origin: .zero, size: paletteSize)
+            if !keepCurrentCenter {
+                let proposedCenter = CGPoint(
+                    x: view.bounds.width * anchor.x,
+                    y: view.bounds.height * anchor.y
+                )
+                paletteView.center = clampedCenter(proposedCenter, paletteSize: paletteSize)
+            }
+        }
+
+        private func clampedCenter(_ center: CGPoint, paletteSize: CGSize) -> CGPoint {
+            guard view.bounds.width > 0, view.bounds.height > 0 else {
+                return center
+            }
+
+            let halfWidth = max(paletteSize.width / 2, 0)
+            let halfHeight = max(paletteSize.height / 2, 0)
+            let horizontalInset = min(halfWidth + edgePadding, max(0, view.bounds.width / 2))
+            let verticalInset = min(halfHeight + edgePadding, max(0, view.bounds.height / 2))
+
+            return CGPoint(
+                x: min(max(center.x, horizontalInset), max(horizontalInset, view.bounds.width - horizontalInset)),
+                y: min(max(center.y, verticalInset), max(verticalInset, view.bounds.height - verticalInset))
+            )
+        }
+
+        private func normalizedAnchor(for center: CGPoint) -> CGPoint {
+            guard view.bounds.width > 0, view.bounds.height > 0 else {
+                return anchor
+            }
+
+            return CGPoint(
+                x: min(max(center.x / view.bounds.width, 0), 1),
+                y: min(max(center.y / view.bounds.height, 0), 1)
+            )
+        }
+    }
+}
+
+private final class PalettePassthroughView: UIView {
+    weak var paletteView: UIView?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let paletteView,
+              !paletteView.isHidden,
+              paletteView.alpha > 0,
+              paletteView.isUserInteractionEnabled
+        else {
+            return nil
+        }
+
+        let convertedPoint = paletteView.convert(point, from: self)
+        return paletteView.hitTest(convertedPoint, with: event)
     }
 }
 
