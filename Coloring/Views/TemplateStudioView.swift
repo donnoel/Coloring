@@ -553,6 +553,16 @@ struct TemplateStudioView: View {
             )
             .accessibilityIdentifier("studio.canvas")
 
+            if let previewImage = viewModel.restoredArtworkPreviewImage {
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
             if isPaletteChromeVisible {
                 UIKitPaletteOverlay(
                     anchor: paletteAnchorBinding,

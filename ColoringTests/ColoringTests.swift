@@ -103,6 +103,63 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(imageDidUpdate)
     }
 
+    func testSelectingTemplateShowsRestoredArtworkPreviewAfterPersistedFillLoads() async throws {
+        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let firstImageData = await MainActor.run { solidColorTemplateImageData(.red) }
+        let secondImageData = await MainActor.run { solidColorTemplateImageData(.blue) }
+        let persistedFillImage = await MainActor.run {
+            solidColorTemplateImage(.green, size: CGSize(width: 8, height: 8))
+        }
+        let persistedFillData = try XCTUnwrap(persistedFillImage.pngData())
+        let persistedFillSignature = await MainActor.run {
+            imageSignature(from: persistedFillImage)
+        }
+        let drawingStore = StubTemplateDrawingStore()
+        try await drawingStore.saveFillData(persistedFillData, for: secondTemplate.id)
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [firstTemplate, secondTemplate],
+                    imageDataSequence: [firstImageData, secondImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await drawingStore.enqueueFillLoadDelay(0.25)
+
+        await MainActor.run {
+            viewModel.selectTemplate(secondTemplate.id)
+            XCTAssertNil(viewModel.selectedTemplateImage)
+            XCTAssertNil(viewModel.restoredArtworkPreviewImage)
+        }
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        await MainActor.run {
+            XCTAssertNil(viewModel.selectedTemplateImage)
+            XCTAssertNil(viewModel.restoredArtworkPreviewImage)
+        }
+
+        let didShowRestoredPreview = await waitForCondition(timeout: 2.0) {
+            await MainActor.run {
+                viewModel.selectedTemplateID == secondTemplate.id
+                    && viewModel.selectedTemplateImage != nil
+                    && self.imageSignature(from: viewModel.currentFillImage) == persistedFillSignature
+                    && self.imageSignature(from: viewModel.restoredArtworkPreviewImage) == persistedFillSignature
+            }
+        }
+        XCTAssertTrue(didShowRestoredPreview, "Expected the restored static preview to appear with the saved fill.")
+    }
+
     func testManifestDrivenBuiltInCategoriesAppearFromTemplateMetadata() async {
         let templates = [
             Self.makeTemplate(

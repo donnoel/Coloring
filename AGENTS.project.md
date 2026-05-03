@@ -35,6 +35,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Restore imported drawings from iCloud when local files are missing
 - Retry imported drawing restore after launch and on app foreground to handle delayed iCloud availability
 - Persist per-template coloring strokes locally and mirror them to iCloud for reinstall recovery
+- Show a static restored artwork preview while the editable canvas catches up after loading saved coloring
 - Keep hidden-template state durable so hidden items stay excluded from normal library browsing until unhidden
 
 4) Testing priorities
