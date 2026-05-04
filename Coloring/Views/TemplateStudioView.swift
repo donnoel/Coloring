@@ -1210,13 +1210,14 @@ private struct TemplateStudioLibrarySearchField: UIViewRepresentable {
     }
 }
 
-private final class StableAppearanceSearchBar: UISearchBar {
+private final class StableAppearanceSearchBar: UISearchBar, UIScribbleInteractionDelegate {
     private let lightFieldBackgroundColor = UIColor(red: 0.94, green: 0.95, blue: 0.95, alpha: 0.98)
     private let darkFieldBackgroundColor = UIColor(red: 0.16, green: 0.20, blue: 0.26, alpha: 0.98)
     private let lightPlaceholderColor = UIColor.secondaryLabel
     private let darkPlaceholderColor = UIColor(red: 0.72, green: 0.78, blue: 0.85, alpha: 1.0)
     private var traitRegistration: UITraitChangeRegistration?
     private var hasRegisteredForTraitChanges = false
+    private var hasInstalledScribbleInteraction = false
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -1234,6 +1235,15 @@ private final class StableAppearanceSearchBar: UISearchBar {
         traitRegistration = registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (searchBar: Self, _) in
             searchBar.applyStableAppearance()
         }
+        if !hasInstalledScribbleInteraction {
+            let scribbleInteraction = UIScribbleInteraction(delegate: self)
+            searchTextField.addInteraction(scribbleInteraction)
+            hasInstalledScribbleInteraction = true
+        }
+    }
+
+    func scribbleInteraction(_ interaction: UIScribbleInteraction, shouldBeginAt location: CGPoint) -> Bool {
+        false
     }
 
     func applyStableAppearance() {
