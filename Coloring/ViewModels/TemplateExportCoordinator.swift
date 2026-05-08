@@ -85,9 +85,8 @@ final class TemplateExportCoordinator {
 
         // Gallery save is best-effort; don't fail the export.
         do {
-            let exportImageData = try Data(contentsOf: exportedURL)
             _ = try await galleryStore.saveArtwork(
-                imageData: exportImageData,
+                at: exportedURL,
                 sourceTemplateID: request.templateID,
                 sourceTemplateName: request.templateName
             )

@@ -5,6 +5,7 @@ import UIKit
 protocol GalleryStoreProviding {
     func loadEntries() async throws -> [ArtworkEntry]
     func saveArtwork(imageData: Data, sourceTemplateID: String, sourceTemplateName: String) async throws -> ArtworkEntry
+    func saveArtwork(at fileURL: URL, sourceTemplateID: String, sourceTemplateName: String) async throws -> ArtworkEntry
     func deleteEntry(_ id: String) async throws
 }
 
@@ -272,6 +273,19 @@ actor GalleryStoreService: GalleryStoreProviding {
             }
             throw error
         }
+    }
+
+    func saveArtwork(
+        at fileURL: URL,
+        sourceTemplateID: String,
+        sourceTemplateName: String
+    ) throws -> ArtworkEntry {
+        let imageData = try Data(contentsOf: fileURL)
+        return try saveArtwork(
+            imageData: imageData,
+            sourceTemplateID: sourceTemplateID,
+            sourceTemplateName: sourceTemplateName
+        )
     }
 
     func deleteEntry(_ id: String) throws {

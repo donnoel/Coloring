@@ -4957,6 +4957,15 @@ private final class StubGalleryStore: GalleryStoreProviding {
         return entry
     }
 
+    func saveArtwork(at fileURL: URL, sourceTemplateID: String, sourceTemplateName: String) throws -> ArtworkEntry {
+        let imageData = try Data(contentsOf: fileURL)
+        return try saveArtwork(
+            imageData: imageData,
+            sourceTemplateID: sourceTemplateID,
+            sourceTemplateName: sourceTemplateName
+        )
+    }
+
     func deleteEntry(_ id: String) throws {
         let targetID = id
         entries.removeAll { entry in entry.id == targetID }
