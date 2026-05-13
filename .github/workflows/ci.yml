@@ -13,23 +13,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve test destination
-        id: destination
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPad/ { print $2; exit }')
-
-          if [[ -z "$DEVICE_ID" ]]; then
-            echo "No compatible iPad simulator found."
-            exit 1
-          fi
-
-          echo "value=id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
-
       - name: Build and test
         run: |
           xcodebuild \
             -project Coloring.xcodeproj \
             -scheme Coloring \
-            -destination '${{ steps.destination.outputs.value }}' \
+            -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' \
             CODE_SIGNING_ALLOWED=NO \
             clean test
