@@ -25,16 +25,7 @@ jobs:
           xcodebuild -version
           xcodebuild -project Coloring.xcodeproj -scheme Coloring -showdestinations
 
-      - name: Build
-        run: |
-          xcodebuild \
-            -project Coloring.xcodeproj \
-            -scheme Coloring \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO \
-            clean build
-
-      - name: Unit tests
+      - name: Test
         run: |
           xcodebuild \
             -project Coloring.xcodeproj \
@@ -42,6 +33,5 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.2' \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1 \
-            -only-testing:ColoringTests \
             CODE_SIGNING_ALLOWED=NO \
-            test
+            clean test
