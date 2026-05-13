@@ -23,7 +23,6 @@ jobs:
         run: |
           xcode-select -p
           xcodebuild -version
-          xcrun simctl list devices available
           xcodebuild -project Coloring.xcodeproj -scheme Coloring -showdestinations
 
       - name: Build
@@ -35,11 +34,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
-      - name: Test
+      - name: Unit tests
         run: |
           xcodebuild \
             -project Coloring.xcodeproj \
             -scheme Coloring \
             -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.2' \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-simulator-destinations 1 \
+            -only-testing:ColoringTests \
             CODE_SIGNING_ALLOWED=NO \
             test
