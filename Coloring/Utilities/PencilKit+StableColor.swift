@@ -50,9 +50,10 @@ extension PKDrawing {
         }
 
         var didChangeStrokeColor = false
+        let shouldForceConcreteColor = traitCollection != nil
         let normalizedStrokes = strokes.map { stroke in
             let normalizedColor = stroke.ink.color.stableResolvedColor(using: traitCollection)
-            guard !stroke.ink.color.isEqual(normalizedColor) else {
+            guard shouldForceConcreteColor || !stroke.ink.color.isEqual(normalizedColor) else {
                 return stroke
             }
 
