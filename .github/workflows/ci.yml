@@ -23,14 +23,82 @@ jobs:
         run: |
           xcode-select -p
           xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devicetypes
           xcodebuild -project Coloring.xcodeproj -scheme Coloring -showdestinations
+
+      - name: Prepare simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID="$(python3 <<'PY'
+          import json
+          import subprocess
+
+          runtimes = json.loads(
+              subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "--json"])
+          )["runtimes"]
+          ios_runtimes = [
+              runtime for runtime in runtimes
+              if runtime.get("platform") == "iOS" and runtime.get("isAvailable")
+          ]
+          if not ios_runtimes:
+              raise SystemExit("No available iOS simulator runtimes.")
+
+          def version_key(runtime):
+              return tuple(int(part) for part in runtime.get("version", "0").split("."))
+
+          runtime_identifier = sorted(ios_runtimes, key=version_key)[-1]["identifier"]
+
+          device_types = json.loads(
+              subprocess.check_output(["xcrun", "simctl", "list", "devicetypes", "--json"])
+          )["devicetypes"]
+          ipad_types = [
+              device_type for device_type in device_types
+              if device_type.get("name", "").startswith("iPad")
+          ]
+          if not ipad_types:
+              raise SystemExit("No available iPad simulator device types.")
+
+          preferred_names = [
+              "iPad Pro 13-inch (M5)",
+              "iPad Pro 13-inch (M4)",
+              "iPad Air 13-inch (M4)",
+              "iPad (A16)",
+          ]
+          selected_device = next(
+              (
+                  device_type for preferred_name in preferred_names
+                  for device_type in ipad_types
+                  if device_type.get("name") == preferred_name
+              ),
+              ipad_types[-1],
+          )
+
+          simulator_id = subprocess.check_output(
+              [
+                  "xcrun",
+                  "simctl",
+                  "create",
+                  "CI iPad",
+                  selected_device["identifier"],
+                  runtime_identifier,
+              ],
+              text=True,
+          ).strip()
+          print(simulator_id)
+          PY
+          )"
+          echo "id=${SIMULATOR_ID}" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "${SIMULATOR_ID}" || true
+          xcrun simctl bootstatus "${SIMULATOR_ID}" -b
 
       - name: Test
         run: |
           xcodebuild \
             -project Coloring.xcodeproj \
             -scheme Coloring \
-            -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.2' \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1 \
             CODE_SIGNING_ALLOWED=NO \
