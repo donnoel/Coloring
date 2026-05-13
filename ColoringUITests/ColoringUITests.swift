@@ -6,7 +6,7 @@ final class ColoringUITests: XCTestCase {
     }
 
     func testLaunchShowsStudioShell() throws {
-        let app = launchApp()
+        let app = launchApp(skipOnboarding: true)
 
         XCTAssertTrue(findShellSwitchElement(named: "Studio", in: app).exists)
         XCTAssertTrue(findShellSwitchElement(named: "Gallery", in: app).exists)
@@ -44,7 +44,7 @@ final class ColoringUITests: XCTestCase {
     }
 
     func testLayersIsNotVisibleInStudioSidebar() throws {
-        let app = launchApp()
+        let app = launchApp(skipOnboarding: true)
         XCTAssertTrue(tapTab(named: "Studio", in: app), "Could not tap Studio tab")
         XCTAssertTrue(waitForStudioContent(in: app))
 
