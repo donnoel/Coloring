@@ -3567,7 +3567,9 @@ final class ColoringTests: XCTestCase {
             hostController.view.addSubview(canvasView)
             hostController.view.layoutIfNeeded()
 
-            canvasView.drawing = makeSampleTemplateDrawing(color: .label)
+            let lightArtworkTraits = UITraitCollection(userInterfaceStyle: .light)
+            let lightResolvedLabelColor = UIColor.label.stableResolvedColor(using: lightArtworkTraits)
+            canvasView.drawing = makeSampleTemplateDrawing(color: lightResolvedLabelColor)
             coordinator.canvasViewDrawingDidChange(canvasView)
 
             guard let strokeColor = drawingState.drawing.strokes.first?.ink.color else {
@@ -4004,6 +4006,24 @@ final class ColoringTests: XCTestCase {
             green: 1,
             blue: 1,
             alpha: 0.5
+        )
+    }
+
+    func testStableResolvedColorUsesExplicitLightTraitsForDynamicColor() {
+        let lightTraits = UITraitCollection(userInterfaceStyle: .light)
+
+        let normalizedColor = UIColor.label.stableResolvedColor(using: lightTraits)
+
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        XCTAssertTrue(normalizedColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+        let luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+        XCTAssertLessThan(
+            luminance,
+            0.3,
+            "Expected dynamic color to resolve using light-mode artwork traits before PencilKit stores it."
         )
     }
 

@@ -35,7 +35,7 @@ extension UIColor {
 extension PKInkingTool {
     nonisolated func stableResolvedTool(using traitCollection: UITraitCollection?) -> PKInkingTool {
         let normalizedColor = color.stableResolvedColor(using: traitCollection)
-        if color.isEqual(normalizedColor) {
+        if traitCollection == nil, color.isEqual(normalizedColor) {
             return self
         }
 
