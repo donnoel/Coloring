@@ -134,7 +134,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var hasPendingLocalDrawingSync = false
         var lastDrawingSyncToken = 0
         private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
-        private let localDrawingSyncGraceInterval: TimeInterval = 0.5
+        private let localDrawingSyncGraceInterval: TimeInterval = 1.0
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
@@ -336,11 +336,13 @@ struct PencilCanvasView: UIViewRepresentable {
                 return currentCanvasDrawing != externalDrawing
             }
 
+            if currentCanvasDrawing == externalDrawing {
+                return false
+            }
+
             let externalData = externalDrawing.dataRepresentation()
             if let latestLocalDrawingData, latestLocalDrawingData == externalData {
                 clearPendingLocalDrawingSync()
-                return false
-            } else if currentCanvasDrawing == externalDrawing {
                 return false
             }
 
@@ -564,21 +566,19 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            let normalizedDrawing = canvasView.drawing.stableColorDrawing(
-                using: colorResolutionTraitCollection(for: canvasView)
-            )
-            let normalizedDrawingData = normalizedDrawing.dataRepresentation()
-            if latestLocalDrawingData == normalizedDrawingData,
-               parent.drawing == normalizedDrawing
+            let updatedDrawing = canvasView.drawing
+            let updatedDrawingData = updatedDrawing.dataRepresentation()
+            if latestLocalDrawingData == updatedDrawingData,
+               parent.drawing == updatedDrawing
             {
                 return
             }
 
-            markLocalDrawingChanged(normalizedDrawingData)
+            markLocalDrawingChanged(updatedDrawingData)
             if let onDrawingChanged = parent.onDrawingChanged {
-                onDrawingChanged(normalizedDrawing)
+                onDrawingChanged(updatedDrawing)
             } else {
-                parent.drawing = normalizedDrawing
+                parent.drawing = updatedDrawing
             }
         }
 
