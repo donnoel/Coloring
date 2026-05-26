@@ -2925,6 +2925,113 @@ final class ColoringTests: XCTestCase {
         )
     }
 
+    func testFillOverlayCoordinatorPublishesSingleCompletedResult() async {
+        let request = await MainActor.run {
+            FillOverlayRequest(
+                templateImage: solidColorTemplateImage(.white, size: CGSize(width: 8, height: 8)),
+                existingFillImage: nil,
+                normalizedPoint: CGPoint(x: 0.5, y: 0.5),
+                fillColor: .red
+            )
+        }
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let floodFillService = StubFloodFillService(images: [filledImage])
+        let coordinator = await MainActor.run { TemplateFillOverlayCoordinator() }
+        let publishedResults = await MainActor.run { PublishedFillResults() }
+
+        await MainActor.run {
+            coordinator.start(
+                templateID: "single",
+                currentFillData: nil,
+                request: request,
+                floodFillService: floodFillService
+            ) { result in
+                publishedResults.append(result.templateID)
+            }
+        }
+
+        let didPublishFill = await waitForCondition {
+            await MainActor.run {
+                publishedResults.templateIDs == ["single"]
+            }
+        }
+
+        XCTAssertTrue(didPublishFill, "Expected a normal fill request to publish one result.")
+    }
+
+    func testFillOverlayCoordinatorRapidRequestsOnlyRunsAndPublishesLatestReplacement() async {
+        let firstRequest = await MainActor.run {
+            FillOverlayRequest(
+                templateImage: solidColorTemplateImage(.white, size: CGSize(width: 8, height: 8)),
+                existingFillImage: nil,
+                normalizedPoint: CGPoint(x: 0.25, y: 0.25),
+                fillColor: .red
+            )
+        }
+        let replacementRequest = await MainActor.run {
+            FillOverlayRequest(
+                templateImage: solidColorTemplateImage(.white, size: CGSize(width: 8, height: 8)),
+                existingFillImage: nil,
+                normalizedPoint: CGPoint(x: 0.75, y: 0.75),
+                fillColor: .blue
+            )
+        }
+        let filledImages = await MainActor.run {
+            [
+                solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8)),
+                solidColorTemplateImage(.blue, size: CGSize(width: 8, height: 8))
+            ]
+        }
+        let floodFillService = BlockingFirstFloodFillService(images: filledImages)
+        let coordinator = await MainActor.run { TemplateFillOverlayCoordinator() }
+        let publishedResults = await MainActor.run { PublishedFillResults() }
+
+        await MainActor.run {
+            coordinator.start(
+                templateID: "obsolete-active",
+                currentFillData: nil,
+                request: firstRequest,
+                floodFillService: floodFillService
+            ) { result in
+                publishedResults.append(result.templateID)
+            }
+        }
+
+        XCTAssertTrue(floodFillService.waitForFirstInvocation(), "Expected first fill work to begin.")
+
+        await MainActor.run {
+            coordinator.start(
+                templateID: "obsolete-pending",
+                currentFillData: nil,
+                request: replacementRequest,
+                floodFillService: floodFillService
+            ) { result in
+                publishedResults.append(result.templateID)
+            }
+            coordinator.start(
+                templateID: "latest",
+                currentFillData: nil,
+                request: replacementRequest,
+                floodFillService: floodFillService
+            ) { result in
+                publishedResults.append(result.templateID)
+            }
+        }
+        floodFillService.releaseFirstInvocation()
+
+        let didPublishLatestFill = await waitForCondition {
+            await MainActor.run {
+                publishedResults.templateIDs == ["latest"]
+            }
+        }
+
+        XCTAssertTrue(didPublishLatestFill, "Expected only the latest still-valid fill to publish.")
+        XCTAssertEqual(floodFillService.invocationCount, 2, "A superseded pending fill should not run.")
+        XCTAssertEqual(floodFillService.maximumConcurrentInvocationCount, 1, "Fill raster work must remain serialized.")
+    }
+
     func testFillUndoRedoStepsApplyOneAtATime() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let templateImageData = await MainActor.run {
@@ -4875,6 +4982,79 @@ private final class StubFloodFillService: FloodFillProviding, @unchecked Sendabl
             index += 1
         }
         return currentImage
+    }
+}
+
+private final class BlockingFirstFloodFillService: FloodFillProviding, @unchecked Sendable {
+    private let images: [CGImage]
+    private let lock = NSLock()
+    private let firstInvocationStarted = DispatchSemaphore(value: 0)
+    private let firstInvocationMayFinish = DispatchSemaphore(value: 0)
+    private var activeInvocationCount = 0
+    private var recordedMaximumConcurrentInvocationCount = 0
+    private var recordedInvocationCount = 0
+
+    init(images: [UIImage]) {
+        self.images = images.compactMap(\.cgImage)
+    }
+
+    var invocationCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedInvocationCount
+    }
+
+    var maximumConcurrentInvocationCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedMaximumConcurrentInvocationCount
+    }
+
+    func waitForFirstInvocation() -> Bool {
+        firstInvocationStarted.wait(timeout: .now() + 1) == .success
+    }
+
+    func releaseFirstInvocation() {
+        firstInvocationMayFinish.signal()
+    }
+
+    nonisolated func floodFill(
+        image _: CGImage,
+        at _: CGPoint,
+        with _: UIColor,
+        tolerance _: Int
+    ) -> CGImage? {
+        lock.lock()
+        recordedInvocationCount += 1
+        let currentInvocation = recordedInvocationCount
+        activeInvocationCount += 1
+        recordedMaximumConcurrentInvocationCount = max(recordedMaximumConcurrentInvocationCount, activeInvocationCount)
+        lock.unlock()
+
+        defer {
+            lock.lock()
+            activeInvocationCount -= 1
+            lock.unlock()
+        }
+
+        if currentInvocation == 1 {
+            firstInvocationStarted.signal()
+            _ = firstInvocationMayFinish.wait(timeout: .now() + 2)
+        }
+
+        guard !images.isEmpty else {
+            return nil
+        }
+        return images[min(currentInvocation - 1, images.count - 1)]
+    }
+}
+
+@MainActor
+private final class PublishedFillResults {
+    private(set) var templateIDs: [String] = []
+
+    func append(_ templateID: String) {
+        templateIDs.append(templateID)
     }
 }
 

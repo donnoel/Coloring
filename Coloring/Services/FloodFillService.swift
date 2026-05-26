@@ -22,9 +22,15 @@ enum FillOverlayRenderer {
         request: FillOverlayRequest,
         floodFillService: any FloodFillProviding
     ) -> Data? {
+        guard !FillRasterCancellation.isCancelled() else {
+            return nil
+        }
+
         let fillCanvasSize = normalizedCanvasSize(for: request.templateImage.size)
         let renderedTemplate = renderTemplateForFill(request.templateImage, canvasSize: fillCanvasSize)
-        guard let templateCGImage = renderedTemplate.cgImage else {
+        guard !FillRasterCancellation.isCancelled(),
+              let templateCGImage = renderedTemplate.cgImage
+        else {
             return nil
         }
 
@@ -37,28 +43,40 @@ enum FillOverlayRenderer {
             y: clampedPoint.y * CGFloat(max(templateCGImage.height - 1, 0))
         )
 
-        guard let baseImage = compositeBaseImageForFill(
+        guard !FillRasterCancellation.isCancelled(),
+              let baseImage = compositeBaseImageForFill(
             templateImage: renderedTemplate,
             existingFillImage: request.existingFillImage
-        ) else {
+        ), !FillRasterCancellation.isCancelled()
+        else {
             return nil
         }
 
-        guard let filledImage = floodFillService.floodFill(
+        guard !FillRasterCancellation.isCancelled(),
+              let filledImage = floodFillService.floodFill(
             image: baseImage,
             at: imagePoint,
             with: request.fillColor,
             tolerance: 40
-        ) else {
+        ), !FillRasterCancellation.isCancelled()
+        else {
             return nil
         }
 
-        let fillOverlay = extractFillOverlay(
+        guard let fillOverlay = extractFillOverlay(
             filledComposite: filledImage,
             templateCGImage: templateCGImage,
             existingFillImage: request.existingFillImage
-        )
-        return fillOverlay.pngData()
+        ), !FillRasterCancellation.isCancelled()
+        else {
+            return nil
+        }
+
+        let fillData = fillOverlay.pngData()
+        guard !FillRasterCancellation.isCancelled() else {
+            return nil
+        }
+        return fillData
     }
 
     private nonisolated static func normalizedCanvasSize(for size: CGSize) -> CGSize {
@@ -109,7 +127,11 @@ enum FillOverlayRenderer {
         filledComposite: CGImage,
         templateCGImage: CGImage,
         existingFillImage: UIImage?
-    ) -> UIImage {
+    ) -> UIImage? {
+        guard !FillRasterCancellation.isCancelled() else {
+            return nil
+        }
+
         let width = templateCGImage.width
         let height = templateCGImage.height
         let size = CGSize(width: width, height: height)
@@ -156,8 +178,15 @@ enum FillOverlayRenderer {
         }
 
         let overlayPixels = overlayData.bindMemory(to: UInt8.self, capacity: totalBytes)
+        let cancellationCheckInterval = max(bytesPerRow * 16, bytesPerPixel)
 
         for index in stride(from: 0, to: totalBytes, by: bytesPerPixel) {
+            if index.isMultiple(of: cancellationCheckInterval),
+               FillRasterCancellation.isCancelled()
+            {
+                return nil
+            }
+
             let templateR = templatePixels[index]
             let templateG = templatePixels[index + 1]
             let templateB = templatePixels[index + 2]
@@ -191,6 +220,10 @@ struct FloodFillService: FloodFillProviding {
         with color: UIColor,
         tolerance: Int
     ) -> CGImage? {
+        guard !FillRasterCancellation.isCancelled() else {
+            return nil
+        }
+
         let width = image.width
         let height = image.height
         guard width > 0, height > 0 else {
@@ -226,7 +259,9 @@ struct FloodFillService: FloodFillProviding {
 
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        guard let data = context.data else {
+        guard !FillRasterCancellation.isCancelled(),
+              let data = context.data
+        else {
             return nil
         }
 
@@ -256,6 +291,10 @@ struct FloodFillService: FloodFillProviding {
         var visited = [Bool](repeating: false, count: width * height)
 
         while let (seedX, seedY) = stack.popLast() {
+            guard !FillRasterCancellation.isCancelled() else {
+                return nil
+            }
+
             let visitIndex = seedY * width + seedX
             guard !visited[visitIndex] else {
                 continue
@@ -290,6 +329,12 @@ struct FloodFillService: FloodFillProviding {
             var belowAdded = false
 
             while x < width {
+                if x.isMultiple(of: 256),
+                   FillRasterCancellation.isCancelled()
+                {
+                    return nil
+                }
+
                 let pixIndex = (seedY * bytesPerRow) + (x * bytesPerPixel)
                 guard colorsMatch(
                     pixels[pixIndex], pixels[pixIndex + 1],
@@ -348,6 +393,9 @@ struct FloodFillService: FloodFillProviding {
             }
         }
 
+        guard !FillRasterCancellation.isCancelled() else {
+            return nil
+        }
         return context.makeImage()
     }
 
@@ -405,5 +453,13 @@ struct FloodFillService: FloodFillProviding {
         g = 0
         b = 0
         a = 255
+    }
+}
+
+private enum FillRasterCancellation {
+    nonisolated static func isCancelled() -> Bool {
+        withUnsafeCurrentTask { task in
+            task?.isCancelled ?? false
+        }
     }
 }

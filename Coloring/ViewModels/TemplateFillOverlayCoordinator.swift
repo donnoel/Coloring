@@ -11,6 +11,7 @@ final class TemplateFillOverlayCoordinator {
 
     private var task: Task<Void, Never>?
     private var operationID = 0
+    private let rasterWorker = TemplateFillRasterWorker()
 
     func cancel() {
         task?.cancel()
@@ -40,12 +41,10 @@ final class TemplateFillOverlayCoordinator {
                 }
             }
 
-            let nextFillData = await Task.detached(priority: .userInitiated) {
-                FillOverlayRenderer.makeFillOverlayData(
-                    request: request,
-                    floodFillService: floodFillService
-                )
-            }.value
+            let nextFillData = await self.rasterWorker.makeFillOverlayData(
+                request: request,
+                floodFillService: floodFillService
+            )
 
             guard !Task.isCancelled,
                   self.operationID == operationID,
@@ -63,5 +62,21 @@ final class TemplateFillOverlayCoordinator {
                 )
             )
         }
+    }
+}
+
+private actor TemplateFillRasterWorker {
+    func makeFillOverlayData(
+        request: FillOverlayRequest,
+        floodFillService: any FloodFillProviding
+    ) -> Data? {
+        guard !Task.isCancelled else {
+            return nil
+        }
+
+        return FillOverlayRenderer.makeFillOverlayData(
+            request: request,
+            floodFillService: floodFillService
+        )
     }
 }
