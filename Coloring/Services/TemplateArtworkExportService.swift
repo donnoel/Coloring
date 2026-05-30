@@ -60,39 +60,48 @@ actor TemplateArtworkExportService: TemplateArtworkExporting {
         templateID: String
     ) async throws -> URL {
         let pngData = try await MainActor.run {
-            guard let templateImage = UIImage(data: templateData) else {
+            guard let templateImage = UIImage(data: templateData)?.stableDisplayImage() else {
                 throw ExportError.invalidTemplate
             }
 
             let fillImage: UIImage? = if let fillLayerData {
-                UIImage(data: fillLayerData)
+                UIImage(data: fillLayerData)?.stableDisplayImage()
             } else {
                 nil
             }
 
             let canvasRect = CGRect(origin: .zero, size: canvasSize)
-            let renderer = UIGraphicsImageRenderer(size: canvasSize)
+            let exportTraitCollection = UITraitCollection(userInterfaceStyle: .light)
+            let format = UIGraphicsImageRendererFormat.default()
+            format.opaque = true
+            let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
 
-            return renderer.pngData { context in
-                UIColor.white.setFill()
-                context.fill(canvasRect)
+            var renderedData = Data()
+            exportTraitCollection.performAsCurrent {
+                renderedData = renderer.pngData { context in
+                    UIColor.white.setFill()
+                    context.fill(canvasRect)
 
-                templateImage.draw(in: canvasRect)
+                    templateImage.draw(in: canvasRect)
 
-                if let fillImage {
-                    fillImage.draw(in: canvasRect)
-                }
+                    if let fillImage {
+                        fillImage.draw(in: canvasRect)
+                    }
 
-                // Use pre-composited layers image if available, otherwise fall back to single drawing.
-                if let compositedLayersImageData,
-                   let layersImage = UIImage(data: compositedLayersImageData)
-                {
-                    layersImage.draw(in: canvasRect)
-                } else if let drawing = try? PKDrawing(data: drawingData) {
-                    let drawingImage = drawing.image(from: canvasRect, scale: 2.0)
-                    drawingImage.draw(in: canvasRect)
+                    // Use pre-composited layers image if available, otherwise fall back to single drawing.
+                    if let compositedLayersImageData,
+                       let layersImage = UIImage(data: compositedLayersImageData)?.stableDisplayImage()
+                    {
+                        layersImage.draw(in: canvasRect)
+                    } else if let drawing = try? PKDrawing(data: drawingData) {
+                        let normalizedDrawing = drawing.stableColorDrawing(using: exportTraitCollection)
+                        let drawingImage = normalizedDrawing.image(from: canvasRect, scale: 2.0)
+                        drawingImage.stableDisplayImage().draw(in: canvasRect)
+                    }
                 }
             }
+
+            return renderedData
         }
 
         guard !pngData.isEmpty else {

@@ -176,7 +176,7 @@ private actor GalleryImageLoader {
         guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else {
             return nil
         }
-        return UIImage(data: data)
+        return UIImage(data: data)?.stableDisplayImage()
     }
 }
 

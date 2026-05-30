@@ -3599,6 +3599,38 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(signature, [137, 80, 78, 71, 13, 10, 26, 10])
     }
 
+    func testTemplateArtworkExportServiceWritesOpaqueWhiteBackedPNG() async throws {
+        let service = TemplateArtworkExportService()
+        let templateData = await MainActor.run {
+            transparentTemplateImageData(size: CGSize(width: 10, height: 10))
+        }
+
+        let exportedURL = try await service.exportPNG(
+            templateData: templateData,
+            drawingData: Data(),
+            fillLayerData: nil,
+            compositedLayersImageData: nil,
+            canvasSize: CGSize(width: 10, height: 10),
+            templateID: "opaque-export-test"
+        )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: exportedURL)
+        }
+
+        let exportedData = try Data(contentsOf: exportedURL)
+        let signature = await MainActor.run { imageSignature(from: exportedData) }
+
+        guard let signature, signature.count == 4 else {
+            XCTFail("Expected exported image signature.")
+            return
+        }
+
+        XCTAssertEqual(signature[3], 255)
+        XCTAssertGreaterThanOrEqual(signature[0], 240)
+        XCTAssertGreaterThanOrEqual(signature[1], 240)
+        XCTAssertGreaterThanOrEqual(signature[2], 240)
+    }
+
     func testPencilCanvasCoordinatorPreventsStaleDrawingReapplyDuringLocalSync() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
