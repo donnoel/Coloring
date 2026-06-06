@@ -336,13 +336,13 @@ struct PencilCanvasView: UIViewRepresentable {
                 return currentCanvasDrawing != externalDrawing
             }
 
-            if currentCanvasDrawing == externalDrawing {
-                return false
-            }
-
             let externalData = externalDrawing.dataRepresentation()
             if let latestLocalDrawingData, latestLocalDrawingData == externalData {
                 clearPendingLocalDrawingSync()
+                return false
+            }
+
+            if currentCanvasDrawing == externalDrawing {
                 return false
             }
 

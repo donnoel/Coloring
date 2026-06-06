@@ -9,10 +9,20 @@ import XCTest
 @testable import Coloring
 
 final class ColoringTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: "lastSelectedTemplateID")
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "lastSelectedTemplateID")
+        super.tearDown()
+    }
+
     func testTemplateLoadSelectsFirstTemplate() async {
         let library = StubTemplateLibrary(templates: [
-            Self.makeTemplate(id: "builtin-1", title: "Template One"),
-            Self.makeTemplate(id: "builtin-2", title: "Template Two")
+            Self.makeTemplate(id: "template-load-first", title: "Template One"),
+            Self.makeTemplate(id: "template-load-second", title: "Template Two")
         ])
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
@@ -30,7 +40,7 @@ final class ColoringTests: XCTestCase {
         await viewModel.loadTemplatesIfNeeded()
 
         await MainActor.run {
-            XCTAssertEqual(viewModel.selectedTemplateID, "builtin-1")
+            XCTAssertEqual(viewModel.selectedTemplateID, "template-load-first")
             XCTAssertEqual(viewModel.selectedTemplate?.title, "Template One")
             XCTAssertNotNil(viewModel.selectedTemplateImage)
         }
@@ -63,8 +73,8 @@ final class ColoringTests: XCTestCase {
     }
 
     func testTemplateSelectionSwitchesDisplayedImageForSameSizedTemplates() async {
-        let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
-        let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
+        let firstTemplate = Self.makeTemplate(id: "image-switch-first", title: "Template One")
+        let secondTemplate = Self.makeTemplate(id: "image-switch-second", title: "Template Two")
         let firstImageData = await MainActor.run { solidColorTemplateImageData(.red) }
         let secondImageData = await MainActor.run { solidColorTemplateImageData(.blue) }
         let firstImageSignature = await MainActor.run { imageSignature(from: firstImageData) }
