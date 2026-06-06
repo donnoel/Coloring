@@ -1208,6 +1208,28 @@ final class ColoringTests: XCTestCase {
         XCTAssertLessThan(progress, 0.4)
     }
 
+    func testProgressEstimatorNormalizesColoringPageCoverage() async throws {
+        let estimator = TemplateProgressEstimator()
+        let fillData = await MainActor.run {
+            partialTemplateImageData(
+                UIColor.systemTeal,
+                size: CGSize(width: 32, height: 32),
+                fillFraction: 0.22
+            )
+        }
+
+        let estimatedProgress = await estimator.estimateProgress(
+            layerStack: nil,
+            fallbackDrawingData: nil,
+            fillData: fillData,
+            canvasSize: CGSize(width: 32, height: 32)
+        )
+        let progress = try XCTUnwrap(estimatedProgress)
+
+        XCTAssertGreaterThan(progress, 0.7)
+        XCTAssertLessThan(progress, 0.9)
+    }
+
     func testProgressSnapshotStorePersistsAndRestoresSnapshots() async throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("progress-snapshots-\(UUID().uuidString)", isDirectory: true)
@@ -4468,6 +4490,31 @@ final class ColoringTests: XCTestCase {
         let image = renderer.image { context in
             color.setFill()
             context.fill(CGRect(origin: .zero, size: imageSize))
+        }
+        return image.pngData() ?? sampleTemplateImageData
+    }
+
+    @MainActor
+    private func partialTemplateImageData(
+        _ color: UIColor,
+        size imageSize: CGSize,
+        fillFraction: CGFloat
+    ) -> Data {
+        let clampedFraction = min(max(fillFraction, 0), 1)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
+        let image = renderer.image { context in
+            UIColor.clear.setFill()
+            context.fill(CGRect(origin: .zero, size: imageSize))
+
+            color.setFill()
+            context.fill(CGRect(
+                x: 0,
+                y: 0,
+                width: imageSize.width * clampedFraction,
+                height: imageSize.height
+            ))
         }
         return image.pngData() ?? sampleTemplateImageData
     }

@@ -6,6 +6,8 @@ import UIKit
 actor TemplateProgressEstimator {
     private static let sampleSize = CGSize(width: 32, height: 32)
     private static let maxEstimatedProgress = 0.99
+    // Coloring pages often have large paper/background areas that should not make finished work look barely started.
+    private static let expectedCompleteVisibleCoverage = 0.28
 
     func estimateProgress(
         layerStack: LayerStack?,
@@ -23,7 +25,7 @@ actor TemplateProgressEstimator {
             return nil
         }
 
-        let weightedCoverage = Self.weightedCoverage(
+        let weightedCoverage = Self.weightedProgress(
             layerStack: layerStack,
             fallbackDrawingData: fallbackDrawingData,
             fillData: fillData,
@@ -51,7 +53,7 @@ actor TemplateProgressEstimator {
         return TemplateColoringPersistenceInspector.drawingDataContainsVisibleStrokes(fallbackDrawingData)
     }
 
-    private static func weightedCoverage(
+    private static func weightedProgress(
         layerStack: LayerStack?,
         fallbackDrawingData: Data?,
         fillData: Data?,
@@ -98,21 +100,26 @@ actor TemplateProgressEstimator {
             return 0
         }
 
+        var visiblePixelCount = 0
         var weightedAlpha = 0.0
         for y in 0..<cgImage.height {
             for x in 0..<cgImage.width {
                 let offset = (y * cgImage.bytesPerRow) + (x * bytesPerPixel)
                 let alpha = bytes[offset + 3]
                 if alpha > 0 {
+                    visiblePixelCount += 1
                     weightedAlpha += Double(alpha) / 255
                 }
             }
         }
 
         let totalSampleCount = cgImage.width * cgImage.height
-        guard totalSampleCount > 0 else {
+        guard totalSampleCount > 0, visiblePixelCount > 0 else {
             return 0
         }
-        return weightedAlpha / Double(totalSampleCount)
+        let visibleCoverage = Double(visiblePixelCount) / Double(totalSampleCount)
+        let averageVisibleAlpha = weightedAlpha / Double(visiblePixelCount)
+        let normalizedCoverage = min(visibleCoverage / Self.expectedCompleteVisibleCoverage, 1)
+        return normalizedCoverage * averageVisibleAlpha
     }
 }
