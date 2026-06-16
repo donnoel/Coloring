@@ -750,6 +750,40 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testCanvasDrawingUpdatesAdvanceSyncTokenForSubsequentToolbarUndo() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+
+        await MainActor.run {
+            let initialSyncToken = viewModel.drawingSyncToken
+
+            viewModel.updateDrawing(sampleDrawing)
+
+            XCTAssertEqual(viewModel.currentDrawing, sampleDrawing)
+            XCTAssertGreaterThan(viewModel.drawingSyncToken, initialSyncToken)
+            let drawingSyncToken = viewModel.drawingSyncToken
+
+            viewModel.undoLastEdit()
+
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+            XCTAssertGreaterThan(viewModel.drawingSyncToken, drawingSyncToken)
+        }
+    }
+
     func testUndoRemainsSingleStepWhenStrokeEndCallbackIsMissedAcrossStrokes() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let viewModel = await MainActor.run {

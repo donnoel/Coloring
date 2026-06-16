@@ -377,7 +377,7 @@ final class TemplateStudioViewModel: ObservableObject {
         let previousStrokeCount = currentDrawing.strokes.count
         let shouldRecordImmediately = !editHistoryStore.hasPendingStroke(for: templateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
-        currentDrawing = drawing
+        setCurrentDrawingFromModel(drawing)
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
