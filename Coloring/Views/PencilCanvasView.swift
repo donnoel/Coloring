@@ -1,6 +1,47 @@
+import Combine
 import PencilKit
 import SwiftUI
 import UIKit
+
+@MainActor
+final class PencilCanvasUndoBridge: ObservableObject {
+    @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
+
+    private var undoHandler: (() -> Bool)?
+    private var redoHandler: (() -> Bool)?
+
+    func performUndo() -> Bool {
+        undoHandler?() ?? false
+    }
+
+    func performRedo() -> Bool {
+        redoHandler?() ?? false
+    }
+
+    fileprivate func connect(
+        undoHandler: @escaping () -> Bool,
+        redoHandler: @escaping () -> Bool
+    ) {
+        self.undoHandler = undoHandler
+        self.redoHandler = redoHandler
+    }
+
+    fileprivate func updateAvailability(canUndo: Bool, canRedo: Bool) {
+        if self.canUndo != canUndo {
+            self.canUndo = canUndo
+        }
+        if self.canRedo != canRedo {
+            self.canRedo = canRedo
+        }
+    }
+
+    fileprivate func disconnect() {
+        undoHandler = nil
+        redoHandler = nil
+        updateAvailability(canUndo: false, canRedo: false)
+    }
+}
 
 struct PencilCanvasView: UIViewRepresentable {
     let templateImage: UIImage
@@ -8,6 +49,8 @@ struct PencilCanvasView: UIViewRepresentable {
     @Binding var drawing: PKDrawing
     var drawingSyncToken: Int = 0
     var onDrawingChanged: ((PKDrawing) -> Void)?
+    var onPencilKitUndoDrawingChanged: ((PKDrawing) -> Void)?
+    var onPencilKitRedoDrawingChanged: ((PKDrawing) -> Void)?
     var onStrokeInteractionChanged: ((Bool) -> Void)?
     var fillMode: Bool = false
     var fillImage: UIImage?
@@ -23,6 +66,7 @@ struct PencilCanvasView: UIViewRepresentable {
     var activeColorOverrideRevision: Int = 0
     var activationToken: Int = 0
     var isToolPickerSuppressed: Bool = false
+    var undoBridge: PencilCanvasUndoBridge?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -39,6 +83,7 @@ struct PencilCanvasView: UIViewRepresentable {
         containerView.scrollView.delegate = context.coordinator
 
         context.coordinator.connect(to: canvasView, containerView: containerView)
+        context.coordinator.updateUndoBridge(undoBridge)
         context.coordinator.updateToolPickerSuppression(isToolPickerSuppressed, on: canvasView)
         containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
         context.coordinator.lastTemplateID = templateID
@@ -60,6 +105,7 @@ struct PencilCanvasView: UIViewRepresentable {
         let prefersPencilOnly = UIPencilInteraction.prefersPencilOnlyDrawing
         canvasView.drawingPolicy = prefersPencilOnly ? .pencilOnly : .anyInput
         uiView.scrollView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
+        context.coordinator.updateUndoBridge(undoBridge)
 
         let shouldResetZoom = context.coordinator.lastTemplateID != templateID
         if shouldResetZoom {
@@ -116,6 +162,7 @@ struct PencilCanvasView: UIViewRepresentable {
         var parent: PencilCanvasView
         private weak var canvasView: PKCanvasView?
         private weak var containerView: ZoomableCanvasContainerView?
+        private weak var undoBridge: PencilCanvasUndoBridge?
         private var toolPicker: PKToolPicker?
         private var pencilInteraction: UIPencilInteraction?
         private var isToolPickerSuppressed = false
@@ -205,9 +252,30 @@ struct PencilCanvasView: UIViewRepresentable {
             lastFillModeState = nil
             isToolPickerSuppressed = false
             lastActivationToken = 0
+            undoBridge?.disconnect()
+            undoBridge = nil
             self.canvasView = nil
             containerView?.appearanceDidChangeHandler = nil
             containerView = nil
+        }
+
+        func updateUndoBridge(_ bridge: PencilCanvasUndoBridge?) {
+            guard undoBridge !== bridge else {
+                refreshUndoAvailability()
+                return
+            }
+
+            undoBridge?.disconnect()
+            undoBridge = bridge
+            bridge?.connect(
+                undoHandler: { [weak self] in
+                    self?.performUndo() ?? false
+                },
+                redoHandler: { [weak self] in
+                    self?.performRedo() ?? false
+                }
+            )
+            refreshUndoAvailability()
         }
 
         func updateToolPickerSuppression(_ isSuppressed: Bool, on canvasView: PKCanvasView) {
@@ -357,6 +425,7 @@ struct PencilCanvasView: UIViewRepresentable {
             isApplyingExternalDrawing = true
             canvasView.drawing = drawing
             isApplyingExternalDrawing = false
+            refreshUndoAvailability()
         }
 
         private func markLocalDrawingChanged(_ drawingData: Data) {
@@ -378,6 +447,40 @@ struct PencilCanvasView: UIViewRepresentable {
             hasPendingLocalDrawingSync = false
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
+        }
+
+        private func performUndo() -> Bool {
+            guard let undoManager = canvasView?.undoManager,
+                  undoManager.canUndo
+            else {
+                refreshUndoAvailability()
+                return false
+            }
+
+            undoManager.undo()
+            refreshUndoAvailability()
+            return true
+        }
+
+        private func performRedo() -> Bool {
+            guard let undoManager = canvasView?.undoManager,
+                  undoManager.canRedo
+            else {
+                refreshUndoAvailability()
+                return false
+            }
+
+            undoManager.redo()
+            refreshUndoAvailability()
+            return true
+        }
+
+        private func refreshUndoAvailability() {
+            let undoManager = canvasView?.undoManager
+            undoBridge?.updateAvailability(
+                canUndo: undoManager?.canUndo ?? false,
+                canRedo: undoManager?.canRedo ?? false
+            )
         }
 
         private func handleAppearanceChange(previousTraitCollection _: UITraitCollection?) {
@@ -575,10 +678,20 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             markLocalDrawingChanged(updatedDrawingData)
-            if let onDrawingChanged = parent.onDrawingChanged {
+            if canvasView.undoManager?.isUndoing == true,
+               let onPencilKitUndoDrawingChanged = parent.onPencilKitUndoDrawingChanged {
+                onPencilKitUndoDrawingChanged(updatedDrawing)
+            } else if canvasView.undoManager?.isRedoing == true,
+                      let onPencilKitRedoDrawingChanged = parent.onPencilKitRedoDrawingChanged {
+                onPencilKitRedoDrawingChanged(updatedDrawing)
+            } else if let onDrawingChanged = parent.onDrawingChanged {
                 onDrawingChanged(updatedDrawing)
             } else {
                 parent.drawing = updatedDrawing
+            }
+            refreshUndoAvailability()
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshUndoAvailability()
             }
         }
 
@@ -588,6 +701,9 @@ struct PencilCanvasView: UIViewRepresentable {
                 parent.onStrokeInteractionChanged?(true)
             case .ended, .cancelled, .failed:
                 parent.onStrokeInteractionChanged?(false)
+                DispatchQueue.main.async { [weak self] in
+                    self?.refreshUndoAvailability()
+                }
             default:
                 break
             }

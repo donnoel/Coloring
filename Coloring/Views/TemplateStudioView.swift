@@ -32,6 +32,7 @@ struct TemplateStudioView: View {
     @State private var isPaletteVisible = true
     @State private var paletteAutoShowTask: Task<Void, Never>?
     @State private var pencilKitActivationToken = 0
+    @StateObject private var canvasUndoBridge = PencilCanvasUndoBridge()
     @SceneStorage("templateStudio.sidebarWidth") private var storedSidebarWidth: Double = Self.defaultSidebarWidth
     @State private var liveSidebarWidth: Double = Self.defaultSidebarWidth
     @SceneStorage("templateStudio.paletteAnchorX") private var paletteAnchorX: Double = Self.defaultPaletteAnchor.x
@@ -547,6 +548,12 @@ struct TemplateStudioView: View {
                 onDrawingChanged: { drawing in
                     viewModel.updateDrawing(drawing)
                 },
+                onPencilKitUndoDrawingChanged: { drawing in
+                    viewModel.updateDrawingAfterPencilKitUndo(drawing)
+                },
+                onPencilKitRedoDrawingChanged: { drawing in
+                    viewModel.updateDrawingAfterPencilKitRedo(drawing)
+                },
                 onStrokeInteractionChanged: { isActive in
                     handleStrokeInteractionChanged(isActive)
                 },
@@ -567,7 +574,8 @@ struct TemplateStudioView: View {
                 activeColorOverride: viewModel.appliedRecentColor,
                 activeColorOverrideRevision: viewModel.appliedRecentColorRevision,
                 activationToken: pencilKitActivationToken,
-                isToolPickerSuppressed: isToolPickerSuppressed
+                isToolPickerSuppressed: isToolPickerSuppressed,
+                undoBridge: canvasUndoBridge
             )
             .accessibilityIdentifier("studio.canvas")
 
@@ -598,8 +606,8 @@ struct TemplateStudioView: View {
     private var paletteBar: some View {
         TemplatePaletteBarView(
             isFillModeActive: $viewModel.isFillModeActive,
-            canUndo: viewModel.canUndoEdit,
-            canRedo: viewModel.canRedoEdit,
+            canUndo: canPaletteUndo,
+            canRedo: canPaletteRedo,
             recentColors: viewModel.recentColors,
             activeColorToken: viewModel.activeColorToken,
             isLibraryVisible: columnVisibility != .detailOnly,
@@ -608,13 +616,43 @@ struct TemplateStudioView: View {
                     columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
                 }
             },
-            onUndo: { viewModel.undoLastEdit() },
-            onRedo: { viewModel.redoLastEdit() },
+            onUndo: {
+                performPaletteUndo()
+            },
+            onRedo: {
+                performPaletteRedo()
+            },
             onSelectRecentColor: { token in
                 viewModel.applyRecentColor(token)
             }
         )
         .padding(.horizontal, 20)
+    }
+
+    private var canPaletteUndo: Bool {
+        viewModel.canUndoAppManagedEdit
+            || (viewModel.shouldRouteUndoToPencilKit && canvasUndoBridge.canUndo)
+    }
+
+    private var canPaletteRedo: Bool {
+        viewModel.canRedoAppManagedEdit
+            || (viewModel.shouldRouteRedoToPencilKit && canvasUndoBridge.canRedo)
+    }
+
+    private func performPaletteUndo() {
+        if viewModel.shouldRouteUndoToPencilKit {
+            _ = canvasUndoBridge.performUndo()
+        } else if viewModel.canUndoAppManagedEdit {
+            viewModel.undoLastEdit()
+        }
+    }
+
+    private func performPaletteRedo() {
+        if viewModel.shouldRouteRedoToPencilKit {
+            _ = canvasUndoBridge.performRedo()
+        } else if viewModel.canRedoAppManagedEdit {
+            viewModel.redoLastEdit()
+        }
     }
 
     private var sidebarBackground: some View {

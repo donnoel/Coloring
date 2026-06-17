@@ -1,9 +1,19 @@
 import Foundation
 
+enum TemplateEditChangeKind {
+    case snapshot
+    case canvasStroke
+}
+
 final class TemplateEditHistoryStore<Snapshot: Equatable> {
+    private struct Entry {
+        let snapshot: Snapshot
+        let kind: TemplateEditChangeKind
+    }
+
     private struct History {
-        var undo: [Snapshot] = []
-        var redo: [Snapshot] = []
+        var undo: [Entry] = []
+        var redo: [Entry] = []
     }
 
     private var histories: [String: History] = [:]
@@ -60,11 +70,21 @@ final class TemplateEditHistoryStore<Snapshot: Equatable> {
             return false
         }
 
-        return recordChange(from: pendingSnapshot, for: templateID, currentSnapshot: currentSnapshot)
+        return recordChange(
+            from: pendingSnapshot,
+            for: templateID,
+            currentSnapshot: currentSnapshot,
+            kind: .canvasStroke
+        )
     }
 
     @discardableResult
-    func recordChange(from previousSnapshot: Snapshot?, for templateID: String, currentSnapshot: Snapshot?) -> Bool {
+    func recordChange(
+        from previousSnapshot: Snapshot?,
+        for templateID: String,
+        currentSnapshot: Snapshot?,
+        kind: TemplateEditChangeKind = .snapshot
+    ) -> Bool {
         guard !templateID.isEmpty,
               let previousSnapshot,
               let currentSnapshot,
@@ -74,7 +94,7 @@ final class TemplateEditHistoryStore<Snapshot: Equatable> {
         }
 
         var history = histories[templateID] ?? History()
-        history.undo.append(previousSnapshot)
+        history.undo.append(Entry(snapshot: previousSnapshot, kind: kind))
         if history.undo.count > maxSteps {
             history.undo.removeFirst(history.undo.count - maxSteps)
         }
@@ -86,29 +106,37 @@ final class TemplateEditHistoryStore<Snapshot: Equatable> {
     func undo(for templateID: String, currentSnapshot: Snapshot?) -> Snapshot? {
         guard !templateID.isEmpty,
               var history = histories[templateID],
-              let previousSnapshot = history.undo.popLast(),
+              let previousEntry = history.undo.popLast(),
               let currentSnapshot
         else {
             return nil
         }
 
-        history.redo.append(currentSnapshot)
+        history.redo.append(Entry(snapshot: currentSnapshot, kind: previousEntry.kind))
         histories[templateID] = history
-        return previousSnapshot
+        return previousEntry.snapshot
     }
 
     func redo(for templateID: String, currentSnapshot: Snapshot?) -> Snapshot? {
         guard !templateID.isEmpty,
               var history = histories[templateID],
-              let nextSnapshot = history.redo.popLast(),
+              let nextEntry = history.redo.popLast(),
               let currentSnapshot
         else {
             return nil
         }
 
-        history.undo.append(currentSnapshot)
+        history.undo.append(Entry(snapshot: currentSnapshot, kind: nextEntry.kind))
         histories[templateID] = history
-        return nextSnapshot
+        return nextEntry.snapshot
+    }
+
+    func nextUndoKind(for templateID: String) -> TemplateEditChangeKind? {
+        histories[templateID]?.undo.last?.kind
+    }
+
+    func nextRedoKind(for templateID: String) -> TemplateEditChangeKind? {
+        histories[templateID]?.redo.last?.kind
     }
 
     func canUndo(for templateID: String) -> Bool {

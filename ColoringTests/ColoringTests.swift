@@ -750,6 +750,76 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPaletteStrokeHistoryUsesPencilKitUndoRedoPath() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run { Self.makeTemplateStudioViewModel(templates: [template]) }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.updateStrokeInteraction(isActive: false)
+
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canUndoAppManagedEdit)
+            XCTAssertTrue(viewModel.shouldRouteUndoToPencilKit)
+
+            viewModel.updateDrawingAfterPencilKitUndo(PKDrawing())
+
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+            XCTAssertFalse(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.canRedoEdit)
+            XCTAssertFalse(viewModel.canRedoAppManagedEdit)
+            XCTAssertTrue(viewModel.shouldRouteRedoToPencilKit)
+
+            viewModel.updateDrawingAfterPencilKitRedo(sampleDrawing)
+
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, sampleDrawing.strokes.count)
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.shouldRouteUndoToPencilKit)
+            XCTAssertFalse(viewModel.canRedoEdit)
+        }
+    }
+
+    func testPaletteUndoRemainsEnabledForAppSnapshotHistory() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run { Self.makeTemplateStudioViewModel(templates: [template]) }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            viewModel.addLayer()
+
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.canUndoAppManagedEdit)
+        }
+    }
+
+    func testPaletteStrokeHistoryUsesPencilKitAfterSnapshotHistory() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run { Self.makeTemplateStudioViewModel(templates: [template]) }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+
+        await MainActor.run {
+            viewModel.addLayer()
+
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertTrue(viewModel.canUndoAppManagedEdit)
+
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.updateStrokeInteraction(isActive: false)
+
+            XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canUndoAppManagedEdit)
+            XCTAssertTrue(viewModel.shouldRouteUndoToPencilKit)
+        }
+    }
+
     func testUndoRemainsSingleStepWhenStrokeEndCallbackIsMissedAcrossStrokes() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let viewModel = await MainActor.run {
@@ -4044,6 +4114,8 @@ final class ColoringTests: XCTestCase {
             coordinator.canvasViewDrawingDidChange(canvasView)
 
             XCTAssertTrue(viewModel.canUndoEdit)
+            XCTAssertFalse(viewModel.canUndoAppManagedEdit)
+            XCTAssertTrue(viewModel.shouldRouteUndoToPencilKit)
 
             viewModel.undoLastEdit()
 

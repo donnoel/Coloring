@@ -9,6 +9,11 @@ final class TemplateStudioViewModel: ObservableObject {
         static let lastSelectedTemplateID = "lastSelectedTemplateID"
     }
 
+    private enum PencilKitHistoryOperation {
+        case undo
+        case redo
+    }
+
     @Published private(set) var templates: [ColoringTemplate] = []
     @Published var selectedTemplateID: String = ""
     @Published var currentDrawing: PKDrawing
@@ -48,6 +53,8 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var appliedRecentColorRevision: Int = 0
     @Published private(set) var canUndoEdit: Bool = false
     @Published private(set) var canRedoEdit: Bool = false
+    @Published private(set) var canUndoAppManagedEdit: Bool = false
+    @Published private(set) var canRedoAppManagedEdit: Bool = false
 
     // Category state
     @Published var searchText: String = ""
@@ -188,6 +195,14 @@ final class TemplateStudioViewModel: ObservableObject {
 
     var selectedTemplateAspectRatio: CGFloat {
         TemplateStudioDrawingExportSupport.selectedTemplateAspectRatio(for: selectedTemplateImage)
+    }
+
+    var shouldRouteUndoToPencilKit: Bool {
+        canUndoEdit && editHistoryStore.nextUndoKind(for: selectedTemplateID) == .canvasStroke
+    }
+
+    var shouldRouteRedoToPencilKit: Bool {
+        canRedoEdit && editHistoryStore.nextRedoKind(for: selectedTemplateID) == .canvasStroke
     }
 
     private func isShowingLiveImage(for templateID: String) -> Bool {
@@ -356,6 +371,18 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func updateDrawing(_ drawing: PKDrawing) {
+        updateDrawing(drawing, pencilKitHistoryOperation: nil)
+    }
+
+    func updateDrawingAfterPencilKitUndo(_ drawing: PKDrawing) {
+        updateDrawing(drawing, pencilKitHistoryOperation: .undo)
+    }
+
+    func updateDrawingAfterPencilKitRedo(_ drawing: PKDrawing) {
+        updateDrawing(drawing, pencilKitHistoryOperation: .redo)
+    }
+
+    private func updateDrawing(_ drawing: PKDrawing, pencilKitHistoryOperation: PencilKitHistoryOperation?) {
         guard !selectedTemplateID.isEmpty else {
             return
         }
@@ -364,7 +391,8 @@ final class TemplateStudioViewModel: ObservableObject {
         // Fallback boundary detection: if a stroke-end callback is missed, a new
         // stroke still increases the stroke count. Split pending history at that
         // boundary so undo remains one stroke at a time.
-        if TemplateStrokeBoundaryResolver.shouldSplitPendingStroke(
+        if pencilKitHistoryOperation == nil,
+           TemplateStrokeBoundaryResolver.shouldSplitPendingStroke(
             hasPendingStroke: editHistoryStore.hasPendingStroke(for: templateID),
             previousStrokeCount: currentDrawing.strokes.count,
             updatedStrokeCount: drawing.strokes.count
@@ -375,15 +403,22 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         let previousStrokeCount = currentDrawing.strokes.count
-        let shouldRecordImmediately = !editHistoryStore.hasPendingStroke(for: templateID)
+        let shouldRecordImmediately = pencilKitHistoryOperation == nil
+            && !editHistoryStore.hasPendingStroke(for: templateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
         recordUsedStrokeColorIfNeeded(from: drawing, previousStrokeCount: previousStrokeCount)
-        if shouldRecordImmediately {
-            recordEditChange(from: previousSnapshot, for: selectedTemplateID)
+        if let pencilKitHistoryOperation {
+            recordPencilKitHistoryOperation(
+                pencilKitHistoryOperation,
+                from: previousSnapshot,
+                for: selectedTemplateID
+            )
+        } else if shouldRecordImmediately {
+            recordEditChange(from: previousSnapshot, for: selectedTemplateID, kind: .canvasStroke)
         }
         refreshInProgressState(for: selectedTemplateID)
         scheduleProgressSnapshotUpdate(for: selectedTemplateID)
@@ -1622,7 +1657,11 @@ final class TemplateStudioViewModel: ObservableObject {
         )
     }
 
-    private func recordEditChange(from previousSnapshot: TemplateEditSnapshot?, for templateID: String) {
+    private func recordEditChange(
+        from previousSnapshot: TemplateEditSnapshot?,
+        for templateID: String,
+        kind: TemplateEditChangeKind = .snapshot
+    ) {
         guard !templateID.isEmpty,
               let previousSnapshot,
               let currentSnapshot = snapshot(for: templateID),
@@ -1634,7 +1673,8 @@ final class TemplateStudioViewModel: ObservableObject {
         if editHistoryStore.recordChange(
             from: previousSnapshot,
             for: templateID,
-            currentSnapshot: currentSnapshot
+            currentSnapshot: currentSnapshot,
+            kind: kind
         ) {
             refreshEditAvailability()
         }
@@ -1656,15 +1696,57 @@ final class TemplateStudioViewModel: ObservableObject {
         }
     }
 
+    private func recordPencilKitHistoryOperation(
+        _ operation: PencilKitHistoryOperation,
+        from previousSnapshot: TemplateEditSnapshot?,
+        for templateID: String
+    ) {
+        let didUpdateHistory: Bool
+        switch operation {
+        case .undo:
+            guard editHistoryStore.nextUndoKind(for: templateID) == .canvasStroke else {
+                return
+            }
+            didUpdateHistory = editHistoryStore.undo(
+                for: templateID,
+                currentSnapshot: previousSnapshot
+            ) != nil
+        case .redo:
+            guard editHistoryStore.nextRedoKind(for: templateID) == .canvasStroke else {
+                return
+            }
+            didUpdateHistory = editHistoryStore.redo(
+                for: templateID,
+                currentSnapshot: previousSnapshot
+            ) != nil
+        }
+
+        if didUpdateHistory {
+            refreshEditAvailability()
+        }
+    }
+
     private func refreshEditAvailability() {
         guard !selectedTemplateID.isEmpty else {
             assignIfChanged(\.canUndoEdit, to: false)
             assignIfChanged(\.canRedoEdit, to: false)
+            assignIfChanged(\.canUndoAppManagedEdit, to: false)
+            assignIfChanged(\.canRedoAppManagedEdit, to: false)
             return
         }
 
-        assignIfChanged(\.canUndoEdit, to: editHistoryStore.canUndo(for: selectedTemplateID))
-        assignIfChanged(\.canRedoEdit, to: editHistoryStore.canRedo(for: selectedTemplateID))
+        let canUndo = editHistoryStore.canUndo(for: selectedTemplateID)
+        let canRedo = editHistoryStore.canRedo(for: selectedTemplateID)
+        assignIfChanged(\.canUndoEdit, to: canUndo)
+        assignIfChanged(\.canRedoEdit, to: canRedo)
+        assignIfChanged(
+            \.canUndoAppManagedEdit,
+            to: canUndo && editHistoryStore.nextUndoKind(for: selectedTemplateID) != .canvasStroke
+        )
+        assignIfChanged(
+            \.canRedoAppManagedEdit,
+            to: canRedo && editHistoryStore.nextRedoKind(for: selectedTemplateID) != .canvasStroke
+        )
     }
 
     private func cachedFillImage(for templateID: String, matching fillData: Data) -> UIImage? {
