@@ -6,6 +6,7 @@ import UIKit
 actor TemplateProgressEstimator {
     private static let sampleSize = CGSize(width: 32, height: 32)
     private static let maxEstimatedProgress = 0.99
+    private static let minimumVisibleAlpha: UInt8 = 8
     // Coloring pages often have large paper/background areas that should not make finished work look barely started.
     private static let expectedCompleteVisibleCoverage = 0.28
 
@@ -25,17 +26,17 @@ actor TemplateProgressEstimator {
             return nil
         }
 
-        let weightedCoverage = Self.weightedProgress(
+        let coverageProgress = Self.coverageProgress(
             layerStack: layerStack,
             fallbackDrawingData: fallbackDrawingData,
             fillData: fillData,
             canvasSize: canvasSize
         )
-        guard weightedCoverage > 0 else {
+        guard coverageProgress > 0 else {
             return 0.01
         }
 
-        return min(max(weightedCoverage, 0.01), Self.maxEstimatedProgress)
+        return min(max(coverageProgress, 0.01), Self.maxEstimatedProgress)
     }
 
     private static func hasVisibleStrokeEdits(
@@ -53,7 +54,7 @@ actor TemplateProgressEstimator {
         return TemplateColoringPersistenceInspector.drawingDataContainsVisibleStrokes(fallbackDrawingData)
     }
 
-    private static func weightedProgress(
+    private static func coverageProgress(
         layerStack: LayerStack?,
         fallbackDrawingData: Data?,
         fillData: Data?,
@@ -101,14 +102,12 @@ actor TemplateProgressEstimator {
         }
 
         var visiblePixelCount = 0
-        var weightedAlpha = 0.0
         for y in 0..<cgImage.height {
             for x in 0..<cgImage.width {
                 let offset = (y * cgImage.bytesPerRow) + (x * bytesPerPixel)
                 let alpha = bytes[offset + 3]
-                if alpha > 0 {
+                if alpha >= Self.minimumVisibleAlpha {
                     visiblePixelCount += 1
-                    weightedAlpha += Double(alpha) / 255
                 }
             }
         }
@@ -118,8 +117,6 @@ actor TemplateProgressEstimator {
             return 0
         }
         let visibleCoverage = Double(visiblePixelCount) / Double(totalSampleCount)
-        let averageVisibleAlpha = weightedAlpha / Double(visiblePixelCount)
-        let normalizedCoverage = min(visibleCoverage / Self.expectedCompleteVisibleCoverage, 1)
-        return normalizedCoverage * averageVisibleAlpha
+        return min(visibleCoverage / Self.expectedCompleteVisibleCoverage, 1)
     }
 }

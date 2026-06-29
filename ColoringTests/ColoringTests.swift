@@ -1267,7 +1267,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertLessThan(progress ?? 1, 1)
     }
 
-    func testProgressEstimatorWeightsTranslucentEditsConservatively() async throws {
+    func testProgressEstimatorCountsTranslucentAreaAsColoredCoverage() async throws {
         let estimator = TemplateProgressEstimator()
         let translucentFillData = await MainActor.run {
             translucentTemplateImageData(
@@ -1284,8 +1284,8 @@ final class ColoringTests: XCTestCase {
         )
         let progress = try XCTUnwrap(estimatedProgress)
 
-        XCTAssertGreaterThan(progress, 0.2)
-        XCTAssertLessThan(progress, 0.4)
+        XCTAssertGreaterThan(progress, 0.95)
+        XCTAssertLessThanOrEqual(progress, 0.99)
     }
 
     func testProgressEstimatorNormalizesColoringPageCoverage() async throws {
@@ -1362,6 +1362,48 @@ final class ColoringTests: XCTestCase {
             XCTAssertEqual(viewModel.displayedProgress(for: editedTemplate.id), 0.36)
             XCTAssertNil(viewModel.displayedProgress(for: untouchedTemplate.id))
         }
+    }
+
+    func testSelectedProgressSnapshotRecomputesPersistedEstimateOnLoad() async throws {
+        let template = Self.makeTemplate(id: "builtin-edited", title: "Edited")
+        let drawingStore = StubTemplateDrawingStore()
+        let progressStore = StubProgressSnapshotStore()
+        let fillData = await MainActor.run {
+            translucentTemplateImageData(
+                UIColor.red.withAlphaComponent(0.25),
+                size: CGSize(width: 32, height: 32)
+            )
+        }
+        try await drawingStore.saveFillData(fillData, for: template.id)
+        try await progressStore.saveSnapshots([
+            template.id: TemplateProgressSnapshot(templateID: template.id, estimatedProgress: 0.2)
+        ])
+
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore(),
+                progressSnapshotStore: progressStore
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+
+        let didRefreshProgress = await waitForCondition {
+            await MainActor.run {
+                (viewModel.displayedProgress(for: template.id) ?? 0) > 0.95
+            }
+        }
+        XCTAssertTrue(didRefreshProgress)
+
+        let snapshots = try await progressStore.loadSnapshots()
+        XCTAssertGreaterThan(snapshots[template.id]?.estimatedProgress ?? 0, 0.95)
     }
 
     func testProgressViewModelUpdatesForEditsClearAndCompletedState() async {
