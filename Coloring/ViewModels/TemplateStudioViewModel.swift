@@ -19,7 +19,6 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published var currentDrawing: PKDrawing
     @Published private(set) var drawingSyncToken: Int = 0
     @Published private(set) var selectedTemplateImage: UIImage?
-    @Published private(set) var restoredArtworkPreviewImage: UIImage?
     @Published private(set) var exportStatusMessage: String?
     @Published private(set) var exportErrorMessage: String?
     @Published private(set) var importStatusMessage: String?
@@ -116,7 +115,6 @@ final class TemplateStudioViewModel: ObservableObject {
     private var cloudRestoreTask: Task<Void, Never>?
     private var debouncedPersistTask: Task<Void, Never>?
     private var fillRestoreOperationID = 0
-    private var restoredArtworkPreviewDismissTask: Task<Void, Never>?
     private let fillOverlayCoordinator = TemplateFillOverlayCoordinator()
     private let fillEraseCoordinator = TemplateFillEraseCoordinator()
     private let progressSnapshotCoordinator = TemplateProgressSnapshotCoordinator()
@@ -322,7 +320,6 @@ final class TemplateStudioViewModel: ObservableObject {
 
             if selectedTemplateID != previousTemplateID {
                 // Only clear when selection changed; preserving same-template image avoids launch flicker.
-                clearRestoredArtworkPreview()
                 selectedTemplateImage = nil
                 loadedTemplateImageID = nil
                 refreshRecentColorsForSelectedTemplate()
@@ -355,7 +352,6 @@ final class TemplateStudioViewModel: ObservableObject {
         persistCurrentFill()
         cancelPendingFillOverlayWork()
         cancelPendingFillRestoreWork()
-        clearRestoredArtworkPreview()
         // Clear before changing the selection so SwiftUI cannot show the previous live canvas for the new ID.
         selectedTemplateImage = nil
         loadedTemplateImageID = nil
@@ -383,7 +379,6 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if isActive {
-            clearRestoredArtworkPreview()
             cancelPendingFillOverlayWork()
             isStrokeInteractionActive = true
             beginPendingStrokeEditChangeIfNeeded(for: selectedTemplateID)
@@ -403,7 +398,6 @@ final class TemplateStudioViewModel: ObservableObject {
                 return
             }
 
-            clearRestoredArtworkPreview()
             cancelPendingFillOverlayWork()
             isFillEraseInteractionActive = true
             hasPendingCombinedFillEraseEdit = true
@@ -507,7 +501,6 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func clearDrawing() {
-        clearRestoredArtworkPreview()
         cancelPendingFillOverlayWork()
         cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
@@ -1100,7 +1093,6 @@ final class TemplateStudioViewModel: ObservableObject {
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         persistCurrentDrawing()
         persistCurrentFill()
-        clearRestoredArtworkPreview()
         selectedTemplateID = ""
         persistLastSelectedTemplateID("")
         selectedTemplateImage = nil
@@ -1121,7 +1113,6 @@ final class TemplateStudioViewModel: ObservableObject {
         else {
             return
         }
-        clearRestoredArtworkPreview()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         let fillColor = color ?? currentBrushTool.color
 
@@ -1161,7 +1152,6 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        clearRestoredArtworkPreview()
         cancelPendingFillRestoreWork()
         cancelPendingFillOverlayWork()
 
@@ -1187,7 +1177,6 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        clearRestoredArtworkPreview()
         cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         cancelPendingFillRestoreWork()
@@ -1203,7 +1192,6 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func undoLastEdit() {
-        clearRestoredArtworkPreview()
         cancelPendingFillOverlayWork()
         cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
@@ -1220,7 +1208,6 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func redoLastEdit() {
-        clearRestoredArtworkPreview()
         cancelPendingFillOverlayWork()
         cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
@@ -1384,7 +1371,6 @@ final class TemplateStudioViewModel: ObservableObject {
         let hasCachedDrawing = restoreCachedDrawingForSelectedTemplate()
         let hasCachedFill = restoreCachedFillForSelectedTemplate()
         if (!hasCachedDrawing || !hasCachedFill) && shouldClearVisibleCanvasBeforePreparing(templateID: templateID) {
-            clearRestoredArtworkPreview()
             selectedTemplateImage = nil
             loadedTemplateImageID = nil
         }
@@ -1413,7 +1399,6 @@ final class TemplateStudioViewModel: ObservableObject {
     private func loadSelectedTemplateImage(for templateID: String) async {
         guard let template = templates.first(where: { $0.id == templateID }) else {
             if selectedTemplateID == templateID {
-                clearRestoredArtworkPreview()
                 selectedTemplateImage = nil
                 loadedTemplateImageID = nil
             }
@@ -1439,20 +1424,17 @@ final class TemplateStudioViewModel: ObservableObject {
         switch loadResult {
         case let .success(image):
             guard let image else {
-                clearRestoredArtworkPreview()
                 selectedTemplateImage = nil
                 loadedTemplateImageID = nil
                 return
             }
 
-            showRestoredArtworkPreviewIfNeeded(for: templateID, templateImage: image)
             selectedTemplateImage = image
             loadedTemplateImageID = templateID
             if let snapshot = progressSnapshotsByTemplateID[templateID] {
                 updateWidgetCurrentArtwork(for: snapshot)
             }
         case let .failure(message):
-            clearRestoredArtworkPreview()
             selectedTemplateImage = nil
             loadedTemplateImageID = nil
             importErrorMessage = message
@@ -1905,46 +1887,6 @@ final class TemplateStudioViewModel: ObservableObject {
         fillStateStore.clearCachedImage(for: templateID)
     }
 
-    private func showRestoredArtworkPreviewIfNeeded(for templateID: String, templateImage: UIImage) {
-        guard !isShowingLiveImage(for: templateID) else {
-            clearRestoredArtworkPreview()
-            return
-        }
-        guard selectedTemplateID == templateID,
-              hasColoring(for: templateID),
-              let previewImage = makeRestoredArtworkPreview(templateImage: templateImage)
-        else {
-            clearRestoredArtworkPreview()
-            return
-        }
-
-        restoredArtworkPreviewDismissTask?.cancel()
-        restoredArtworkPreviewImage = previewImage
-        restoredArtworkPreviewDismissTask = Task { [weak self] in
-            try? await Task.sleep(
-                nanoseconds: TemplateRestoredArtworkPreviewCoordinator.previewHoldNanoseconds
-            )
-            guard !Task.isCancelled else {
-                return
-            }
-
-            self?.dismissRestoredArtworkPreview(for: templateID)
-        }
-    }
-
-    private func makeRestoredArtworkPreview(templateImage: UIImage) -> UIImage? {
-        TemplateRestoredArtworkPreviewCoordinator.makePreview(
-            from: TemplateRestoredArtworkPreviewCoordinator.RenderInput(
-                templateImage: templateImage,
-                drawing: currentDrawing,
-                fillImage: currentFillImage,
-                belowLayerImage: belowLayerImage,
-                aboveLayerImage: aboveLayerImage,
-                canvasSize: bestExportSize(for: templateImage)
-            )
-        )
-    }
-
     private func updateWidgetCurrentArtwork(for snapshot: TemplateProgressSnapshot) {
         guard selectedTemplateID == snapshot.templateID,
               let template = selectedTemplate,
@@ -1969,21 +1911,6 @@ final class TemplateStudioViewModel: ObservableObject {
                 imageData: imageData
             )
         }
-    }
-
-    private func dismissRestoredArtworkPreview(for templateID: String) {
-        guard selectedTemplateID == templateID else {
-            return
-        }
-
-        restoredArtworkPreviewImage = nil
-        restoredArtworkPreviewDismissTask = nil
-    }
-
-    private func clearRestoredArtworkPreview() {
-        restoredArtworkPreviewDismissTask?.cancel()
-        restoredArtworkPreviewDismissTask = nil
-        restoredArtworkPreviewImage = nil
     }
 
     private func resolveFillImage(

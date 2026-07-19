@@ -826,12 +826,36 @@ struct PencilCanvasView: UIViewRepresentable {
             }
         }
 
-        func viewForZooming(in _: UIScrollView) -> UIView? {
-            containerView?.contentView
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            guard let containerView,
+                  scrollView === containerView.scrollView
+            else {
+                return nil
+            }
+
+            return containerView.contentView
         }
 
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
-            containerView?.updateContentInsetForCentering()
+            guard let containerView else {
+                return
+            }
+
+            if scrollView === containerView.scrollView {
+                containerView.updateContentInsetForCentering()
+            } else if scrollView === containerView.canvasView {
+                containerView.normalizePencilCanvasViewport()
+            }
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            guard let containerView,
+                  scrollView === containerView.canvasView
+            else {
+                return
+            }
+
+            containerView.normalizePencilCanvasViewport()
         }
 
         func pencilInteraction(_: UIPencilInteraction, didReceiveTap _: UIPencilInteraction.Tap) {

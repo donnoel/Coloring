@@ -113,7 +113,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(imageDidUpdate)
     }
 
-    func testSelectingTemplateShowsRestoredArtworkPreviewAfterPersistedFillLoads() async throws {
+    func testSelectingTemplateRestoresPersistedFillBeforeShowingLiveCanvas() async throws {
         let firstTemplate = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let secondTemplate = Self.makeTemplate(id: "builtin-2", title: "Template Two")
         let firstImageData = await MainActor.run { solidColorTemplateImageData(.red) }
@@ -149,25 +149,22 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             viewModel.selectTemplate(secondTemplate.id)
             XCTAssertNil(viewModel.selectedTemplateImage)
-            XCTAssertNil(viewModel.restoredArtworkPreviewImage)
         }
 
         try await Task.sleep(nanoseconds: 100_000_000)
 
         await MainActor.run {
             XCTAssertNil(viewModel.selectedTemplateImage)
-            XCTAssertNil(viewModel.restoredArtworkPreviewImage)
         }
 
-        let didShowRestoredPreview = await waitForCondition(timeout: 2.0) {
+        let didShowRestoredCanvas = await waitForCondition(timeout: 2.0) {
             await MainActor.run {
                 viewModel.selectedTemplateID == secondTemplate.id
                     && viewModel.selectedTemplateImage != nil
                     && self.imageSignature(from: viewModel.currentFillImage) == persistedFillSignature
-                    && self.imageSignature(from: viewModel.restoredArtworkPreviewImage) == persistedFillSignature
             }
         }
-        XCTAssertTrue(didShowRestoredPreview, "Expected the restored static preview to appear with the saved fill.")
+        XCTAssertTrue(didShowRestoredCanvas, "Expected the live canvas to appear only after the saved fill was restored.")
     }
 
     func testManifestDrivenBuiltInCategoriesAppearFromTemplateMetadata() async {
@@ -4893,6 +4890,46 @@ final class ColoringTests: XCTestCase {
         container.applyTemplateImage(templateImage, templateID: "builtin-1", resetZoom: false)
 
         XCTAssertEqual(container.canvasView.frame, CGRect(x: 0, y: 0, width: 600, height: 900))
+        XCTAssertEqual(container.canvasView.minimumZoomScale, 1.0)
+        XCTAssertEqual(container.canvasView.maximumZoomScale, 1.0)
+        XCTAssertEqual(container.canvasView.zoomScale, 1.0)
+        XCTAssertEqual(container.canvasView.contentInset, .zero)
+        XCTAssertEqual(container.canvasView.contentOffset, .zero)
+    }
+
+    @MainActor
+    func testPencilCanvasCoordinatorRoutesZoomingOnlyThroughOuterScrollView() {
+        let drawingState = DrawingStateBox()
+        drawingState.drawing = PKDrawing()
+        let view = PencilCanvasView(
+            templateImage: solidColorTemplateImage(.white),
+            templateID: "builtin-1",
+            drawing: Binding(
+                get: { drawingState.drawing },
+                set: { drawingState.drawing = $0 }
+            )
+        )
+        let coordinator = view.makeCoordinator()
+        let container = ZoomableCanvasContainerView()
+        container.applyTemplateImage(
+            solidColorTemplateImage(.white, size: CGSize(width: 600, height: 900)),
+            templateID: "builtin-1",
+            resetZoom: true
+        )
+        coordinator.connect(to: container.canvasView, containerView: container)
+
+        XCTAssertTrue(coordinator.viewForZooming(in: container.scrollView) === container.contentView)
+        XCTAssertNil(coordinator.viewForZooming(in: container.canvasView))
+
+        container.canvasView.minimumZoomScale = 0.5
+        container.canvasView.maximumZoomScale = 2.0
+        container.canvasView.zoomScale = 0.75
+        container.canvasView.contentInset = UIEdgeInsets(top: 8, left: 7, bottom: 6, right: 5)
+        container.canvasView.contentOffset = CGPoint(x: 40, y: 50)
+
+        coordinator.scrollViewDidZoom(container.canvasView)
+        coordinator.scrollViewDidScroll(container.canvasView)
+
         XCTAssertEqual(container.canvasView.minimumZoomScale, 1.0)
         XCTAssertEqual(container.canvasView.maximumZoomScale, 1.0)
         XCTAssertEqual(container.canvasView.zoomScale, 1.0)
