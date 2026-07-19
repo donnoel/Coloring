@@ -4185,10 +4185,12 @@ final class ColoringTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(signature[2], 240)
     }
 
-    func testFillEraseGestureOnlyRecognizesSimultaneouslyWithDrawingGesture() async {
+    func testFillEraseGestureOnlyRecognizesSimultaneouslyWithDrawingAndNavigationGestures() async {
         await MainActor.run {
             let fillEraseGesture = UILongPressGestureRecognizer()
             let drawingGesture = UIPanGestureRecognizer()
+            let panGesture = UIPanGestureRecognizer()
+            let pinchGesture = UIPinchGestureRecognizer()
             let unrelatedGesture = UILongPressGestureRecognizer()
 
             XCTAssertTrue(
@@ -4196,7 +4198,9 @@ final class ColoringTests: XCTestCase {
                     fillEraseGesture,
                     with: drawingGesture,
                     fillEraseGesture: fillEraseGesture,
-                    drawingGestureRecognizer: drawingGesture
+                    drawingGestureRecognizer: drawingGesture,
+                    panGestureRecognizer: panGesture,
+                    pinchGestureRecognizer: pinchGesture
                 )
             )
             XCTAssertTrue(
@@ -4204,7 +4208,29 @@ final class ColoringTests: XCTestCase {
                     drawingGesture,
                     with: fillEraseGesture,
                     fillEraseGesture: fillEraseGesture,
-                    drawingGestureRecognizer: drawingGesture
+                    drawingGestureRecognizer: drawingGesture,
+                    panGestureRecognizer: panGesture,
+                    pinchGestureRecognizer: pinchGesture
+                )
+            )
+            XCTAssertTrue(
+                PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                    fillEraseGesture,
+                    with: panGesture,
+                    fillEraseGesture: fillEraseGesture,
+                    drawingGestureRecognizer: drawingGesture,
+                    panGestureRecognizer: panGesture,
+                    pinchGestureRecognizer: pinchGesture
+                )
+            )
+            XCTAssertTrue(
+                PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                    pinchGesture,
+                    with: fillEraseGesture,
+                    fillEraseGesture: fillEraseGesture,
+                    drawingGestureRecognizer: drawingGesture,
+                    panGestureRecognizer: panGesture,
+                    pinchGestureRecognizer: pinchGesture
                 )
             )
             XCTAssertFalse(
@@ -4212,7 +4238,9 @@ final class ColoringTests: XCTestCase {
                     fillEraseGesture,
                     with: unrelatedGesture,
                     fillEraseGesture: fillEraseGesture,
-                    drawingGestureRecognizer: drawingGesture
+                    drawingGestureRecognizer: drawingGesture,
+                    panGestureRecognizer: panGesture,
+                    pinchGestureRecognizer: pinchGesture
                 )
             )
             XCTAssertFalse(
@@ -4220,7 +4248,32 @@ final class ColoringTests: XCTestCase {
                     unrelatedGesture,
                     with: fillEraseGesture,
                     fillEraseGesture: fillEraseGesture,
-                    drawingGestureRecognizer: drawingGesture
+                    drawingGestureRecognizer: drawingGesture,
+                    panGestureRecognizer: panGesture,
+                    pinchGestureRecognizer: pinchGesture
+                )
+            )
+        }
+    }
+
+    func testFillEraseGestureOnlyReceivesTouchesWhileEraserIsActive() async {
+        await MainActor.run {
+            XCTAssertTrue(
+                PencilCanvasGesturePolicy.shouldReceiveFillEraseTouch(
+                    fillMode: false,
+                    isEraserToolActive: true
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasGesturePolicy.shouldReceiveFillEraseTouch(
+                    fillMode: false,
+                    isEraserToolActive: false
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasGesturePolicy.shouldReceiveFillEraseTouch(
+                    fillMode: true,
+                    isEraserToolActive: true
                 )
             )
         }

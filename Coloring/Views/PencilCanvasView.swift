@@ -9,18 +9,34 @@ enum PencilCanvasGesturePolicy {
         !fillMode
     }
 
+    static func shouldReceiveFillEraseTouch(fillMode: Bool, isEraserToolActive: Bool) -> Bool {
+        !fillMode && isEraserToolActive
+    }
+
     static func shouldRecognizeSimultaneously(
         _ gestureRecognizer: UIGestureRecognizer,
         with otherGestureRecognizer: UIGestureRecognizer,
         fillEraseGesture: UIGestureRecognizer?,
-        drawingGestureRecognizer: UIGestureRecognizer?
+        drawingGestureRecognizer: UIGestureRecognizer?,
+        panGestureRecognizer: UIGestureRecognizer?,
+        pinchGestureRecognizer: UIGestureRecognizer?
     ) -> Bool {
-        guard let fillEraseGesture, let drawingGestureRecognizer else {
+        guard let fillEraseGesture else {
             return false
         }
 
-        return (gestureRecognizer === fillEraseGesture && otherGestureRecognizer === drawingGestureRecognizer)
-            || (gestureRecognizer === drawingGestureRecognizer && otherGestureRecognizer === fillEraseGesture)
+        let pairedGesture: UIGestureRecognizer
+        if gestureRecognizer === fillEraseGesture {
+            pairedGesture = otherGestureRecognizer
+        } else if otherGestureRecognizer === fillEraseGesture {
+            pairedGesture = gestureRecognizer
+        } else {
+            return false
+        }
+
+        return pairedGesture === drawingGestureRecognizer
+            || pairedGesture === panGestureRecognizer
+            || pairedGesture === pinchGestureRecognizer
     }
 }
 
@@ -833,7 +849,23 @@ struct PencilCanvasView: UIViewRepresentable {
                 gestureRecognizer,
                 with: otherGestureRecognizer,
                 fillEraseGesture: fillEraseGesture,
-                drawingGestureRecognizer: drawingGestureRecognizer
+                drawingGestureRecognizer: drawingGestureRecognizer,
+                panGestureRecognizer: containerView?.scrollView.panGestureRecognizer,
+                pinchGestureRecognizer: containerView?.scrollView.pinchGestureRecognizer
+            )
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive _: UITouch
+        ) -> Bool {
+            guard gestureRecognizer === fillEraseGesture else {
+                return true
+            }
+
+            return PencilCanvasGesturePolicy.shouldReceiveFillEraseTouch(
+                fillMode: parent.fillMode,
+                isEraserToolActive: canvasView?.tool is PKEraserTool
             )
         }
 
