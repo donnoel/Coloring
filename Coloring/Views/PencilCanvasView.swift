@@ -4,6 +4,27 @@ import SwiftUI
 import UIKit
 
 @MainActor
+enum PencilCanvasGesturePolicy {
+    static func shouldEnableFillEraseGesture(fillMode: Bool) -> Bool {
+        !fillMode
+    }
+
+    static func shouldRecognizeSimultaneously(
+        _ gestureRecognizer: UIGestureRecognizer,
+        with otherGestureRecognizer: UIGestureRecognizer,
+        fillEraseGesture: UIGestureRecognizer?,
+        drawingGestureRecognizer: UIGestureRecognizer?
+    ) -> Bool {
+        guard let fillEraseGesture, let drawingGestureRecognizer else {
+            return false
+        }
+
+        return (gestureRecognizer === fillEraseGesture && otherGestureRecognizer === drawingGestureRecognizer)
+            || (gestureRecognizer === drawingGestureRecognizer && otherGestureRecognizer === fillEraseGesture)
+    }
+}
+
+@MainActor
 final class PencilCanvasUndoBridge: ObservableObject {
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
@@ -526,6 +547,9 @@ struct PencilCanvasView: UIViewRepresentable {
         func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
             let didFillModeChange = lastFillModeState != isFillMode
             lastFillModeState = isFillMode
+            fillEraseGesture?.isEnabled = PencilCanvasGesturePolicy.shouldEnableFillEraseGesture(
+                fillMode: isFillMode
+            )
             if isFillMode {
                 drawingGestureRecognizer?.isEnabled = false
                 if fillTapGesture == nil {
@@ -649,6 +673,7 @@ struct PencilCanvasView: UIViewRepresentable {
                     return
                 }
 
+                cleanUpFillEraseInteractions()
                 isFillEraseInteractionActive = true
                 parent.onFillEraseInteractionChanged?(true)
                 if let normalizedPoint = normalizedTemplatePoint(for: gesture) {
@@ -669,8 +694,24 @@ struct PencilCanvasView: UIViewRepresentable {
 
                 isFillEraseInteractionActive = false
                 parent.onFillEraseInteractionChanged?(false)
+                cleanUpFillEraseInteractions()
             default:
                 break
+            }
+        }
+
+        private func cleanUpFillEraseInteractions() {
+            guard let canvasView else {
+                return
+            }
+
+            suppressEditMenuInteractions(on: canvasView)
+            DispatchQueue.main.async { [weak self, weak canvasView] in
+                guard let self, let canvasView else {
+                    return
+                }
+
+                self.suppressEditMenuInteractions(on: canvasView)
             }
         }
 
@@ -788,7 +829,12 @@ struct PencilCanvasView: UIViewRepresentable {
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            gestureRecognizer === fillEraseGesture || otherGestureRecognizer === fillEraseGesture
+            PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                gestureRecognizer,
+                with: otherGestureRecognizer,
+                fillEraseGesture: fillEraseGesture,
+                drawingGestureRecognizer: drawingGestureRecognizer
+            )
         }
 
         private func activeFillColor() -> UIColor? {

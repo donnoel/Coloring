@@ -4185,6 +4185,54 @@ final class ColoringTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(signature[2], 240)
     }
 
+    func testFillEraseGestureOnlyRecognizesSimultaneouslyWithDrawingGesture() async {
+        await MainActor.run {
+            let fillEraseGesture = UILongPressGestureRecognizer()
+            let drawingGesture = UIPanGestureRecognizer()
+            let unrelatedGesture = UILongPressGestureRecognizer()
+
+            XCTAssertTrue(
+                PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                    fillEraseGesture,
+                    with: drawingGesture,
+                    fillEraseGesture: fillEraseGesture,
+                    drawingGestureRecognizer: drawingGesture
+                )
+            )
+            XCTAssertTrue(
+                PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                    drawingGesture,
+                    with: fillEraseGesture,
+                    fillEraseGesture: fillEraseGesture,
+                    drawingGestureRecognizer: drawingGesture
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                    fillEraseGesture,
+                    with: unrelatedGesture,
+                    fillEraseGesture: fillEraseGesture,
+                    drawingGestureRecognizer: drawingGesture
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasGesturePolicy.shouldRecognizeSimultaneously(
+                    unrelatedGesture,
+                    with: fillEraseGesture,
+                    fillEraseGesture: fillEraseGesture,
+                    drawingGestureRecognizer: drawingGesture
+                )
+            )
+        }
+    }
+
+    func testFillEraseGestureIsDisabledWhileFillModeIsActive() async {
+        await MainActor.run {
+            XCTAssertFalse(PencilCanvasGesturePolicy.shouldEnableFillEraseGesture(fillMode: true))
+            XCTAssertTrue(PencilCanvasGesturePolicy.shouldEnableFillEraseGesture(fillMode: false))
+        }
+    }
+
     func testPencilCanvasCoordinatorPreventsStaleDrawingReapplyDuringLocalSync() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
