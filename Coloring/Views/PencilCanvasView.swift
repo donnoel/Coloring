@@ -131,6 +131,11 @@ struct PencilCanvasView: UIViewRepresentable {
         let containerView = ZoomableCanvasContainerView()
         let canvasView = containerView.canvasView
         let prefersPencilOnly = UIPencilInteraction.prefersPencilOnlyDrawing
+
+        // Establish the template-sized drawing surface before restoring PencilKit content.
+        // Assigning a drawing while PKCanvasView is still zero-sized can leave its internal
+        // renderer using a stale scale or offset until the view is rebuilt.
+        containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
         canvasView.drawing = drawing
         canvasView.drawingPolicy = prefersPencilOnly ? .pencilOnly : .anyInput
         containerView.scrollView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
@@ -140,7 +145,6 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.connect(to: canvasView, containerView: containerView)
         context.coordinator.updateUndoBridge(undoBridge)
         context.coordinator.updateToolPickerSuppression(isToolPickerSuppressed, on: canvasView)
-        containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
         context.coordinator.lastTemplateID = templateID
         context.coordinator.lastTemplateImageIdentity = ObjectIdentifier(templateImage)
         context.coordinator.updateFillMode(fillMode, in: containerView)
@@ -167,6 +171,16 @@ struct PencilCanvasView: UIViewRepresentable {
             context.coordinator.resetLocalDrawingSyncTracking()
         }
 
+        let templateImageIdentity = ObjectIdentifier(templateImage)
+        let didTemplateImageChange = context.coordinator.lastTemplateImageIdentity != templateImageIdentity
+        let shouldUpdateTemplateImage = shouldResetZoom
+            || didTemplateImageChange
+            || uiView.imageView.image == nil
+        if shouldUpdateTemplateImage {
+            uiView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: shouldResetZoom)
+            context.coordinator.lastTemplateImageIdentity = templateImageIdentity
+        }
+
         let shouldForceExternalDrawing = context.coordinator.lastDrawingSyncToken != drawingSyncToken
         context.coordinator.lastDrawingSyncToken = drawingSyncToken
 
@@ -176,16 +190,6 @@ struct PencilCanvasView: UIViewRepresentable {
             forceExternalUpdate: shouldForceExternalDrawing
         ) {
             context.coordinator.applyExternalDrawing(drawing, to: canvasView)
-        }
-
-        let templateImageIdentity = ObjectIdentifier(templateImage)
-        let didTemplateImageChange = context.coordinator.lastTemplateImageIdentity != templateImageIdentity
-        let shouldUpdateTemplateImage = shouldResetZoom
-            || didTemplateImageChange
-            || uiView.imageView.image == nil
-        if shouldUpdateTemplateImage {
-            uiView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: shouldResetZoom)
-            context.coordinator.lastTemplateImageIdentity = templateImageIdentity
         }
 
         context.coordinator.lastTemplateID = templateID
@@ -364,6 +368,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             lastActivationToken = activationToken
+            containerView?.normalizePencilCanvasViewport()
             guard !isToolPickerSuppressed else {
                 return
             }
@@ -1181,8 +1186,21 @@ final class ZoomableCanvasContainerView: UIView {
         fillImageView.frame = contentView.bounds
         belowLayerImageView.frame = contentView.bounds
         canvasView.frame = contentView.bounds
+        normalizePencilCanvasViewport()
         aboveLayerImageView.frame = contentView.bounds
         scrollView.contentSize = contentSize
+    }
+
+    func normalizePencilCanvasViewport() {
+        canvasView.minimumZoomScale = 1.0
+        canvasView.maximumZoomScale = 1.0
+        if canvasView.zoomScale != 1.0 {
+            canvasView.setZoomScale(1.0, animated: false)
+        }
+        canvasView.contentInset = .zero
+        if canvasView.contentOffset != .zero {
+            canvasView.setContentOffset(.zero, animated: false)
+        }
     }
 
     private func updateZoomScaleLimits(maintainUserZoom: Bool) {

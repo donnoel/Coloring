@@ -4869,6 +4869,31 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(container.contentView.backgroundColor?.isEqual(UIColor.white) == true)
     }
 
+    @MainActor
+    func testApplyingTemplateImageNormalizesPencilCanvasViewport() {
+        let container = ZoomableCanvasContainerView()
+        let templateImage = solidColorTemplateImage(
+            .white,
+            size: CGSize(width: 600, height: 900)
+        )
+
+        container.applyTemplateImage(templateImage, templateID: "builtin-1", resetZoom: true)
+        container.canvasView.minimumZoomScale = 0.5
+        container.canvasView.maximumZoomScale = 2.0
+        container.canvasView.zoomScale = 0.75
+        container.canvasView.contentInset = UIEdgeInsets(top: 8, left: 7, bottom: 6, right: 5)
+        container.canvasView.contentOffset = CGPoint(x: 40, y: 50)
+
+        container.applyTemplateImage(templateImage, templateID: "builtin-1", resetZoom: false)
+
+        XCTAssertEqual(container.canvasView.frame, CGRect(x: 0, y: 0, width: 600, height: 900))
+        XCTAssertEqual(container.canvasView.minimumZoomScale, 1.0)
+        XCTAssertEqual(container.canvasView.maximumZoomScale, 1.0)
+        XCTAssertEqual(container.canvasView.zoomScale, 1.0)
+        XCTAssertEqual(container.canvasView.contentInset, .zero)
+        XCTAssertEqual(container.canvasView.contentOffset, .zero)
+    }
+
     func testStableResolvedColorPreservesMonochromeChannelValues() {
         let monochromeBlack = UIColor(cgColor: CGColor(gray: 0, alpha: 1))
         XCTAssertEqual(monochromeBlack.cgColor.colorSpace?.model, .monochrome)
