@@ -4873,32 +4873,54 @@ final class ColoringTests: XCTestCase {
     }
 
     @MainActor
-    func testApplyingTemplateImageNormalizesPencilCanvasViewport() {
+    func testZoomableCanvasContainerUsesPencilCanvasAsOnlyDirectScrollView() {
         let container = ZoomableCanvasContainerView()
+
+        let directScrollViews = container.subviews.compactMap { $0 as? UIScrollView }
+        XCTAssertEqual(directScrollViews.count, 1)
+        XCTAssertTrue(directScrollViews.first === container.canvasView)
+        XCTAssertTrue(container.contentView.superview === container)
+        XCTAssertTrue(container.canvasView.superview === container)
+        XCTAssertTrue(container.aboveLayerImageView.superview === container)
+    }
+
+    @MainActor
+    func testApplyingTemplateImageConfiguresPencilCanvasAsZoomSurface() {
+        let container = ZoomableCanvasContainerView(frame: CGRect(x: 0, y: 0, width: 800, height: 1_000))
         let templateImage = solidColorTemplateImage(
             .white,
             size: CGSize(width: 600, height: 900)
         )
 
         container.applyTemplateImage(templateImage, templateID: "builtin-1", resetZoom: true)
-        container.canvasView.minimumZoomScale = 0.5
-        container.canvasView.maximumZoomScale = 2.0
-        container.canvasView.zoomScale = 0.75
-        container.canvasView.contentInset = UIEdgeInsets(top: 8, left: 7, bottom: 6, right: 5)
-        container.canvasView.contentOffset = CGPoint(x: 40, y: 50)
+        container.layoutIfNeeded()
 
-        container.applyTemplateImage(templateImage, templateID: "builtin-1", resetZoom: false)
-
-        XCTAssertEqual(container.canvasView.frame, CGRect(x: 0, y: 0, width: 600, height: 900))
+        let expectedFitScale = 1_000.0 / 900.0
+        XCTAssertEqual(container.canvasView.frame, container.bounds)
+        XCTAssertEqual(
+            container.canvasView.contentSize.width,
+            600 * expectedFitScale,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            container.canvasView.contentSize.height,
+            900 * expectedFitScale,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(container.contentView.bounds.size, CGSize(width: 600, height: 900))
         XCTAssertEqual(container.canvasView.minimumZoomScale, 1.0)
-        XCTAssertEqual(container.canvasView.maximumZoomScale, 1.0)
-        XCTAssertEqual(container.canvasView.zoomScale, 1.0)
-        XCTAssertEqual(container.canvasView.contentInset, .zero)
-        XCTAssertEqual(container.canvasView.contentOffset, .zero)
+        XCTAssertEqual(container.canvasView.maximumZoomScale, 8.0)
+        XCTAssertEqual(container.canvasView.zoomScale, expectedFitScale, accuracy: 0.0001)
+        XCTAssertEqual(container.contentView.transform.a, expectedFitScale, accuracy: 0.0001)
+        XCTAssertEqual(container.contentView.transform.d, expectedFitScale, accuracy: 0.0001)
+        XCTAssertEqual(container.contentView.center.x, container.bounds.midX, accuracy: 0.5)
+        XCTAssertEqual(container.contentView.center.y, container.bounds.midY, accuracy: 0.5)
+        XCTAssertEqual(container.aboveLayerImageView.transform, container.contentView.transform)
+        XCTAssertEqual(container.aboveLayerImageView.center, container.contentView.center)
     }
 
     @MainActor
-    func testPencilCanvasCoordinatorRoutesZoomingOnlyThroughOuterScrollView() {
+    func testPencilCanvasCoordinatorKeepsArtworkAlignedDuringCanvasZoomAndPan() {
         let drawingState = DrawingStateBox()
         drawingState.drawing = PKDrawing()
         let view = PencilCanvasView(
@@ -4910,7 +4932,7 @@ final class ColoringTests: XCTestCase {
             )
         )
         let coordinator = view.makeCoordinator()
-        let container = ZoomableCanvasContainerView()
+        let container = ZoomableCanvasContainerView(frame: CGRect(x: 0, y: 0, width: 800, height: 1_000))
         container.applyTemplateImage(
             solidColorTemplateImage(.white, size: CGSize(width: 600, height: 900)),
             templateID: "builtin-1",
@@ -4918,23 +4940,28 @@ final class ColoringTests: XCTestCase {
         )
         coordinator.connect(to: container.canvasView, containerView: container)
 
-        XCTAssertTrue(coordinator.viewForZooming(in: container.scrollView) === container.contentView)
-        XCTAssertNil(coordinator.viewForZooming(in: container.canvasView))
-
-        container.canvasView.minimumZoomScale = 0.5
-        container.canvasView.maximumZoomScale = 2.0
-        container.canvasView.zoomScale = 0.75
-        container.canvasView.contentInset = UIEdgeInsets(top: 8, left: 7, bottom: 6, right: 5)
-        container.canvasView.contentOffset = CGPoint(x: 40, y: 50)
+        container.canvasView.zoomScale = 2.0
+        container.canvasView.contentOffset = CGPoint(x: 120, y: 180)
 
         coordinator.scrollViewDidZoom(container.canvasView)
         coordinator.scrollViewDidScroll(container.canvasView)
 
-        XCTAssertEqual(container.canvasView.minimumZoomScale, 1.0)
-        XCTAssertEqual(container.canvasView.maximumZoomScale, 1.0)
-        XCTAssertEqual(container.canvasView.zoomScale, 1.0)
-        XCTAssertEqual(container.canvasView.contentInset, .zero)
-        XCTAssertEqual(container.canvasView.contentOffset, .zero)
+        XCTAssertEqual(container.canvasView.zoomScale, 2.0)
+        XCTAssertEqual(container.canvasView.contentOffset, CGPoint(x: 120, y: 180))
+        XCTAssertEqual(container.contentView.transform.a, 2.0, accuracy: 0.0001)
+        XCTAssertEqual(container.contentView.transform.d, 2.0, accuracy: 0.0001)
+        XCTAssertEqual(container.contentView.center, CGPoint(x: 480, y: 720))
+        XCTAssertEqual(container.aboveLayerImageView.transform, container.contentView.transform)
+        XCTAssertEqual(container.aboveLayerImageView.center, container.contentView.center)
+
+        let artworkPoint = CGPoint(x: 150, y: 225)
+        let visiblePoint = container.contentView.convert(artworkPoint, to: container)
+        guard let normalizedPoint = container.normalizedArtworkPoint(fromContainerLocation: visiblePoint) else {
+            XCTFail("Expected visible artwork coordinates to normalize.")
+            return
+        }
+        XCTAssertEqual(normalizedPoint.x, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(normalizedPoint.y, 0.25, accuracy: 0.0001)
     }
 
     func testStableResolvedColorPreservesMonochromeChannelValues() {

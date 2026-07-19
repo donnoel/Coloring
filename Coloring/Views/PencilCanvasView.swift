@@ -138,9 +138,8 @@ struct PencilCanvasView: UIViewRepresentable {
         containerView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: true)
         canvasView.drawing = drawing
         canvasView.drawingPolicy = prefersPencilOnly ? .pencilOnly : .anyInput
-        containerView.scrollView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
+        canvasView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
         canvasView.delegate = context.coordinator
-        containerView.scrollView.delegate = context.coordinator
 
         context.coordinator.connect(to: canvasView, containerView: containerView)
         context.coordinator.updateUndoBridge(undoBridge)
@@ -163,7 +162,7 @@ struct PencilCanvasView: UIViewRepresentable {
         let canvasView = uiView.canvasView
         let prefersPencilOnly = UIPencilInteraction.prefersPencilOnlyDrawing
         canvasView.drawingPolicy = prefersPencilOnly ? .pencilOnly : .anyInput
-        uiView.scrollView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
+        canvasView.panGestureRecognizer.minimumNumberOfTouches = prefersPencilOnly ? 1 : 2
         context.coordinator.updateUndoBridge(undoBridge)
 
         let shouldResetZoom = context.coordinator.lastTemplateID != templateID
@@ -214,7 +213,6 @@ struct PencilCanvasView: UIViewRepresentable {
     static func dismantleUIView(_ uiView: ZoomableCanvasContainerView, coordinator: Coordinator) {
         coordinator.disconnect(from: uiView.canvasView)
         uiView.canvasView.delegate = nil
-        uiView.scrollView.delegate = nil
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate, PKToolPickerObserver, UIPencilInteractionDelegate, UIScrollViewDelegate, UIGestureRecognizerDelegate {
@@ -368,7 +366,6 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             lastActivationToken = activationToken
-            containerView?.normalizePencilCanvasViewport()
             guard !isToolPickerSuppressed else {
                 return
             }
@@ -592,7 +589,7 @@ struct PencilCanvasView: UIViewRepresentable {
                     let tap = UITapGestureRecognizer(target: self, action: #selector(handleFillTap(_:)))
                     tap.numberOfTapsRequired = 1
                     tap.cancelsTouchesInView = false
-                    containerView.contentView.addGestureRecognizer(tap)
+                    containerView.canvasView.addGestureRecognizer(tap)
                     fillTapGesture = tap
                 }
                 fillTapGesture?.isEnabled = true
@@ -764,15 +761,9 @@ struct PencilCanvasView: UIViewRepresentable {
                 return nil
             }
 
-            let location = gesture.location(in: containerView.contentView)
-            let contentSize = containerView.contentView.bounds.size
-            guard contentSize.width > 0, contentSize.height > 0 else {
-                return nil
-            }
-
-            let normalizedX = min(max(location.x / contentSize.width, 0), 1)
-            let normalizedY = min(max(location.y / contentSize.height, 0), 1)
-            return CGPoint(x: normalizedX, y: normalizedY)
+            return containerView.normalizedArtworkPoint(
+                fromContainerLocation: gesture.location(in: containerView)
+            )
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
@@ -826,26 +817,14 @@ struct PencilCanvasView: UIViewRepresentable {
             }
         }
 
-        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
-            guard let containerView,
-                  scrollView === containerView.scrollView
-            else {
-                return nil
-            }
-
-            return containerView.contentView
-        }
-
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
-            guard let containerView else {
+            guard let containerView,
+                  scrollView === containerView.canvasView
+            else {
                 return
             }
 
-            if scrollView === containerView.scrollView {
-                containerView.updateContentInsetForCentering()
-            } else if scrollView === containerView.canvasView {
-                containerView.normalizePencilCanvasViewport()
-            }
+            containerView.updateCanvasViewport()
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -855,7 +834,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            containerView.normalizePencilCanvasViewport()
+            containerView.updateArtworkViewport()
         }
 
         func pencilInteraction(_: UIPencilInteraction, didReceiveTap _: UIPencilInteraction.Tap) {
@@ -994,8 +973,8 @@ struct PencilCanvasView: UIViewRepresentable {
                 with: otherGestureRecognizer,
                 fillEraseGesture: fillEraseGesture,
                 drawingGestureRecognizer: drawingGestureRecognizer,
-                panGestureRecognizer: containerView?.scrollView.panGestureRecognizer,
-                pinchGestureRecognizer: containerView?.scrollView.pinchGestureRecognizer
+                panGestureRecognizer: containerView?.canvasView.panGestureRecognizer,
+                pinchGestureRecognizer: containerView?.canvasView.pinchGestureRecognizer
             )
         }
 
@@ -1048,7 +1027,6 @@ private extension UIResponder {
 }
 
 final class ZoomableCanvasContainerView: UIView {
-    let scrollView = UIScrollView()
     let contentView = UIView()
     let imageView = UIImageView()
     let fillImageView = UIImageView()
@@ -1075,7 +1053,7 @@ final class ZoomableCanvasContainerView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        scrollView.frame = bounds
+        canvasView.frame = bounds
 
         // Keep the user's zoom during normal layout passes.
         // On rotation/resizing, if the user was at "fit", we'll snap to the new fit scale.
@@ -1096,22 +1074,64 @@ final class ZoomableCanvasContainerView: UIView {
         updateZoomScaleLimits(maintainUserZoom: !resetZoom && !templateChanged)
     }
 
-    func updateContentInsetForCentering() {
-        let scaledContentWidth = contentView.bounds.width * scrollView.zoomScale
-        let scaledContentHeight = contentView.bounds.height * scrollView.zoomScale
-        let horizontalInset = max((scrollView.bounds.width - scaledContentWidth) / 2, 0)
-        let verticalInset = max((scrollView.bounds.height - scaledContentHeight) / 2, 0)
+    func updateCanvasViewport() {
+        updateContentInsetForCentering()
+        updateArtworkViewport()
+    }
+
+    func updateArtworkViewport() {
+        let scale = canvasView.zoomScale
+        let scaledSize = CGSize(
+            width: contentView.bounds.width * scale,
+            height: contentView.bounds.height * scale
+        )
+        let visibleOrigin = CGPoint(
+            x: -canvasView.contentOffset.x,
+            y: -canvasView.contentOffset.y
+        )
+        let artworkCenter = CGPoint(
+            x: visibleOrigin.x + (scaledSize.width / 2),
+            y: visibleOrigin.y + (scaledSize.height / 2)
+        )
+        let scaleTransform = CGAffineTransform(scaleX: scale, y: scale)
+
+        contentView.transform = scaleTransform
+        contentView.center = artworkCenter
+        aboveLayerImageView.transform = scaleTransform
+        aboveLayerImageView.center = artworkCenter
+    }
+
+    func normalizedArtworkPoint(fromContainerLocation location: CGPoint) -> CGPoint? {
+        let contentSize = contentView.bounds.size
+        guard contentSize.width > 0, contentSize.height > 0 else {
+            return nil
+        }
+
+        let artworkLocation = contentView.convert(location, from: self)
+        let normalizedX = min(max(artworkLocation.x / contentSize.width, 0), 1)
+        let normalizedY = min(max(artworkLocation.y / contentSize.height, 0), 1)
+        return CGPoint(x: normalizedX, y: normalizedY)
+    }
+
+    private func updateContentInsetForCentering() {
+        let scaledContentWidth = contentView.bounds.width * canvasView.zoomScale
+        let scaledContentHeight = contentView.bounds.height * canvasView.zoomScale
+        let horizontalInset = max((canvasView.bounds.width - scaledContentWidth) / 2, 0)
+        let verticalInset = max((canvasView.bounds.height - scaledContentHeight) / 2, 0)
         let verticalCompensation = externalVerticalCenteringCompensation()
 
         let topInset = max(verticalInset - verticalCompensation, 0)
         let bottomInset = max(verticalInset + verticalCompensation, 0)
 
-        scrollView.contentInset = UIEdgeInsets(
+        let nextInsets = UIEdgeInsets(
             top: topInset,
             left: horizontalInset,
             bottom: bottomInset,
             right: horizontalInset
         )
+        if canvasView.contentInset != nextInsets {
+            canvasView.contentInset = nextInsets
+        }
     }
 
     private func externalVerticalCenteringCompensation() -> CGFloat {
@@ -1130,20 +1150,9 @@ final class ZoomableCanvasContainerView: UIView {
     private func setupSubviews() {
         backgroundColor = .clear
 
-        scrollView.backgroundColor = .clear
-        scrollView.minimumZoomScale = 1.0
-        scrollView.maximumZoomScale = 8.0
-        scrollView.bouncesZoom = true
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.contentInsetAdjustmentBehavior = .never
-        scrollView.delaysContentTouches = false
-        scrollView.panGestureRecognizer.minimumNumberOfTouches = 2
-        addSubview(scrollView)
-
         contentView.backgroundColor = .white
-        scrollView.addSubview(contentView)
-        lockArtworkAppearanceToLight()
+        contentView.isUserInteractionEnabled = false
+        addSubview(contentView)
 
         imageView.backgroundColor = .white
         imageView.contentMode = .scaleToFill
@@ -1166,18 +1175,26 @@ final class ZoomableCanvasContainerView: UIView {
         canvasView.backgroundColor = .clear
         canvasView.alwaysBounceVertical = false
         canvasView.alwaysBounceHorizontal = false
-        canvasView.isScrollEnabled = false
+        canvasView.isScrollEnabled = true
+        canvasView.bouncesZoom = true
+        canvasView.showsHorizontalScrollIndicator = false
+        canvasView.showsVerticalScrollIndicator = false
+        canvasView.contentInsetAdjustmentBehavior = .never
+        canvasView.delaysContentTouches = false
+        canvasView.panGestureRecognizer.minimumNumberOfTouches = 2
         canvasView.contentInset = .zero
         canvasView.minimumZoomScale = 1.0
-        canvasView.maximumZoomScale = 1.0
-        contentView.addSubview(canvasView)
+        canvasView.maximumZoomScale = 8.0
+        addSubview(canvasView)
 
         aboveLayerImageView.isOpaque = false
         aboveLayerImageView.backgroundColor = .clear
         aboveLayerImageView.contentMode = .scaleToFill
         aboveLayerImageView.clipsToBounds = true
         aboveLayerImageView.isUserInteractionEnabled = false
-        contentView.addSubview(aboveLayerImageView)
+        addSubview(aboveLayerImageView)
+
+        lockArtworkAppearanceToLight()
     }
 
     private func lockArtworkAppearanceToLight() {
@@ -1205,63 +1222,54 @@ final class ZoomableCanvasContainerView: UIView {
 
     private func layoutContentFrame() {
         let contentSize = canvasBaseSize == .zero ? CGSize(width: 1024, height: 768) : canvasBaseSize
-        contentView.frame = CGRect(origin: .zero, size: contentSize)
+        let contentBounds = CGRect(origin: .zero, size: contentSize)
+        contentView.transform = .identity
+        contentView.bounds = contentBounds
         imageView.frame = contentView.bounds
         fillImageView.frame = contentView.bounds
         belowLayerImageView.frame = contentView.bounds
-        canvasView.frame = contentView.bounds
-        normalizePencilCanvasViewport()
-        aboveLayerImageView.frame = contentView.bounds
-        scrollView.contentSize = contentSize
-    }
-
-    func normalizePencilCanvasViewport() {
-        canvasView.minimumZoomScale = 1.0
-        canvasView.maximumZoomScale = 1.0
-        if canvasView.zoomScale != 1.0 {
-            canvasView.setZoomScale(1.0, animated: false)
-        }
-        canvasView.contentInset = .zero
-        if canvasView.contentOffset != .zero {
-            canvasView.setContentOffset(.zero, animated: false)
-        }
+        aboveLayerImageView.transform = .identity
+        aboveLayerImageView.bounds = contentBounds
+        canvasView.contentSize = contentSize
+        updateArtworkViewport()
     }
 
     private func updateZoomScaleLimits(maintainUserZoom: Bool) {
         guard contentView.bounds.width > 0,
               contentView.bounds.height > 0,
-              scrollView.bounds.width > 0,
-              scrollView.bounds.height > 0
+              canvasView.bounds.width > 0,
+              canvasView.bounds.height > 0
         else {
             return
         }
 
-        let fitScaleX = scrollView.bounds.width / contentView.bounds.width
-        let fitScaleY = scrollView.bounds.height / contentView.bounds.height
+        let fitScaleX = canvasView.bounds.width / contentView.bounds.width
+        let fitScaleY = canvasView.bounds.height / contentView.bounds.height
         let fitScale = min(fitScaleX, fitScaleY)
 
         // Allow users to zoom out to 1.0 even on large iPads where "fit" would upscale.
-        scrollView.minimumZoomScale = min(fitScale, 1.0)
-        scrollView.maximumZoomScale = max(scrollView.minimumZoomScale * 8.0, 8.0)
+        canvasView.minimumZoomScale = min(fitScale, 1.0)
+        canvasView.maximumZoomScale = max(canvasView.minimumZoomScale * 8.0, 8.0)
 
-        let isEffectivelyAtFit = abs(scrollView.zoomScale - lastFitZoomScale) < 0.02
+        let isEffectivelyAtFit = abs(canvasView.zoomScale - lastFitZoomScale) < 0.02
         let shouldSnapToFit = !maintainUserZoom || isEffectivelyAtFit
 
         if shouldSnapToFit {
-            scrollView.zoomScale = fitScale
-        } else if scrollView.zoomScale < scrollView.minimumZoomScale {
-            scrollView.zoomScale = scrollView.minimumZoomScale
+            canvasView.zoomScale = fitScale
+        } else if canvasView.zoomScale < canvasView.minimumZoomScale {
+            canvasView.zoomScale = canvasView.minimumZoomScale
         }
 
         lastFitZoomScale = fitScale
         updateContentInsetForCentering()
 
         if shouldSnapToFit {
-            scrollView.contentOffset = CGPoint(
-                x: -scrollView.contentInset.left,
-                y: -scrollView.contentInset.top
+            canvasView.contentOffset = CGPoint(
+                x: -canvasView.contentInset.left,
+                y: -canvasView.contentInset.top
             )
         }
+        updateArtworkViewport()
     }
 
     private static func normalizedCanvasSize(for image: UIImage, maxLongEdge: CGFloat) -> CGSize {
