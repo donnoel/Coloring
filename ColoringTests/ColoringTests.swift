@@ -2074,6 +2074,36 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testFlushPendingColoringPersistenceWritesWithoutWaitingForDebounce() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let drawingStore = StubTemplateDrawingStore()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.flushPendingColoringPersistence()
+        }
+
+        let didPersistDrawing = await waitForCondition(timeout: 1.0) {
+            let persistedLayerData = try? await drawingStore.loadLayerStackData(for: template.id)
+            return persistedLayerData?.isEmpty == false
+        }
+        XCTAssertTrue(didPersistDrawing, "Expected scene deactivation to flush pending strokes immediately.")
+    }
+
     func testTemplateDrawingPersistsAcrossViewModelReload() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let drawingStore = StubTemplateDrawingStore()
@@ -3105,6 +3135,46 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(didPublishFill, "Expected a normal fill request to publish one result.")
     }
 
+    func testFillOverlayRendererRecolorsExistingFillToWhiteByClearingOverlay() async throws {
+        let templateImage = await MainActor.run {
+            solidColorTemplateImage(.white, size: CGSize(width: 8, height: 8))
+        }
+        let redRequest = await MainActor.run {
+            FillOverlayRequest(
+                templateImage: templateImage,
+                existingFillImage: nil,
+                normalizedPoint: CGPoint(x: 0.5, y: 0.5),
+                fillColor: .red
+            )
+        }
+        let redFillData = try XCTUnwrap(
+            FillOverlayRenderer.makeFillOverlayData(
+                request: redRequest,
+                floodFillService: FloodFillService()
+            )
+        )
+        XCTAssertFalse(redFillData.isEmpty)
+
+        let decodedRedFillImage = await MainActor.run { UIImage(data: redFillData) }
+        let redFillImage = try XCTUnwrap(decodedRedFillImage)
+        let whiteRequest = await MainActor.run {
+            FillOverlayRequest(
+                templateImage: templateImage,
+                existingFillImage: redFillImage,
+                normalizedPoint: CGPoint(x: 0.5, y: 0.5),
+                fillColor: .white
+            )
+        }
+        let whiteFillData = try XCTUnwrap(
+            FillOverlayRenderer.makeFillOverlayData(
+                request: whiteRequest,
+                floodFillService: FloodFillService()
+            )
+        )
+
+        XCTAssertTrue(whiteFillData.isEmpty, "A white recolor should clear the old overlay instead of preserving its color.")
+    }
+
     func testFillOverlayCoordinatorRapidRequestsOnlyRunsAndPublishesLatestReplacement() async {
         let firstRequest = await MainActor.run {
             FillOverlayRequest(
@@ -3174,6 +3244,141 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(didPublishLatestFill, "Expected only the latest still-valid fill to publish.")
         XCTAssertEqual(floodFillService.invocationCount, 2, "A superseded pending fill should not run.")
         XCTAssertEqual(floodFillService.maximumConcurrentInvocationCount, 1, "Fill raster work must remain serialized.")
+    }
+
+    func testPendingFillDoesNotPublishAfterSwitchingBackToDrawMode() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let floodFillService = BlockingFirstFloodFillService(images: [filledImage])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: floodFillService,
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: .red)
+        }
+        XCTAssertTrue(floodFillService.waitForFirstInvocation())
+
+        await MainActor.run {
+            viewModel.isFillModeActive = false
+        }
+        floodFillService.releaseFirstInvocation()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        await MainActor.run {
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertFalse(viewModel.canUndoEdit)
+        }
+    }
+
+    func testClearFillsCancelsPendingFirstFill() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let floodFillService = BlockingFirstFloodFillService(images: [filledImage])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: floodFillService,
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: .red)
+        }
+        XCTAssertTrue(floodFillService.waitForFirstInvocation())
+
+        await MainActor.run {
+            viewModel.clearFills()
+        }
+        floodFillService.releaseFirstInvocation()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        await MainActor.run {
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertFalse(viewModel.canUndoEdit)
+        }
+    }
+
+    func testPendingFillDoesNotPublishAfterUndoingPreviousEdit() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let floodFillService = BlockingFirstFloodFillService(images: [filledImage])
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: floodFillService,
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: .red)
+        }
+        XCTAssertTrue(floodFillService.waitForFirstInvocation())
+
+        await MainActor.run {
+            viewModel.undoLastEdit()
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
+        floodFillService.releaseFirstInvocation()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        await MainActor.run {
+            XCTAssertNil(viewModel.currentFillImage)
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+        }
     }
 
     func testFillUndoRedoStepsApplyOneAtATime() async {
@@ -3370,6 +3575,119 @@ final class ColoringTests: XCTestCase {
             viewModel.undoLastEdit()
             XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), filledSignature)
             XCTAssertEqual(viewModel.inProgressTemplateIDs, Set([template.id]))
+        }
+    }
+
+    func testFillEraseInteractionRunsOffMainAndRestoresWithUndo() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: .red)
+        }
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill)
+        let filledSignature = await MainActor.run { imageSignature(from: viewModel.currentFillImage) }
+
+        await MainActor.run {
+            viewModel.isFillModeActive = false
+            viewModel.updateFillEraseInteraction(isActive: true)
+            viewModel.handleFillErase(at: CGPoint(x: 0.5, y: 0.5))
+            viewModel.updateFillEraseInteraction(isActive: false)
+        }
+        let didEraseFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage == nil }
+        }
+        XCTAssertTrue(didEraseFill)
+
+        await MainActor.run {
+            XCTAssertTrue(viewModel.canUndoAppManagedEdit)
+            viewModel.undoLastEdit()
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), filledSignature)
+        }
+    }
+
+    func testCombinedStrokeAndFillEraseRestoresBothThroughPencilKitHistory() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: .red)
+        }
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill)
+        let filledSignature = await MainActor.run { imageSignature(from: viewModel.currentFillImage) }
+
+        await MainActor.run {
+            viewModel.isFillModeActive = false
+            viewModel.updateFillEraseInteraction(isActive: true)
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.handleFillErase(at: CGPoint(x: 0.5, y: 0.5))
+            viewModel.updateDrawing(PKDrawing())
+            viewModel.updateStrokeInteraction(isActive: false)
+            viewModel.updateFillEraseInteraction(isActive: false)
+        }
+        let didFinishCombinedErase = await waitForCondition {
+            await MainActor.run {
+                viewModel.currentFillImage == nil
+                    && viewModel.currentDrawing.strokes.isEmpty
+                    && viewModel.shouldRouteUndoToPencilKit
+            }
+        }
+        XCTAssertTrue(didFinishCombinedErase)
+
+        await MainActor.run {
+            viewModel.updateDrawingAfterPencilKitUndo(sampleDrawing)
+            XCTAssertEqual(viewModel.currentDrawing, sampleDrawing)
+            XCTAssertEqual(imageSignature(from: viewModel.currentFillImage), filledSignature)
+
+            viewModel.updateDrawingAfterPencilKitRedo(PKDrawing())
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+            XCTAssertNil(viewModel.currentFillImage)
         }
     }
 

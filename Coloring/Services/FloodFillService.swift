@@ -63,8 +63,9 @@ enum FillOverlayRenderer {
             return nil
         }
 
-        guard let fillOverlay = extractFillOverlay(
+        guard let extractedOverlay = extractFillOverlay(
             filledComposite: filledImage,
+            baseComposite: baseImage,
             templateCGImage: templateCGImage,
             existingFillImage: request.existingFillImage
         ), !FillRasterCancellation.isCancelled()
@@ -72,7 +73,13 @@ enum FillOverlayRenderer {
             return nil
         }
 
-        let fillData = fillOverlay.pngData()
+        let fillData: Data?
+        switch extractedOverlay {
+        case .empty:
+            fillData = Data()
+        case let .image(fillOverlay):
+            fillData = fillOverlay.pngData()
+        }
         guard !FillRasterCancellation.isCancelled() else {
             return nil
         }
@@ -123,11 +130,17 @@ enum FillOverlayRenderer {
         return composited.cgImage ?? templateImage.cgImage
     }
 
+    private enum ExtractedFillOverlay {
+        case empty
+        case image(UIImage)
+    }
+
     private nonisolated static func extractFillOverlay(
         filledComposite: CGImage,
+        baseComposite: CGImage,
         templateCGImage: CGImage,
         existingFillImage: UIImage?
-    ) -> UIImage? {
+    ) -> ExtractedFillOverlay? {
         guard !FillRasterCancellation.isCancelled() else {
             return nil
         }
@@ -140,7 +153,7 @@ enum FillOverlayRenderer {
         let totalBytes = height * bytesPerRow
 
         guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
-            return UIImage(cgImage: filledComposite)
+            return nil
         }
 
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -150,17 +163,27 @@ enum FillOverlayRenderer {
             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
             space: colorSpace, bitmapInfo: bitmapInfo.rawValue
         ), let templateData = templateContext.data else {
-            return UIImage(cgImage: filledComposite)
+            return nil
         }
         templateContext.draw(templateCGImage, in: CGRect(origin: .zero, size: size))
         let templatePixels = templateData.bindMemory(to: UInt8.self, capacity: totalBytes)
+
+        guard let baseContext = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: bitmapInfo.rawValue
+        ), let baseData = baseContext.data else {
+            return nil
+        }
+        baseContext.draw(baseComposite, in: CGRect(origin: .zero, size: size))
+        let basePixels = baseData.bindMemory(to: UInt8.self, capacity: totalBytes)
 
         guard let filledContext = CGContext(
             data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
             space: colorSpace, bitmapInfo: bitmapInfo.rawValue
         ), let filledData = filledContext.data else {
-            return UIImage(cgImage: filledComposite)
+            return nil
         }
         filledContext.draw(filledComposite, in: CGRect(origin: .zero, size: size))
         let filledPixels = filledData.bindMemory(to: UInt8.self, capacity: totalBytes)
@@ -170,7 +193,7 @@ enum FillOverlayRenderer {
             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
             space: colorSpace, bitmapInfo: bitmapInfo.rawValue
         ), let overlayData = overlayContext.data else {
-            return UIImage(cgImage: filledComposite)
+            return nil
         }
 
         if let existingFill = existingFillImage?.cgImage {
@@ -190,26 +213,52 @@ enum FillOverlayRenderer {
             let templateR = templatePixels[index]
             let templateG = templatePixels[index + 1]
             let templateB = templatePixels[index + 2]
+            let templateA = templatePixels[index + 3]
+            let baseR = basePixels[index]
+            let baseG = basePixels[index + 1]
+            let baseB = basePixels[index + 2]
+            let baseA = basePixels[index + 3]
             let filledR = filledPixels[index]
             let filledG = filledPixels[index + 1]
             let filledB = filledPixels[index + 2]
+            let filledA = filledPixels[index + 3]
 
-            let differs = abs(Int(templateR) - Int(filledR)) > 2
+            let changed = abs(Int(baseR) - Int(filledR)) > 2
+                || abs(Int(baseG) - Int(filledG)) > 2
+                || abs(Int(baseB) - Int(filledB)) > 2
+                || abs(Int(baseA) - Int(filledA)) > 2
+            guard changed else {
+                continue
+            }
+
+            let differsFromTemplate = abs(Int(templateR) - Int(filledR)) > 2
                 || abs(Int(templateG) - Int(filledG)) > 2
                 || abs(Int(templateB) - Int(filledB)) > 2
+                || abs(Int(templateA) - Int(filledA)) > 2
 
-            if differs {
+            if differsFromTemplate {
                 overlayPixels[index] = filledR
                 overlayPixels[index + 1] = filledG
                 overlayPixels[index + 2] = filledB
-                overlayPixels[index + 3] = filledPixels[index + 3]
+                overlayPixels[index + 3] = filledA
+            } else {
+                overlayPixels[index] = 0
+                overlayPixels[index + 1] = 0
+                overlayPixels[index + 2] = 0
+                overlayPixels[index + 3] = 0
             }
         }
 
-        guard let overlayCGImage = overlayContext.makeImage() else {
-            return UIImage(cgImage: filledComposite)
+        let hasVisiblePixels = stride(from: 0, to: totalBytes, by: bytesPerPixel)
+            .contains { overlayPixels[$0 + 3] > 0 }
+        guard hasVisiblePixels else {
+            return .empty
         }
-        return UIImage(cgImage: overlayCGImage)
+
+        guard let overlayCGImage = overlayContext.makeImage() else {
+            return nil
+        }
+        return .image(UIImage(cgImage: overlayCGImage))
     }
 }
 

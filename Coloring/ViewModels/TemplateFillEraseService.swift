@@ -71,6 +71,10 @@ enum TemplateFillEraseService {
         var didErase = false
 
         while let (seedX, seedY) = stack.popLast() {
+            guard !FillEraseCancellation.isCancelled() else {
+                return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
+            }
+
             let visitIndex = seedY * width + seedX
             guard !visited[visitIndex] else {
                 continue
@@ -109,6 +113,10 @@ enum TemplateFillEraseService {
             var belowAdded = false
 
             while x < width {
+                if x.isMultiple(of: 256), FillEraseCancellation.isCancelled() {
+                    return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
+                }
+
                 let pixelIndex = (seedY * bytesPerRow) + (x * bytesPerPixel)
                 guard pixelMatchesTarget(
                     pixels: pixels,
@@ -178,6 +186,10 @@ enum TemplateFillEraseService {
             return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
 
+        guard !FillEraseCancellation.isCancelled() else {
+            return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
+        }
+
         let hasVisiblePixels = stride(from: 0, to: totalBytes, by: bytesPerPixel)
             .contains { pixels[$0 + 3] > 0 }
         guard hasVisiblePixels else {
@@ -212,5 +224,172 @@ enum TemplateFillEraseService {
         return abs(Int(pixels[pixelIndex]) - Int(targetRed)) <= tolerance
             && abs(Int(pixels[pixelIndex + 1]) - Int(targetGreen)) <= tolerance
             && abs(Int(pixels[pixelIndex + 2]) - Int(targetBlue)) <= tolerance
+    }
+}
+
+@MainActor
+final class TemplateFillEraseCoordinator {
+    struct Result {
+        let templateID: String
+        let fillData: Data
+    }
+
+    private let worker = TemplateFillEraseRasterWorker()
+    private var task: Task<Void, Never>?
+    private var operationID = 0
+    private var templateID = ""
+    private var initialFillData = Data()
+    private var pendingPoints: [CGPoint] = []
+    private var lastQueuedPoint: CGPoint?
+    private var isFinishing = false
+    private var onResult: ((Result) -> Void)?
+    private var onFinish: (() -> Void)?
+    private let minimumPointDistance: CGFloat = 1.0 / 1024.0
+    private let maximumQueuedPointCount = 64
+
+    func startSession(
+        templateID: String,
+        fillData: Data,
+        onResult: @escaping (Result) -> Void,
+        onFinish: @escaping () -> Void
+    ) {
+        cancel()
+        self.templateID = templateID
+        initialFillData = fillData
+        self.onResult = onResult
+        self.onFinish = onFinish
+    }
+
+    func enqueue(_ normalizedPoint: CGPoint) {
+        guard !templateID.isEmpty, !isFinishing else {
+            return
+        }
+
+        if let lastQueuedPoint {
+            let distance = hypot(
+                normalizedPoint.x - lastQueuedPoint.x,
+                normalizedPoint.y - lastQueuedPoint.y
+            )
+            guard distance >= minimumPointDistance else {
+                return
+            }
+        }
+
+        lastQueuedPoint = normalizedPoint
+        if pendingPoints.count >= maximumQueuedPointCount {
+            pendingPoints[pendingPoints.count - 1] = normalizedPoint
+        } else {
+            pendingPoints.append(normalizedPoint)
+        }
+        processNextPointIfNeeded()
+    }
+
+    func finishSession() {
+        guard !templateID.isEmpty else {
+            return
+        }
+
+        isFinishing = true
+        finishIfIdle()
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+        operationID += 1
+        templateID = ""
+        initialFillData = Data()
+        pendingPoints.removeAll(keepingCapacity: true)
+        lastQueuedPoint = nil
+        isFinishing = false
+        onResult = nil
+        onFinish = nil
+    }
+
+    private func processNextPointIfNeeded() {
+        guard task == nil else {
+            return
+        }
+        guard !pendingPoints.isEmpty else {
+            finishIfIdle()
+            return
+        }
+
+        let normalizedPoint = pendingPoints.removeFirst()
+        let operationID = operationID
+        let templateID = templateID
+        let initialFillData = initialFillData
+        task = Task { [weak self, worker] in
+            let fillData = await worker.eraseRegion(
+                sessionID: operationID,
+                initialFillData: initialFillData,
+                at: normalizedPoint
+            )
+            guard let self,
+                  !Task.isCancelled,
+                  self.operationID == operationID
+            else {
+                return
+            }
+
+            self.task = nil
+            if let fillData {
+                self.onResult?(Result(templateID: templateID, fillData: fillData))
+                if fillData.isEmpty {
+                    self.pendingPoints.removeAll(keepingCapacity: true)
+                }
+            }
+            self.processNextPointIfNeeded()
+        }
+    }
+
+    private func finishIfIdle() {
+        guard isFinishing, task == nil, pendingPoints.isEmpty else {
+            return
+        }
+
+        let onFinish = onFinish
+        cancel()
+        onFinish?()
+    }
+}
+
+private actor TemplateFillEraseRasterWorker {
+    private var sessionID: Int?
+    private var fillImage: UIImage?
+
+    func eraseRegion(
+        sessionID: Int,
+        initialFillData: Data,
+        at normalizedPoint: CGPoint
+    ) -> Data? {
+        guard !Task.isCancelled else {
+            return nil
+        }
+
+        if self.sessionID != sessionID {
+            self.sessionID = sessionID
+            fillImage = UIImage(data: initialFillData)
+        }
+
+        guard let fillImage else {
+            return nil
+        }
+
+        let result = TemplateFillEraseService.eraseRegion(in: fillImage, at: normalizedPoint)
+        guard !Task.isCancelled, result.didChange else {
+            return nil
+        }
+
+        self.fillImage = result.fillImage
+        return result.fillData ?? Data()
+    }
+}
+
+private enum FillEraseCancellation {
+    nonisolated static func isCancelled() -> Bool {
+        withUnsafeCurrentTask { task in
+            task?.isCancelled ?? false
+        }
     }
 }

@@ -63,7 +63,11 @@ final class TemplateEditHistoryStore<Snapshot: Equatable> {
     }
 
     @discardableResult
-    func finalizePendingStrokeIfNeeded(for templateID: String, currentSnapshot: Snapshot?) -> Bool {
+    func finalizePendingStrokeIfNeeded(
+        for templateID: String,
+        currentSnapshot: Snapshot?,
+        kind: TemplateEditChangeKind = .canvasStroke
+    ) -> Bool {
         guard !templateID.isEmpty,
               let pendingSnapshot = pendingStrokeSnapshots.removeValue(forKey: templateID)
         else {
@@ -74,7 +78,7 @@ final class TemplateEditHistoryStore<Snapshot: Equatable> {
             from: pendingSnapshot,
             for: templateID,
             currentSnapshot: currentSnapshot,
-            kind: .canvasStroke
+            kind: kind
         )
     }
 

@@ -56,6 +56,7 @@ struct TemplateStudioView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
+                viewModel.flushPendingColoringPersistence()
                 return
             }
 
@@ -564,6 +565,9 @@ struct TemplateStudioView: View {
                 },
                 onFillErase: { normalizedPoint in
                     viewModel.handleFillErase(at: normalizedPoint)
+                },
+                onFillEraseInteractionChanged: { isActive in
+                    viewModel.updateFillEraseInteraction(isActive: isActive)
                 },
                 onAppearanceStyleChanged: { previousTraitCollection in
                     viewModel.normalizeSelectedTemplateColoring(using: previousTraitCollection)

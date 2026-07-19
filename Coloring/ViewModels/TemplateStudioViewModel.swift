@@ -29,7 +29,15 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var drawingRestoreErrorMessage: String?
 
     // Fill mode state
-    @Published var isFillModeActive: Bool = false
+    @Published var isFillModeActive: Bool = false {
+        didSet {
+            if !isFillModeActive {
+                cancelPendingFillOverlayWork()
+            } else {
+                cancelPendingFillEraseWorkAndFinalize()
+            }
+        }
+    }
     @Published private(set) var currentFillImage: UIImage?
 
     // Layer state
@@ -109,10 +117,16 @@ final class TemplateStudioViewModel: ObservableObject {
     private var fillRestoreOperationID = 0
     private var restoredArtworkPreviewDismissTask: Task<Void, Never>?
     private let fillOverlayCoordinator = TemplateFillOverlayCoordinator()
+    private let fillEraseCoordinator = TemplateFillEraseCoordinator()
     private let progressSnapshotCoordinator = TemplateProgressSnapshotCoordinator()
     private var pendingPersistTemplateIDs: Set<String> = []
     private var persistenceRevisionStore = TemplatePersistenceRevisionStore()
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
+    private var isStrokeInteractionActive = false
+    private var isFillEraseInteractionActive = false
+    private var isFillEraseRasterWorkPending = false
+    private var hasPendingCombinedFillEraseEdit = false
+    private var didDrawingChangeDuringFillErase = false
     private let maxRecentTemplates = 20
 
     init(
@@ -330,6 +344,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         persistCurrentDrawing()
         persistCurrentFill()
@@ -364,9 +379,66 @@ final class TemplateStudioViewModel: ObservableObject {
 
         if isActive {
             clearRestoredArtworkPreview()
+            cancelPendingFillOverlayWork()
+            isStrokeInteractionActive = true
             beginPendingStrokeEditChangeIfNeeded(for: selectedTemplateID)
         } else {
-            finalizePendingStrokeEditChange(for: selectedTemplateID)
+            isStrokeInteractionActive = false
+            finalizeCurrentEditInteractionIfNeeded()
+        }
+    }
+
+    func updateFillEraseInteraction(isActive: Bool) {
+        guard !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        if isActive {
+            guard !isFillEraseInteractionActive else {
+                return
+            }
+
+            clearRestoredArtworkPreview()
+            cancelPendingFillOverlayWork()
+            isFillEraseInteractionActive = true
+            hasPendingCombinedFillEraseEdit = true
+            didDrawingChangeDuringFillErase = false
+            beginPendingStrokeEditChangeIfNeeded(for: selectedTemplateID)
+
+            if let fillData = fillStateStore.fillData(for: selectedTemplateID), !fillData.isEmpty {
+                let templateID = selectedTemplateID
+                isFillEraseRasterWorkPending = true
+                fillEraseCoordinator.startSession(
+                    templateID: templateID,
+                    fillData: fillData,
+                    onResult: { [weak self] result in
+                        guard let self, self.selectedTemplateID == result.templateID else {
+                            return
+                        }
+
+                        self.applyFillData(result.fillData, for: result.templateID)
+                    },
+                    onFinish: { [weak self] in
+                        guard let self else {
+                            return
+                        }
+
+                        self.isFillEraseRasterWorkPending = false
+                        self.finalizeCurrentEditInteractionIfNeeded()
+                    }
+                )
+            }
+        } else {
+            guard isFillEraseInteractionActive else {
+                return
+            }
+
+            isFillEraseInteractionActive = false
+            if isFillEraseRasterWorkPending {
+                fillEraseCoordinator.finishSession()
+            } else {
+                finalizeCurrentEditInteractionIfNeeded()
+            }
         }
     }
 
@@ -407,6 +479,9 @@ final class TemplateStudioViewModel: ObservableObject {
             && !editHistoryStore.hasPendingStroke(for: templateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentDrawing = drawing
+        if hasPendingCombinedFillEraseEdit, pencilKitHistoryOperation == nil {
+            didDrawingChangeDuringFillErase = true
+        }
         drawingsByTemplateID[selectedTemplateID] = drawing
         currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
@@ -428,6 +503,8 @@ final class TemplateStudioViewModel: ObservableObject {
 
     func clearDrawing() {
         clearRestoredArtworkPreview()
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         let previousSnapshot = snapshot(for: selectedTemplateID)
         setCurrentDrawingFromModel(PKDrawing())
@@ -439,6 +516,12 @@ final class TemplateStudioViewModel: ObservableObject {
         scheduleProgressSnapshotUpdate(for: selectedTemplateID)
         persistLayerStack(for: selectedTemplateID)
         invalidateExport()
+    }
+
+    func flushPendingColoringPersistence() {
+        debouncedPersistTask?.cancel()
+        debouncedPersistTask = nil
+        flushPendingPersists()
     }
 
     func normalizeSelectedTemplateColoring(using traitCollection: UITraitCollection?) {
@@ -468,6 +551,8 @@ final class TemplateStudioViewModel: ObservableObject {
     // MARK: - Layers
 
     func addLayer() {
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         let newLayer = currentLayerStack.addLayer(name: "Layer \(currentLayerStack.layers.count)")
@@ -487,6 +572,8 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         let wasActive = currentLayerStack.activeLayerID == id
@@ -510,6 +597,8 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         syncActiveLayerDrawingToStack()
         currentLayerStack.activeLayerID = id
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
@@ -518,6 +607,8 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func toggleLayerVisibility(_ id: UUID) {
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentLayerStack.toggleVisibility(id)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
@@ -535,6 +626,8 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func moveLayer(from source: IndexSet, to destination: Int) {
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         currentLayerStack.moveLayer(from: source, to: destination)
         layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
@@ -546,6 +639,8 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func mergeDown(_ id: UUID) {
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         syncActiveLayerDrawingToStack()
         guard let mergedLayerStack = TemplateLayerMergeService.mergeDown(
@@ -996,6 +1091,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         persistCurrentDrawing()
         persistCurrentFill()
@@ -1040,7 +1136,8 @@ final class TemplateStudioViewModel: ObservableObject {
             floodFillService: floodFillService
         ) { [weak self] result in
             guard let self,
-                  self.selectedTemplateID == result.templateID
+                  self.selectedTemplateID == result.templateID,
+                  self.isFillModeActive
             else {
                 return
             }
@@ -1060,9 +1157,15 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         clearRestoredArtworkPreview()
-        finalizePendingStrokeEditChange(for: selectedTemplateID)
         cancelPendingFillRestoreWork()
         cancelPendingFillOverlayWork()
+
+        if isFillEraseInteractionActive {
+            fillEraseCoordinator.enqueue(normalizedPoint)
+            return
+        }
+
+        finalizePendingStrokeEditChange(for: selectedTemplateID)
         let eraseResult = TemplateFillEraseService.eraseRegion(in: currentFillImage, at: normalizedPoint)
         guard eraseResult.didChange else {
             return
@@ -1080,14 +1183,15 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         clearRestoredArtworkPreview()
+        cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
+        cancelPendingFillRestoreWork()
+        cancelPendingFillOverlayWork()
         let currentFillData = fillStateStore.fillData(for: selectedTemplateID)
         guard currentFillData != nil else {
             return
         }
 
-        cancelPendingFillRestoreWork()
-        cancelPendingFillOverlayWork()
         let previousSnapshot = snapshot(for: selectedTemplateID)
         applyFillData(Data(), for: selectedTemplateID)
         recordEditChange(from: previousSnapshot, for: selectedTemplateID)
@@ -1095,6 +1199,8 @@ final class TemplateStudioViewModel: ObservableObject {
 
     func undoLastEdit() {
         clearRestoredArtworkPreview()
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         guard !selectedTemplateID.isEmpty,
               let previousSnapshot = editHistoryStore.undo(
@@ -1110,6 +1216,8 @@ final class TemplateStudioViewModel: ObservableObject {
 
     func redoLastEdit() {
         clearRestoredArtworkPreview()
+        cancelPendingFillOverlayWork()
+        cancelPendingFillEraseWorkAndFinalize()
         finalizePendingStrokeEditChange(for: selectedTemplateID)
         guard !selectedTemplateID.isEmpty,
               let nextSnapshot = editHistoryStore.redo(
@@ -1687,10 +1795,30 @@ final class TemplateStudioViewModel: ObservableObject {
         )
     }
 
-    private func finalizePendingStrokeEditChange(for templateID: String) {
+    private func finalizeCurrentEditInteractionIfNeeded() {
+        guard !isStrokeInteractionActive,
+              !isFillEraseInteractionActive,
+              !isFillEraseRasterWorkPending
+        else {
+            return
+        }
+
+        let kind: TemplateEditChangeKind = hasPendingCombinedFillEraseEdit && !didDrawingChangeDuringFillErase
+            ? .snapshot
+            : .canvasStroke
+        finalizePendingStrokeEditChange(for: selectedTemplateID, kind: kind)
+        hasPendingCombinedFillEraseEdit = false
+        didDrawingChangeDuringFillErase = false
+    }
+
+    private func finalizePendingStrokeEditChange(
+        for templateID: String,
+        kind: TemplateEditChangeKind = .canvasStroke
+    ) {
         if editHistoryStore.finalizePendingStrokeIfNeeded(
             for: templateID,
-            currentSnapshot: snapshot(for: templateID)
+            currentSnapshot: snapshot(for: templateID),
+            kind: kind
         ) {
             refreshEditAvailability()
         }
@@ -1701,27 +1829,30 @@ final class TemplateStudioViewModel: ObservableObject {
         from previousSnapshot: TemplateEditSnapshot?,
         for templateID: String
     ) {
-        let didUpdateHistory: Bool
+        let restoredSnapshot: TemplateEditSnapshot?
         switch operation {
         case .undo:
             guard editHistoryStore.nextUndoKind(for: templateID) == .canvasStroke else {
                 return
             }
-            didUpdateHistory = editHistoryStore.undo(
+            restoredSnapshot = editHistoryStore.undo(
                 for: templateID,
                 currentSnapshot: previousSnapshot
-            ) != nil
+            )
         case .redo:
             guard editHistoryStore.nextRedoKind(for: templateID) == .canvasStroke else {
                 return
             }
-            didUpdateHistory = editHistoryStore.redo(
+            restoredSnapshot = editHistoryStore.redo(
                 for: templateID,
                 currentSnapshot: previousSnapshot
-            ) != nil
+            )
         }
 
-        if didUpdateHistory {
+        if let restoredSnapshot {
+            if fillStateStore.fillData(for: templateID) != restoredSnapshot.fillData {
+                applyFillData(restoredSnapshot.fillData, for: templateID)
+            }
             refreshEditAvailability()
         }
     }
@@ -1835,6 +1966,21 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func cancelPendingFillOverlayWork() {
         fillOverlayCoordinator.cancel()
+    }
+
+    private func cancelPendingFillEraseWorkAndFinalize() {
+        guard isFillEraseInteractionActive
+                || isFillEraseRasterWorkPending
+                || hasPendingCombinedFillEraseEdit
+        else {
+            return
+        }
+
+        fillEraseCoordinator.cancel()
+        isStrokeInteractionActive = false
+        isFillEraseInteractionActive = false
+        isFillEraseRasterWorkPending = false
+        finalizeCurrentEditInteractionIfNeeded()
     }
 
     private func cancelPendingFillRestoreWork() {

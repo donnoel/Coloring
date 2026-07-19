@@ -58,6 +58,7 @@ struct PencilCanvasView: UIViewRepresentable {
     var onFillTap: ((CGPoint, UIColor) -> Void)?
     /// Normalized touch location in template space used to erase a fill region.
     var onFillErase: ((CGPoint) -> Void)?
+    var onFillEraseInteractionChanged: ((Bool) -> Void)?
     var onAppearanceStyleChanged: ((UITraitCollection?) -> Void)?
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
@@ -172,6 +173,7 @@ struct PencilCanvasView: UIViewRepresentable {
         var lastTemplateImageIdentity: ObjectIdentifier?
         private var fillTapGesture: UITapGestureRecognizer?
         private var fillEraseGesture: UILongPressGestureRecognizer?
+        private var isFillEraseInteractionActive = false
         private weak var drawingGestureRecognizer: UIGestureRecognizer?
         private var lastAppliedBrushTool: PKInkingTool?
         private var lastSourceFillImageIdentity: ObjectIdentifier?
@@ -243,6 +245,10 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker = nil
             pencilInteraction = nil
             drawingGestureRecognizer = nil
+            if isFillEraseInteractionActive {
+                parent.onFillEraseInteractionChanged?(false)
+                isFillEraseInteractionActive = false
+            }
             fillEraseGesture?.isEnabled = false
             lastSourceFillImageIdentity = nil
             lastSourceBelowLayerImageIdentity = nil
@@ -637,15 +643,35 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         @objc private func handleFillEraseGesture(_ gesture: UILongPressGestureRecognizer) {
-            guard gesture.state == .began || gesture.state == .changed,
-                  !parent.fillMode,
-                  canvasView?.tool is PKEraserTool,
-                  let normalizedPoint = normalizedTemplatePoint(for: gesture)
-            else {
-                return
-            }
+            switch gesture.state {
+            case .began:
+                guard !parent.fillMode, canvasView?.tool is PKEraserTool else {
+                    return
+                }
 
-            parent.onFillErase?(normalizedPoint)
+                isFillEraseInteractionActive = true
+                parent.onFillEraseInteractionChanged?(true)
+                if let normalizedPoint = normalizedTemplatePoint(for: gesture) {
+                    parent.onFillErase?(normalizedPoint)
+                }
+            case .changed:
+                guard isFillEraseInteractionActive,
+                      let normalizedPoint = normalizedTemplatePoint(for: gesture)
+                else {
+                    return
+                }
+
+                parent.onFillErase?(normalizedPoint)
+            case .ended, .cancelled, .failed:
+                guard isFillEraseInteractionActive else {
+                    return
+                }
+
+                isFillEraseInteractionActive = false
+                parent.onFillEraseInteractionChanged?(false)
+            default:
+                break
+            }
         }
 
         private func normalizedTemplatePoint(for gesture: UIGestureRecognizer) -> CGPoint? {
