@@ -4629,6 +4629,66 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasToolPickerRecoveryRequiresUnexpectedIdleVisibilityLoss() async {
+        await MainActor.run {
+            XCTAssertTrue(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                    isVisible: false,
+                    isSuppressed: false,
+                    isDrawingInteractionActive: false,
+                    hasActiveTextInput: false,
+                    isCanvasInWindow: true
+                )
+            )
+
+            XCTAssertFalse(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                    isVisible: true,
+                    isSuppressed: false,
+                    isDrawingInteractionActive: false,
+                    hasActiveTextInput: false,
+                    isCanvasInWindow: true
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                    isVisible: false,
+                    isSuppressed: true,
+                    isDrawingInteractionActive: false,
+                    hasActiveTextInput: false,
+                    isCanvasInWindow: true
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                    isVisible: false,
+                    isSuppressed: false,
+                    isDrawingInteractionActive: true,
+                    hasActiveTextInput: false,
+                    isCanvasInWindow: true
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                    isVisible: false,
+                    isSuppressed: false,
+                    isDrawingInteractionActive: false,
+                    hasActiveTextInput: true,
+                    isCanvasInWindow: true
+                )
+            )
+            XCTAssertFalse(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                    isVisible: false,
+                    isSuppressed: false,
+                    isDrawingInteractionActive: false,
+                    hasActiveTextInput: false,
+                    isCanvasInWindow: false
+                )
+            )
+        }
+    }
+
     func testCanvasDrivenStrokeEnablesUndoHistory() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let viewModel = await MainActor.run {

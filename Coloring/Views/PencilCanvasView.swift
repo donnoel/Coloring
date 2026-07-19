@@ -41,6 +41,23 @@ enum PencilCanvasGesturePolicy {
 }
 
 @MainActor
+enum PencilCanvasToolPickerRecoveryPolicy {
+    static func shouldRecover(
+        isVisible: Bool,
+        isSuppressed: Bool,
+        isDrawingInteractionActive: Bool,
+        hasActiveTextInput: Bool,
+        isCanvasInWindow: Bool
+    ) -> Bool {
+        !isVisible
+            && !isSuppressed
+            && !isDrawingInteractionActive
+            && !hasActiveTextInput
+            && isCanvasInWindow
+    }
+}
+
+@MainActor
 final class PencilCanvasUndoBridge: ObservableObject {
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
@@ -224,6 +241,9 @@ struct PencilCanvasView: UIViewRepresentable {
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
+        private var isDrawingInteractionActive = false
+        private var pendingToolPickerRecoveryWorkItem: DispatchWorkItem?
+        private let toolPickerRecoveryDelay: TimeInterval = 0.5
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
@@ -292,6 +312,9 @@ struct PencilCanvasView: UIViewRepresentable {
             lastSourceAboveLayerImageIdentity = nil
             pendingLocalSyncResetWorkItem?.cancel()
             pendingLocalSyncResetWorkItem = nil
+            pendingToolPickerRecoveryWorkItem?.cancel()
+            pendingToolPickerRecoveryWorkItem = nil
+            isDrawingInteractionActive = false
             lastFillModeState = nil
             isToolPickerSuppressed = false
             lastActivationToken = 0
@@ -323,6 +346,9 @@ struct PencilCanvasView: UIViewRepresentable {
 
         func updateToolPickerSuppression(_ isSuppressed: Bool, on canvasView: PKCanvasView) {
             isToolPickerSuppressed = isSuppressed
+            if isSuppressed {
+                cancelPendingToolPickerRecovery()
+            }
             applyToolPickerVisibility(on: canvasView)
         }
 
@@ -671,6 +697,15 @@ struct PencilCanvasView: UIViewRepresentable {
             }
         }
 
+        func toolPickerVisibilityDidChange(_ toolPicker: PKToolPicker) {
+            if toolPicker.isVisible {
+                cancelPendingToolPickerRecovery()
+                return
+            }
+
+            scheduleToolPickerRecoveryIfNeeded(for: toolPicker)
+        }
+
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
             guard let normalizedPoint = normalizedTemplatePoint(for: gesture),
                   let fillColor = activeFillColor()
@@ -781,9 +816,15 @@ struct PencilCanvasView: UIViewRepresentable {
         @objc private func handleDrawingGestureStateChange(_ gesture: UIGestureRecognizer) {
             switch gesture.state {
             case .began:
+                isDrawingInteractionActive = true
+                cancelPendingToolPickerRecovery()
                 parent.onStrokeInteractionChanged?(true)
             case .ended, .cancelled, .failed:
+                isDrawingInteractionActive = false
                 parent.onStrokeInteractionChanged?(false)
+                if let toolPicker, !toolPicker.isVisible {
+                    scheduleToolPickerRecoveryIfNeeded(for: toolPicker)
+                }
                 DispatchQueue.main.async { [weak self] in
                     self?.refreshUndoAvailability()
                 }
@@ -827,6 +868,51 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             applyToolPickerVisibility(on: canvasView)
+        }
+
+        private func scheduleToolPickerRecoveryIfNeeded(for toolPicker: PKToolPicker) {
+            guard let canvasView,
+                  shouldRecoverToolPicker(toolPicker, on: canvasView)
+            else {
+                cancelPendingToolPickerRecovery()
+                return
+            }
+
+            cancelPendingToolPickerRecovery()
+            let recoveryWorkItem = DispatchWorkItem { [weak self, weak canvasView, weak toolPicker] in
+                guard let self, let canvasView, let toolPicker else {
+                    return
+                }
+
+                self.pendingToolPickerRecoveryWorkItem = nil
+                guard self.shouldRecoverToolPicker(toolPicker, on: canvasView) else {
+                    return
+                }
+
+                self.showToolPicker(on: canvasView)
+            }
+            pendingToolPickerRecoveryWorkItem = recoveryWorkItem
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + toolPickerRecoveryDelay,
+                execute: recoveryWorkItem
+            )
+        }
+
+        private func shouldRecoverToolPicker(_ toolPicker: PKToolPicker, on canvasView: PKCanvasView) -> Bool {
+            let activeResponder = UIResponder.currentFirstResponder
+            let hasActiveTextInput = activeResponder is UITextField || activeResponder is UITextView
+            return PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
+                isVisible: toolPicker.isVisible,
+                isSuppressed: isToolPickerSuppressed,
+                isDrawingInteractionActive: isDrawingInteractionActive,
+                hasActiveTextInput: hasActiveTextInput,
+                isCanvasInWindow: canvasView.window != nil
+            )
+        }
+
+        private func cancelPendingToolPickerRecovery() {
+            pendingToolPickerRecoveryWorkItem?.cancel()
+            pendingToolPickerRecoveryWorkItem = nil
         }
 
         private func switchToEraser() {
