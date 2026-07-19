@@ -15,6 +15,7 @@ final class GalleryViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let galleryStore: any GalleryStoreProviding
+    private let widgetSnapshotWriter: any ColoringWidgetSnapshotWriting
     private let imageLoader = GalleryImageLoader()
     private var thumbnailCache: [String: UIImage] = [:]
     private var fullImageCache: [String: UIImage] = [:]
@@ -25,12 +26,19 @@ final class GalleryViewModel: ObservableObject {
     private let maxImageLoadRetries = 12
     private let imageRetryDelayNanoseconds: UInt64 = 500_000_000
 
-    init(galleryStore: any GalleryStoreProviding) {
+    init(
+        galleryStore: any GalleryStoreProviding,
+        widgetSnapshotWriter: any ColoringWidgetSnapshotWriting = DisabledColoringWidgetSnapshotWriter()
+    ) {
         self.galleryStore = galleryStore
+        self.widgetSnapshotWriter = widgetSnapshotWriter
     }
 
     convenience init() {
-        self.init(galleryStore: GalleryStoreService())
+        self.init(
+            galleryStore: GalleryStoreService(),
+            widgetSnapshotWriter: ColoringWidgetSnapshotWriter.shared
+        )
     }
 
     func loadEntries() async {
@@ -45,6 +53,7 @@ final class GalleryViewModel: ObservableObject {
             fullImageCache = fullImageCache.filter { fullImagePaths.contains($0.key) }
             thumbnailRetryCounts = thumbnailRetryCounts.filter { thumbnailPaths.contains($0.key) }
             fullImageRetryCounts = fullImageRetryCounts.filter { fullImagePaths.contains($0.key) }
+            await widgetSnapshotWriter.updateLatestGalleryArtwork(entries.first)
         } catch {
             errorMessage = "Could not load gallery."
         }
@@ -61,6 +70,7 @@ final class GalleryViewModel: ObservableObject {
                 }
                 try await galleryStore.deleteEntry(id)
                 entries.removeAll { $0.id == id }
+                await widgetSnapshotWriter.updateLatestGalleryArtwork(entries.first)
             } catch {
                 errorMessage = "Could not delete artwork."
             }

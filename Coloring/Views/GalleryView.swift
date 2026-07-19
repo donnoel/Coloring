@@ -5,6 +5,7 @@ struct GalleryView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var viewModel: GalleryViewModel
+    let requestedEntryID: String?
     @State private var selectedEntry: ArtworkEntry?
     @State private var carouselIndex = 0
     private let cardCornerRadius: CGFloat = 32
@@ -52,6 +53,9 @@ struct GalleryView: View {
                 }
             }
             .onChange(of: viewModel.entries.map(\.id)) { _, _ in
+                syncCarouselIndex()
+            }
+            .onChange(of: requestedEntryID) { _, _ in
                 syncCarouselIndex()
             }
             .fullScreenCover(item: $selectedEntry) { entry in
@@ -458,6 +462,13 @@ struct GalleryView: View {
     private func syncCarouselIndex() {
         guard !viewModel.entries.isEmpty else {
             carouselIndex = 0
+            return
+        }
+
+        if let requestedEntryID,
+           let requestedIndex = viewModel.entries.firstIndex(where: { $0.id == requestedEntryID })
+        {
+            carouselIndex = requestedIndex
             return
         }
 

@@ -105,6 +105,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let coloringPersistenceInspector: TemplateColoringPersistenceInspector
     private let progressEstimator: TemplateProgressEstimator
     private let progressSnapshotStore: any TemplateProgressSnapshotStoreProviding
+    private let widgetSnapshotWriter: any ColoringWidgetSnapshotWriting
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
@@ -139,7 +140,8 @@ final class TemplateStudioViewModel: ObservableObject {
         categoryStore: any TemplateCategoryStoreProviding,
         galleryStore: any GalleryStoreProviding,
         recentColorsStore: any RecentColorsStoreProviding = RecentColorsStoreService(),
-        progressSnapshotStore: any TemplateProgressSnapshotStoreProviding = TemplateProgressSnapshotStoreService()
+        progressSnapshotStore: any TemplateProgressSnapshotStoreProviding = TemplateProgressSnapshotStoreService(),
+        widgetSnapshotWriter: any ColoringWidgetSnapshotWriting = DisabledColoringWidgetSnapshotWriter()
     ) {
         self.templateLibrary = templateLibrary
         self.importMutationCoordinator = TemplateImportMutationCoordinator(
@@ -148,7 +150,8 @@ final class TemplateStudioViewModel: ObservableObject {
         )
         self.exportCoordinator = TemplateExportCoordinator(
             exportService: exportService,
-            galleryStore: galleryStore
+            galleryStore: galleryStore,
+            widgetSnapshotWriter: widgetSnapshotWriter
         )
         self.persistenceCoordinator = TemplateColoringPersistenceCoordinator(
             drawingStore: drawingStore
@@ -158,6 +161,7 @@ final class TemplateStudioViewModel: ObservableObject {
         )
         self.progressEstimator = TemplateProgressEstimator()
         self.progressSnapshotStore = progressSnapshotStore
+        self.widgetSnapshotWriter = widgetSnapshotWriter
         self.drawingStore = drawingStore
         self.floodFillService = floodFillService
         self.layerCompositor = layerCompositor
@@ -181,7 +185,8 @@ final class TemplateStudioViewModel: ObservableObject {
             brushPresetStore: BrushPresetStoreService(),
             categoryStore: TemplateCategoryStoreService(),
             galleryStore: GalleryStoreService(),
-            recentColorsStore: RecentColorsStoreService()
+            recentColorsStore: RecentColorsStoreService(),
+            widgetSnapshotWriter: ColoringWidgetSnapshotWriter.shared
         )
     }
 
@@ -1443,6 +1448,9 @@ final class TemplateStudioViewModel: ObservableObject {
             showRestoredArtworkPreviewIfNeeded(for: templateID, templateImage: image)
             selectedTemplateImage = image
             loadedTemplateImageID = templateID
+            if let snapshot = progressSnapshotsByTemplateID[templateID] {
+                updateWidgetCurrentArtwork(for: snapshot)
+            }
         case let .failure(message):
             clearRestoredArtworkPreview()
             selectedTemplateImage = nil
@@ -1547,10 +1555,15 @@ final class TemplateStudioViewModel: ObservableObject {
         case .update(let snapshot):
             progressSnapshotsByTemplateID[snapshot.templateID] = snapshot
             persistProgressSnapshots()
+            updateWidgetCurrentArtwork(for: snapshot)
         }
     }
 
     private func removeProgressSnapshot(for templateID: String) {
+        Task { [widgetSnapshotWriter] in
+            await widgetSnapshotWriter.removeCurrentArtwork(ifMatching: templateID)
+        }
+
         guard progressSnapshotsByTemplateID.removeValue(forKey: templateID) != nil else {
             return
         }
@@ -1930,6 +1943,32 @@ final class TemplateStudioViewModel: ObservableObject {
                 canvasSize: bestExportSize(for: templateImage)
             )
         )
+    }
+
+    private func updateWidgetCurrentArtwork(for snapshot: TemplateProgressSnapshot) {
+        guard selectedTemplateID == snapshot.templateID,
+              let template = selectedTemplate,
+              let templateImage = selectedTemplateImage,
+              let imageData = TemplateWidgetArtworkRenderer.makeImageData(
+                  templateImage: templateImage,
+                  drawing: currentDrawing,
+                  fillImage: currentFillImage,
+                  belowLayerImage: belowLayerImage,
+                  aboveLayerImage: aboveLayerImage,
+                  canvasSize: bestExportSize(for: templateImage)
+              )
+        else {
+            return
+        }
+
+        Task { [widgetSnapshotWriter] in
+            await widgetSnapshotWriter.updateCurrentArtwork(
+                templateID: snapshot.templateID,
+                title: template.title,
+                progress: snapshot.estimatedProgress,
+                imageData: imageData
+            )
+        }
     }
 
     private func dismissRestoredArtworkPreview(for templateID: String) {

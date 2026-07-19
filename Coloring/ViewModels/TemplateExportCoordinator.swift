@@ -28,14 +28,17 @@ final class TemplateExportCoordinator {
 
     private let exportService: any TemplateArtworkExporting
     private let galleryStore: any GalleryStoreProviding
+    private let widgetSnapshotWriter: any ColoringWidgetSnapshotWriting
     private(set) var state = TemplateExportState()
 
     init(
         exportService: any TemplateArtworkExporting,
-        galleryStore: any GalleryStoreProviding
+        galleryStore: any GalleryStoreProviding,
+        widgetSnapshotWriter: any ColoringWidgetSnapshotWriting = DisabledColoringWidgetSnapshotWriter()
     ) {
         self.exportService = exportService
         self.galleryStore = galleryStore
+        self.widgetSnapshotWriter = widgetSnapshotWriter
     }
 
     func beginExport(selectedTemplate: ColoringTemplate?) -> StartResult {
@@ -85,11 +88,12 @@ final class TemplateExportCoordinator {
 
         // Gallery save is best-effort; don't fail the export.
         do {
-            _ = try await galleryStore.saveArtwork(
+            let entry = try await galleryStore.saveArtwork(
                 at: exportedURL,
                 sourceTemplateID: request.templateID,
                 sourceTemplateName: request.templateName
             )
+            await widgetSnapshotWriter.updateLatestGalleryArtwork(entry)
         } catch {
             // Intentionally ignored.
         }

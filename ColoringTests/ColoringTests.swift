@@ -1409,6 +1409,7 @@ final class ColoringTests: XCTestCase {
     func testProgressViewModelUpdatesForEditsClearAndCompletedState() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let progressStore = StubProgressSnapshotStore()
+        let widgetSnapshotWriter = RecordingColoringWidgetSnapshotWriter()
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
                 templateLibrary: StubTemplateLibrary(templates: [template]),
@@ -1419,7 +1420,8 @@ final class ColoringTests: XCTestCase {
                 brushPresetStore: StubBrushPresetStore(),
                 categoryStore: StubCategoryStore(),
                 galleryStore: StubGalleryStore(),
-                progressSnapshotStore: progressStore
+                progressSnapshotStore: progressStore,
+                widgetSnapshotWriter: widgetSnapshotWriter
             )
         }
 
@@ -1435,6 +1437,10 @@ final class ColoringTests: XCTestCase {
             }
         }
         XCTAssertTrue(didShowProgress)
+        let didUpdateWidget = await waitForCondition {
+            await widgetSnapshotWriter.currentTemplateID == template.id
+        }
+        XCTAssertTrue(didUpdateWidget)
 
         await MainActor.run {
             viewModel.clearDrawing()
@@ -1445,6 +1451,10 @@ final class ColoringTests: XCTestCase {
             }
         }
         XCTAssertTrue(didClearProgress)
+        let didClearWidget = await waitForCondition {
+            await widgetSnapshotWriter.currentTemplateID == nil
+        }
+        XCTAssertTrue(didClearWidget)
 
         await MainActor.run {
             viewModel.toggleCompleted(for: template.id)
@@ -3954,6 +3964,7 @@ final class ColoringTests: XCTestCase {
             .appendingPathComponent("\(UUID().uuidString).png")
         let exportService = CapturingFileWritingTemplateExportService(resultURL: exportedURL)
         let galleryStore = await MainActor.run { StubGalleryStore() }
+        let widgetSnapshotWriter = RecordingColoringWidgetSnapshotWriter()
 
         let viewModel = await MainActor.run {
             TemplateStudioViewModel(
@@ -3967,7 +3978,8 @@ final class ColoringTests: XCTestCase {
                 layerCompositor: LayerCompositorService(),
                 brushPresetStore: StubBrushPresetStore(),
                 categoryStore: StubCategoryStore(),
-                galleryStore: galleryStore
+                galleryStore: galleryStore,
+                widgetSnapshotWriter: widgetSnapshotWriter
             )
         }
         addTeardownBlock {
@@ -3982,6 +3994,86 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(saveRequest?.sourceTemplateID, template.id)
         XCTAssertEqual(saveRequest?.sourceTemplateName, template.title)
         XCTAssertTrue((saveRequest?.imageData.isEmpty ?? true) == false)
+        let latestWidgetEntryID = await widgetSnapshotWriter.latestGalleryEntryID
+        XCTAssertNotNil(latestWidgetEntryID)
+    }
+
+    func testColoringWidgetSnapshotWriterPreservesGalleryAndRemovesOnlyMatchingCurrentArtwork() async throws {
+        let directoryURL = try makeTemporaryDocumentsDirectory()
+        let snapshotURL = directoryURL.appendingPathComponent("widget-snapshot.json")
+        let galleryArtwork = ColoringWidgetGalleryArtwork(
+            entryID: "gallery-1",
+            title: "Finished Forest",
+            createdAt: Date(timeIntervalSince1970: 123),
+            imageData: Data([9, 8, 7])
+        )
+        let initialSnapshot = ColoringWidgetSnapshot(
+            currentArtwork: nil,
+            latestGalleryArtwork: galleryArtwork,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        try JSONEncoder().encode(initialSnapshot).write(to: snapshotURL, options: [.atomic])
+
+        let writer = ColoringWidgetSnapshotWriter(
+            fileURLProvider: { snapshotURL },
+            timelineReloader: {}
+        )
+        await writer.updateCurrentArtwork(
+            templateID: "template-1",
+            title: "Cozy Porch",
+            progress: 0.42,
+            imageData: Data([1, 2, 3])
+        )
+
+        var snapshot = ColoringWidgetSnapshotStore.load(from: snapshotURL)
+        XCTAssertEqual(snapshot.currentArtwork?.templateID, "template-1")
+        XCTAssertEqual(snapshot.currentArtwork?.progress, 0.42)
+        XCTAssertEqual(snapshot.latestGalleryArtwork, galleryArtwork)
+
+        await writer.removeCurrentArtwork(ifMatching: "another-template")
+        snapshot = ColoringWidgetSnapshotStore.load(from: snapshotURL)
+        XCTAssertEqual(snapshot.currentArtwork?.templateID, "template-1")
+
+        await writer.removeCurrentArtwork(ifMatching: "template-1")
+        snapshot = ColoringWidgetSnapshotStore.load(from: snapshotURL)
+        XCTAssertNil(snapshot.currentArtwork)
+        XCTAssertEqual(snapshot.latestGalleryArtwork, galleryArtwork)
+    }
+
+    func testColoringWidgetDestinationsUseExpectedDeepLinks() throws {
+        let studioURL = try XCTUnwrap(ColoringWidgetDestination.studio(templateID: "cozy porch"))
+        let galleryURL = try XCTUnwrap(ColoringWidgetDestination.gallery(entryID: "gallery-1"))
+
+        let studioComponents = try XCTUnwrap(URLComponents(url: studioURL, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(studioComponents.scheme, "coloringroom")
+        XCTAssertEqual(studioComponents.host, "studio")
+        XCTAssertEqual(studioComponents.queryItems?.first?.value, "cozy porch")
+
+        let galleryComponents = try XCTUnwrap(URLComponents(url: galleryURL, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(galleryComponents.scheme, "coloringroom")
+        XCTAssertEqual(galleryComponents.host, "gallery")
+        XCTAssertEqual(galleryComponents.queryItems?.first?.value, "gallery-1")
+    }
+
+    func testTemplateWidgetArtworkRendererCreatesCompactPreview() async throws {
+        let previewData = await MainActor.run {
+            TemplateWidgetArtworkRenderer.makeImageData(
+                templateImage: solidColorTemplateImage(
+                    .white,
+                    size: CGSize(width: 1_600, height: 1_200)
+                ),
+                drawing: makeSampleTemplateDrawing(color: .blue),
+                fillImage: nil,
+                belowLayerImage: nil,
+                aboveLayerImage: nil,
+                canvasSize: CGSize(width: 1_600, height: 1_200)
+            )
+        }
+
+        let data = try XCTUnwrap(previewData)
+        let image = try XCTUnwrap(UIImage(data: data))
+        XCTAssertEqual(image.size.width, 720, accuracy: 0.5)
+        XCTAssertEqual(image.size.height, 540, accuracy: 0.5)
     }
 
     func testExportCurrentTemplateWithoutSelectionSetsError() async {
@@ -5690,5 +5782,30 @@ private final class StubGalleryStore: GalleryStoreProviding {
     func deleteEntry(_ id: String) throws {
         let targetID = id
         entries.removeAll { entry in entry.id == targetID }
+    }
+}
+
+private actor RecordingColoringWidgetSnapshotWriter: ColoringWidgetSnapshotWriting {
+    private(set) var currentTemplateID: String?
+    private(set) var latestGalleryEntryID: String?
+
+    func updateCurrentArtwork(
+        templateID: String,
+        title: String,
+        progress: Double,
+        imageData: Data
+    ) async {
+        currentTemplateID = templateID
+    }
+
+    func removeCurrentArtwork(ifMatching templateID: String) async {
+        guard currentTemplateID == templateID else {
+            return
+        }
+        currentTemplateID = nil
+    }
+
+    func updateLatestGalleryArtwork(_ entry: ArtworkEntry?) async {
+        latestGalleryEntryID = entry?.id
     }
 }

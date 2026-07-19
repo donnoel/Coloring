@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var hasShownOnboardingThisLaunch = false
     @State private var isStudioTabPillVisible = true
     @State private var studioTabPillAutoShowTask: Task<Void, Never>?
+    @State private var requestedGalleryEntryID: String?
 
     init() {
         if ProcessInfo.processInfo.arguments.contains("-UITestSkipOnboarding") {
@@ -45,7 +46,10 @@ struct ContentView: View {
                             }
                             .tag(RootTab.studio)
 
-                        GalleryView(viewModel: galleryViewModel)
+                        GalleryView(
+                            viewModel: galleryViewModel,
+                            requestedEntryID: requestedGalleryEntryID
+                        )
                             .tabItem {
                                 Label("Gallery", systemImage: "photo.on.rectangle.angled")
                             }
@@ -75,6 +79,10 @@ struct ContentView: View {
                 }
             }
         }
+        .task {
+            await galleryViewModel.loadEntries()
+        }
+        .onOpenURL(perform: handleWidgetURL)
     }
 
     private var isOnboardingPresented: Bool {
@@ -234,6 +242,33 @@ struct ContentView: View {
         }
 
         isStudioTabPillVisible = true
+    }
+
+    private func handleWidgetURL(_ url: URL) {
+        guard url.scheme == "coloringroom" else {
+            return
+        }
+
+        let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        switch url.host {
+        case "studio":
+            selectedTabRawValue = RootTab.studio.rawValue
+            guard let templateID = queryItems.first(where: { $0.name == "templateID" })?.value,
+                  !templateID.isEmpty
+            else {
+                return
+            }
+
+            Task {
+                await templateViewModel.loadTemplatesIfNeeded()
+                templateViewModel.selectTemplate(templateID)
+            }
+        case "gallery":
+            requestedGalleryEntryID = queryItems.first(where: { $0.name == "entryID" })?.value
+            selectedTabRawValue = RootTab.gallery.rawValue
+        default:
+            return
+        }
     }
 }
 
