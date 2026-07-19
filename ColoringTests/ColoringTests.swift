@@ -1402,6 +1402,12 @@ final class ColoringTests: XCTestCase {
         }
         XCTAssertTrue(didRefreshProgress)
 
+        let didPersistProgress = await waitForCondition {
+            let snapshots = try? await progressStore.loadSnapshots()
+            return (snapshots?[template.id]?.estimatedProgress ?? 0) > 0.95
+        }
+        XCTAssertTrue(didPersistProgress)
+
         let snapshots = try await progressStore.loadSnapshots()
         XCTAssertGreaterThan(snapshots[template.id]?.estimatedProgress ?? 0, 0.95)
     }
