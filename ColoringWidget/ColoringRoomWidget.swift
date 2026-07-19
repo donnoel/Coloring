@@ -117,6 +117,7 @@ struct ColoringRoomWidgetView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.bottom, 38)
                     .padding(.horizontal, 5)
