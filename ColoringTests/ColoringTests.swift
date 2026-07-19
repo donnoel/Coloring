@@ -4565,6 +4565,7 @@ final class ColoringTests: XCTestCase {
             hostController.view.layoutIfNeeded()
 
             coordinator.updateToolPickerSuppression(false, on: canvasView)
+            _ = canvasView.resignFirstResponder()
             canvasView.resetResponderCallCounts()
 
             coordinator.updateActivationToken(1, on: canvasView)
@@ -4629,64 +4630,93 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    func testPencilCanvasToolPickerRecoveryRequiresUnexpectedIdleVisibilityLoss() async {
+    func testPencilCanvasToolPickerRecoveryRequiresUnsuppressedIdleCanvas() async {
         await MainActor.run {
             XCTAssertTrue(
-                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                    isVisible: false,
+                PencilCanvasToolPickerRecoveryPolicy.shouldRequestVisibility(
                     isSuppressed: false,
                     isDrawingInteractionActive: false,
-                    hasActiveTextInput: false,
-                    isCanvasInWindow: true
-                )
-            )
-
-            XCTAssertFalse(
-                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                    isVisible: true,
-                    isSuppressed: false,
-                    isDrawingInteractionActive: false,
-                    hasActiveTextInput: false,
-                    isCanvasInWindow: true
+                    hasActiveTextInput: false
                 )
             )
             XCTAssertFalse(
-                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                    isVisible: false,
+                PencilCanvasToolPickerRecoveryPolicy.shouldRequestVisibility(
                     isSuppressed: true,
                     isDrawingInteractionActive: false,
-                    hasActiveTextInput: false,
-                    isCanvasInWindow: true
+                    hasActiveTextInput: false
                 )
             )
             XCTAssertFalse(
-                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                    isVisible: false,
+                PencilCanvasToolPickerRecoveryPolicy.shouldRequestVisibility(
                     isSuppressed: false,
                     isDrawingInteractionActive: true,
-                    hasActiveTextInput: false,
-                    isCanvasInWindow: true
+                    hasActiveTextInput: false
                 )
             )
             XCTAssertFalse(
-                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                    isVisible: false,
+                PencilCanvasToolPickerRecoveryPolicy.shouldRequestVisibility(
                     isSuppressed: false,
                     isDrawingInteractionActive: false,
-                    hasActiveTextInput: true,
-                    isCanvasInWindow: true
+                    hasActiveTextInput: true
+                )
+            )
+            XCTAssertTrue(
+                PencilCanvasToolPickerRecoveryPolicy.shouldRetry(
+                    attemptCount: 5,
+                    maximumAttemptCount: 6
                 )
             )
             XCTAssertFalse(
-                PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                    isVisible: false,
-                    isSuppressed: false,
-                    isDrawingInteractionActive: false,
-                    hasActiveTextInput: false,
-                    isCanvasInWindow: false
+                PencilCanvasToolPickerRecoveryPolicy.shouldRetry(
+                    attemptCount: 6,
+                    maximumAttemptCount: 6
                 )
             )
         }
+    }
+
+    @MainActor
+    func testPencilCanvasCoordinatorRetriesFailedFirstResponderAcquisition() async {
+        let drawingState = DrawingStateBox()
+        drawingState.drawing = PKDrawing()
+
+        let view = PencilCanvasView(
+            templateImage: solidColorTemplateImage(.white),
+            templateID: "builtin-1",
+            drawing: Binding(
+                get: { drawingState.drawing },
+                set: { drawingState.drawing = $0 }
+            )
+        )
+
+        let coordinator = view.makeCoordinator()
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            XCTFail("Expected a window scene for coordinator test host.")
+            return
+        }
+
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+        let hostController = UIViewController()
+        window.rootViewController = hostController
+        window.makeKeyAndVisible()
+
+        let canvasView = TrackingPKCanvasView(frame: hostController.view.bounds)
+        hostController.view.addSubview(canvasView)
+        hostController.view.layoutIfNeeded()
+
+        coordinator.updateToolPickerSuppression(false, on: canvasView)
+        canvasView.failNextFirstResponderRequests(2)
+        _ = canvasView.resignFirstResponder()
+        canvasView.resetResponderCallCounts()
+
+        coordinator.updateActivationToken(1, on: canvasView)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        XCTAssertGreaterThanOrEqual(canvasView.becomeFirstResponderCallCount, 3)
+        XCTAssertTrue(canvasView.isFirstResponder)
+
+        window.isHidden = true
     }
 
     func testCanvasDrivenStrokeEnablesUndoHistory() async {
@@ -5440,9 +5470,14 @@ private final class DrawingStateBox {
 private final class TrackingPKCanvasView: PKCanvasView {
     private(set) var becomeFirstResponderCallCount = 0
     private(set) var resignFirstResponderCallCount = 0
+    private var remainingForcedFirstResponderFailures = 0
 
     override func becomeFirstResponder() -> Bool {
         becomeFirstResponderCallCount += 1
+        if remainingForcedFirstResponderFailures > 0 {
+            remainingForcedFirstResponderFailures -= 1
+            return false
+        }
         return super.becomeFirstResponder()
     }
 
@@ -5454,6 +5489,10 @@ private final class TrackingPKCanvasView: PKCanvasView {
     func resetResponderCallCounts() {
         becomeFirstResponderCallCount = 0
         resignFirstResponderCallCount = 0
+    }
+
+    func failNextFirstResponderRequests(_ count: Int) {
+        remainingForcedFirstResponderFailures = max(count, 0)
     }
 }
 

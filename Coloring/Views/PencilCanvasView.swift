@@ -42,18 +42,18 @@ enum PencilCanvasGesturePolicy {
 
 @MainActor
 enum PencilCanvasToolPickerRecoveryPolicy {
-    static func shouldRecover(
-        isVisible: Bool,
+    static func shouldRequestVisibility(
         isSuppressed: Bool,
         isDrawingInteractionActive: Bool,
-        hasActiveTextInput: Bool,
-        isCanvasInWindow: Bool
+        hasActiveTextInput: Bool
     ) -> Bool {
-        !isVisible
-            && !isSuppressed
+        !isSuppressed
             && !isDrawingInteractionActive
             && !hasActiveTextInput
-            && isCanvasInWindow
+    }
+
+    static func shouldRetry(attemptCount: Int, maximumAttemptCount: Int) -> Bool {
+        attemptCount < maximumAttemptCount
     }
 }
 
@@ -243,7 +243,9 @@ struct PencilCanvasView: UIViewRepresentable {
         private var lastColorOverrideRevision = 0
         private var isDrawingInteractionActive = false
         private var pendingToolPickerRecoveryWorkItem: DispatchWorkItem?
-        private let toolPickerRecoveryDelay: TimeInterval = 0.5
+        private var toolPickerRecoveryAttemptCount = 0
+        private let maximumToolPickerRecoveryAttemptCount = 6
+        private let toolPickerRecoveryDelay: TimeInterval = 0.15
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
@@ -259,7 +261,18 @@ struct PencilCanvasView: UIViewRepresentable {
             }
             installDrawingInteractionTracking(on: canvasView)
             installFillEraseGestureIfNeeded(on: canvasView)
+            installPencilInteractionIfNeeded(on: canvasView)
             suppressEditMenuInteractions(on: canvasView)
+        }
+
+        private func installPencilInteractionIfNeeded(on canvasView: PKCanvasView) {
+            guard pencilInteraction == nil else {
+                return
+            }
+
+            let interaction = UIPencilInteraction(delegate: self)
+            canvasView.addInteraction(interaction)
+            pencilInteraction = interaction
         }
 
         private func installToolingIfPossible(on canvasView: PKCanvasView) {
@@ -273,15 +286,7 @@ struct PencilCanvasView: UIViewRepresentable {
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            canvasView.becomeFirstResponder()
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
             self.toolPicker = toolPicker
-
-            if pencilInteraction == nil {
-                let interaction = UIPencilInteraction(delegate: self)
-                canvasView.addInteraction(interaction)
-                pencilInteraction = interaction
-            }
         }
 
         func disconnect(from canvasView: PKCanvasView) {
@@ -314,6 +319,7 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingLocalSyncResetWorkItem = nil
             pendingToolPickerRecoveryWorkItem?.cancel()
             pendingToolPickerRecoveryWorkItem = nil
+            toolPickerRecoveryAttemptCount = 0
             isDrawingInteractionActive = false
             lastFillModeState = nil
             isToolPickerSuppressed = false
@@ -400,25 +406,8 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func showToolPicker(on canvasView: PKCanvasView) {
-            guard canvasView.window != nil else {
-                return
-            }
-
-            // Do not steal first-responder from active text input (for example, rename alerts).
-            if let activeResponder = UIResponder.currentFirstResponder,
-               activeResponder !== canvasView,
-               activeResponder is UITextField || activeResponder is UITextView {
-                return
-            }
-
-            installToolingIfPossible(on: canvasView)
-            canvasView.becomeFirstResponder()
-            guard let toolPicker else {
-                return
-            }
-
-            applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
+            cancelPendingToolPickerRecovery()
+            attemptToolPickerVisibility(on: canvasView)
         }
 
         private func applyToolPickerAppearance(for toolPicker: PKToolPicker, on canvasView: PKCanvasView) {
@@ -665,8 +654,7 @@ struct PencilCanvasView: UIViewRepresentable {
             // On current PencilKit, selectedToolItem selection does not always refresh item color from app-side overrides.
             // Setting the legacy selectedTool value keeps the compact picker glyph in sync with actual drawing color.
             toolPicker.setValue(tool, forKey: "selectedTool")
-            canvasView.becomeFirstResponder()
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
+            showToolPicker(on: canvasView)
         }
 
         func suppressEditMenuInteractions(on canvasView: PKCanvasView) {
@@ -703,7 +691,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            scheduleToolPickerRecoveryIfNeeded(for: toolPicker)
+            scheduleToolPickerRecovery(on: canvasView)
         }
 
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
@@ -823,7 +811,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 isDrawingInteractionActive = false
                 parent.onStrokeInteractionChanged?(false)
                 if let toolPicker, !toolPicker.isVisible {
-                    scheduleToolPickerRecoveryIfNeeded(for: toolPicker)
+                    scheduleToolPickerRecovery(on: canvasView)
                 }
                 DispatchQueue.main.async { [weak self] in
                     self?.refreshUndoAvailability()
@@ -870,26 +858,68 @@ struct PencilCanvasView: UIViewRepresentable {
             applyToolPickerVisibility(on: canvasView)
         }
 
-        private func scheduleToolPickerRecoveryIfNeeded(for toolPicker: PKToolPicker) {
+        private func attemptToolPickerVisibility(on canvasView: PKCanvasView) {
+            pendingToolPickerRecoveryWorkItem = nil
+
+            guard shouldRequestToolPickerVisibility() else {
+                cancelPendingToolPickerRecovery()
+                return
+            }
+
+            guard UIApplication.shared.applicationState == .active,
+                  let window = canvasView.window,
+                  window.isKeyWindow
+            else {
+                scheduleToolPickerRecovery(on: canvasView)
+                return
+            }
+
+            installToolingIfPossible(on: canvasView)
+            guard let toolPicker else {
+                scheduleToolPickerRecovery(on: canvasView)
+                return
+            }
+
+            let didAcquireFirstResponder = canvasView.isFirstResponder || canvasView.becomeFirstResponder()
+            guard didAcquireFirstResponder, canvasView.isFirstResponder else {
+                scheduleToolPickerRecovery(on: canvasView)
+                return
+            }
+
+            applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            toolPicker.setVisible(true, forFirstResponder: canvasView)
+            guard toolPicker.isVisible else {
+                scheduleToolPickerRecovery(on: canvasView)
+                return
+            }
+
+            cancelPendingToolPickerRecovery()
+        }
+
+        private func scheduleToolPickerRecovery(on canvasView: PKCanvasView?) {
             guard let canvasView,
-                  shouldRecoverToolPicker(toolPicker, on: canvasView)
+                  shouldRequestToolPickerVisibility(),
+                  PencilCanvasToolPickerRecoveryPolicy.shouldRetry(
+                      attemptCount: toolPickerRecoveryAttemptCount,
+                      maximumAttemptCount: maximumToolPickerRecoveryAttemptCount
+                  )
             else {
                 cancelPendingToolPickerRecovery()
                 return
             }
 
-            cancelPendingToolPickerRecovery()
-            let recoveryWorkItem = DispatchWorkItem { [weak self, weak canvasView, weak toolPicker] in
-                guard let self, let canvasView, let toolPicker else {
+            guard pendingToolPickerRecoveryWorkItem == nil else {
+                return
+            }
+
+            toolPickerRecoveryAttemptCount += 1
+            let recoveryWorkItem = DispatchWorkItem { [weak self, weak canvasView] in
+                guard let self, let canvasView else {
                     return
                 }
 
                 self.pendingToolPickerRecoveryWorkItem = nil
-                guard self.shouldRecoverToolPicker(toolPicker, on: canvasView) else {
-                    return
-                }
-
-                self.showToolPicker(on: canvasView)
+                self.attemptToolPickerVisibility(on: canvasView)
             }
             pendingToolPickerRecoveryWorkItem = recoveryWorkItem
             DispatchQueue.main.asyncAfter(
@@ -898,21 +928,20 @@ struct PencilCanvasView: UIViewRepresentable {
             )
         }
 
-        private func shouldRecoverToolPicker(_ toolPicker: PKToolPicker, on canvasView: PKCanvasView) -> Bool {
+        private func shouldRequestToolPickerVisibility() -> Bool {
             let activeResponder = UIResponder.currentFirstResponder
             let hasActiveTextInput = activeResponder is UITextField || activeResponder is UITextView
-            return PencilCanvasToolPickerRecoveryPolicy.shouldRecover(
-                isVisible: toolPicker.isVisible,
+            return PencilCanvasToolPickerRecoveryPolicy.shouldRequestVisibility(
                 isSuppressed: isToolPickerSuppressed,
                 isDrawingInteractionActive: isDrawingInteractionActive,
-                hasActiveTextInput: hasActiveTextInput,
-                isCanvasInWindow: canvasView.window != nil
+                hasActiveTextInput: hasActiveTextInput
             )
         }
 
         private func cancelPendingToolPickerRecovery() {
             pendingToolPickerRecoveryWorkItem?.cancel()
             pendingToolPickerRecoveryWorkItem = nil
+            toolPickerRecoveryAttemptCount = 0
         }
 
         private func switchToEraser() {
