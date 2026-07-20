@@ -240,7 +240,7 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=i
 
 ## Credits
 
-Built with care by **Don Noel** and AI collaboration.
+Built with care by Don Noel and Codex collaboration.
 
 ---
 
