@@ -1,0 +1,24 @@
+title: Coloring Room
+description: An iPad-first coloring studio built around Apple Pencil.
+tagline: Pick a scene. Color naturally. Keep every finished piece.
+project_label: Don Noel / Projects
+status_label: MVP+ studio
+github_url: https://github.com/donnoel/Coloring
+url: https://donnoel.github.io
+baseurl: /Coloring
+lang: en-US
+
+remote_theme: donnoel/projects-theme@v1.0.0
+plugins:
+  - jekyll-remote-theme
+
+exclude:
+  - AGENTS.md
+  - AGENTS.project.md
+  - Coloring
+  - Coloring.xcodeproj
+  - ColoringTests
+  - ColoringUITests
+  - ColoringWidget
+  - ColoringWidgetShared
+
