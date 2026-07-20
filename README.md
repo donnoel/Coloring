@@ -30,6 +30,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Single Fullscreen Studio** | No Scene/Templates tab split; one immersive coloring workspace. |
 | **Premium First-Run Onboarding** | A short 4-page visual onboarding tells a clear pick-to-color story, including playful half-colored page previews, organization/sync guidance, and a gallery-focused export/share finish. |
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
+| **Drawing Title Search** | Search drawing titles within the currently selected library folder. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
 | **80 Built-In Templates** | Manifest-driven built-ins across eight shelf categories with orientation metadata for filtering/layout. |
 | **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills, shows a live count badge, and restores quiet per-drawing progress estimates in the library. |
@@ -49,7 +50,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Layer Stack Workflow** | Open layer controls from the sidebar to manage layered drawing composition. |
 | **Native Zoom and Pan** | Pinch-to-zoom and natural navigation for close coloring detail. |
 | **Stable Sidebar Navigation** | Sidebar resize drag remains smooth while the chosen width persists across launches. |
-| **Adaptive Floating Palette** | Palette can be moved between top and bottom, hides during active stroke interaction, and returns shortly after drawing stops. |
+| **Adaptive Floating Palette** | Drag the palette anywhere within the visible canvas; its position is remembered, it hides during active stroke interaction, and returns shortly after drawing stops. |
 | **Unified Color Source** | Stroke and fill actions both use the active native PencilKit color selection. |
 | **System Appearance Support** | Studio and gallery chrome adapt to light and dark mode while keeping the drawing canvas stable and the native PencilKit picker synchronized to current appearance. |
 | **Liquid-Glass Gallery** | Exported artwork appears in a light, airy carousel with larger full-card previews and a translucent filmstrip navigator. |
@@ -60,6 +61,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Per-Template Progress Recovery** | Pencil strokes, fills, layer state, and library progress snapshots are restored per template so work reappears when you return. |
 | **Library State Recovery** | Favorites, Completed, Recent, Hidden, and custom category organization restore after reinstall when iCloud is available. |
 | **Gallery Recovery** | Gallery manifest and artwork files mirror to iCloud so exported pieces return after reinstall. |
+| **Medium Home Screen Widget** | Continue the current drawing or revisit the newest Gallery artwork from a medium widget with direct app navigation. |
 | **Destructive Action Confirmations** | Confirmation prompts for clear strokes, clear fills, and imported drawing deletions. |
 | **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
@@ -68,6 +70,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 ## Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
+- **Drawing Search**: Use **Search Drawings** to filter titles within the currently selected folder.
 - **Persistent Library Browsing**: Selecting a drawing keeps the sidebar open so you can quickly move through multiple drawings.
 - **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, `Imported`, shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`); built-in drawings can appear in multiple metadata-driven folders.
 - **Folder Management**: Open **Manage Categories** to create, rename, delete, and reorder custom folders alongside built-in folder ordering.
@@ -84,7 +87,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Initial Fit Centering**: New templates open centered at fit scale, including portrait drawings on landscape iPad screens.
 - **Fill**: Switch to fill mode from the floating palette and tap enclosed regions to color them.
 - **PencilKit Picker in Fill Mode**: The native PencilKit palette stays available in fill mode so you can change colors without switching back to draw mode.
-- **Palette Position**: Use the arrow button in the palette to move it between top and bottom.
+- **Palette Position**: Drag the palette using its handle and place it anywhere within the visible canvas.
 - **Undo/Redo**: Use the toolbar arrows in draw mode or fill mode to step backward or forward through recent edits for the selected drawing.
 - **Fill Erasing**: After filling, switch back to coloring mode and use the PencilKit eraser to remove the touched fill region.
 - **Fill Color Source**: Fill mode uses the currently selected PencilKit color, so strokes and fills share the same palette.
@@ -95,6 +98,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Export**: Create a PNG and share from the system share sheet.
 - **Gallery Navigation**: Switch between Studio and Gallery using the app’s tab navigation.
 - **Gallery Fidelity**: Main carousel cards render full-resolution artwork; the thumbnail rail remains optimized for compact previews.
+- **Widget Navigation**: Add the medium Coloring Room widget to continue the current drawing or open the newest Gallery artwork directly.
 - **Light/Dark Mode**: App chrome follows the current system appearance automatically; drawing/export colors remain stable and gallery previews are white-backed so transparent regions do not darken in dark UI.
 
 ---
@@ -114,7 +118,8 @@ Coloring Room follows a predictable persistence and rendering pipeline:
 9. Persist drawing, fill, layer-stack, and lightweight progress snapshot updates per template locally.
 10. Mirror drawing/fill/imported-template/progress/category-state/gallery data to iCloud when available.
 11. Restore drawing/fill/layer state, progress snapshots, library metadata state, and gallery entries on reload/reinstall.
-12. Export template image + fills + layer composites + active strokes into a composited PNG.
+12. Publish compact current-drawing and latest Gallery snapshots to the medium widget through the shared App Group.
+13. Export template image + fills + layer composites + active strokes into a composited PNG.
 
 ---
 
@@ -158,7 +163,11 @@ Coloring Room follows a predictable persistence and rendering pipeline:
 
 ### **UI Layer (SwiftUI + PencilKit bridge)**
 - `TemplateStudioView` provides iPad-first library + studio shell.
-- `PencilCanvasView` bridges PencilKit canvas, tool picker, and native gesture behavior.
+- `PencilCanvasView` makes `PKCanvasView` the sole zoom/pan owner and keeps the template, fill, drawing, and overlay layers on that shared viewport.
+
+### **Medium Widget**
+- `ColoringWidgetSnapshotWriter` publishes compact current-drawing and latest Gallery snapshots through the shared App Group.
+- `ColoringWidgetExtension` displays only the medium widget family and deep-links into the corresponding Studio or Gallery destination.
 
 ---
 
@@ -173,6 +182,8 @@ Coloring/
 │   ├── Services/
 │   ├── ViewModels/
 │   └── Views/
+├── ColoringWidget/
+├── ColoringWidgetShared/
 ├── ColoringTests/
 ├── ColoringUITests/
 └── Coloring.xcodeproj
@@ -187,7 +198,7 @@ Coloring/
 - iPad simulator runtime (or physical iPad device)
 
 ### Setup
-1. Open `/Users/donnoel/Development/Coloring/Coloring.xcodeproj`.
+1. Open `Coloring.xcodeproj` from the repository root.
 2. Select scheme `Coloring`.
 3. Choose an iPad destination.
 4. Build and run.
@@ -199,7 +210,7 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/pl
 
 ### Test
 ```bash
-xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=iOS Simulator,name=iPad (A16)' test
+xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=iOS Simulator,name=iPad (A16),OS=latest' test
 ```
 
 ---
@@ -232,9 +243,8 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=i
 
 ## Roadmap
 
-- [ ] Search by drawing title.
-- [ ] Custom color palettes.
-- [ ] Additional automated test coverage and reduced simulator flakiness.
+- [ ] Add targeted regression coverage for canvas launch, zoom, pan, and widget navigation.
+- [ ] After release stability, split `PencilCanvasView` and its coordinator into smaller components without changing behavior.
 
 ---
 

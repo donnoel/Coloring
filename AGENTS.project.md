@@ -11,6 +11,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 1) MVP scope
 - Studio + Gallery tab shell with a full-screen Apple Pencil studio (no Scene/Templates tab split)
 - Unified sidebar list containing built-in and imported drawings
+- Drawing-title search scoped to the currently selected library folder
 - PNG export + share flow
 - Apple Pencil Template Studio with 80 manifest-driven built-in templates, including orientation metadata
 - Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, four complexity folders (Easy/Medium/Detailed/Dense), and manifest-driven shelf folders (Cozy, Nature, Animals, Fantasy, Patterns, Seasonal, Motorsport, Sci-Fi) with multi-folder membership support
@@ -18,8 +19,9 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Manage Categories supports creating, renaming, deleting, and reordering custom folders; imported drawings can be assigned into those folders
 - Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)
 - Imported drawing templates from Photos/Files
-- Immersive template workflow: always-full-screen canvas first, native PencilKit picker, native UIScrollView pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
+- Immersive template workflow: always-full-screen canvas first, native PencilKit picker, PencilKit-owned pan/zoom navigation, and sidebar-managed import/export/clear/rename/delete controls
 - First-run premium onboarding flow with four visual pages covering Studio, import/coloring controls, organization + iCloud behavior, and Gallery export/share basics
+- Medium Home Screen widget for continuing the current drawing or opening the newest Gallery artwork through deep links
 
 2) Architecture boundaries
 - SwiftUI views handle presentation and interaction only
@@ -42,6 +44,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - View-model state transitions (scene switching, coloring, clearing)
 - Export state handling
 - Template image synchronization when switching between same-size templates
+- Canvas alignment across restoration, launch, zoom, and pan transitions
+- Widget snapshot and deep-link routing
 - Imported drawing reset flows (single delete and delete-all confirmation behavior)
 - Hidden/unhidden template flows and category-state sanitization
 
@@ -53,12 +57,16 @@ Success means users can pick a scene, color it intuitively, and export finished 
   - `/Users/donnoel/Development/Coloring/Coloring/Services/TemplateLibraryService.swift`
   - `/Users/donnoel/Development/Coloring/Coloring/Services/TemplateArtworkExportService.swift`
   - `/Users/donnoel/Development/Coloring/Coloring/Services/GalleryStoreService.swift`
+  - `/Users/donnoel/Development/Coloring/Coloring/Services/ColoringWidgetSnapshotWriter.swift`
 - Gallery view model:
   - `/Users/donnoel/Development/Coloring/Coloring/ViewModels/GalleryViewModel.swift`
 - Core drawing UI:
   - `/Users/donnoel/Development/Coloring/Coloring/Views/TemplateStudioView.swift`
   - `/Users/donnoel/Development/Coloring/Coloring/Views/PencilCanvasView.swift`
   - `/Users/donnoel/Development/Coloring/Coloring/Views/GalleryView.swift`
+- Medium widget:
+  - `/Users/donnoel/Development/Coloring/ColoringWidget/ColoringRoomWidget.swift`
+  - `/Users/donnoel/Development/Coloring/ColoringWidgetShared/ColoringWidgetSnapshot.swift`
 
 ## Concurrency rules (important)
 - Keep SwiftUI/view-model state on the main actor.
@@ -79,6 +87,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
 - Library sidebar lists both built-in and imported templates together.
+- Drawing search filters titles within the currently selected library folder and restores the folder result when cleared.
 - Library sidebar resize should remain responsive during drag and persist the chosen width after drag ends.
 - Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
@@ -88,6 +97,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - During first-run onboarding presentation, the native PencilKit palette should remain hidden and restore after onboarding is dismissed.
 - Layer controls should be launched from the sidebar, and destructive clear/delete actions should require explicit confirmation.
 - Fill taps should map to the exact visible region the user selects, regardless of zoom level or source image orientation.
+- `PKCanvasView` must remain the sole zoom/pan owner; the template, fill, drawing, and overlay layers must follow its viewport rather than introducing a second zooming scroll view.
 - The PencilKit eraser should also remove the touched fill region when fill overlay is present in coloring mode.
 - Undo and redo should preserve the combined per-template edit history for strokes, fills, fill erasing, clears, and layer operations.
 - The floating palette should support drag placement within the visible canvas, auto-hide during active stroke coloring, and return after roughly one second of drawing inactivity.
@@ -96,6 +106,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Gallery exports and thumbnails should be normalized to an opaque white-backed image so transparent regions never appear dark in gallery previews.
 - Gallery stage cards should render full-resolution artwork, while the bottom thumbnail rail should use compact thumbnails for performance.
 - Sending artwork to Gallery should be best-effort and must not fail/share-block a completed PNG export.
+- The widget should support only `.systemMedium`, show current and latest Gallery artwork, and preserve its Studio/Gallery deep links.
 
 ## UX rules
 - iPad-first layout with clear template navigation.
@@ -116,9 +127,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
   - `xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/platform=iOS Simulator' clean build`
 
 ## Near-term priorities
-- Add title search for templates.
-- Add custom color palette management.
-- Add broader automated test coverage and reduce simulator test flakiness.
+- Add targeted regression coverage for canvas launch, zoom, pan, and widget navigation.
+- After release stability, split `PencilCanvasView` and its coordinator into smaller components without changing behavior.
 
 ## Output expectations per patch
 Provide:
