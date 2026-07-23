@@ -1285,13 +1285,13 @@ final class ColoringTests: XCTestCase {
         XCTAssertLessThanOrEqual(progress, 0.99)
     }
 
-    func testProgressEstimatorNormalizesColoringPageCoverage() async throws {
+    func testProgressEstimatorReportsActualColoringPageCoverage() async throws {
         let estimator = TemplateProgressEstimator()
         let fillData = await MainActor.run {
             partialTemplateImageData(
                 UIColor.systemTeal,
                 size: CGSize(width: 32, height: 32),
-                fillFraction: 0.22
+                fillFraction: 0.28
             )
         }
 
@@ -1303,8 +1303,8 @@ final class ColoringTests: XCTestCase {
         )
         let progress = try XCTUnwrap(estimatedProgress)
 
-        XCTAssertGreaterThan(progress, 0.7)
-        XCTAssertLessThan(progress, 0.9)
+        XCTAssertGreaterThan(progress, 0.25)
+        XCTAssertLessThan(progress, 0.32)
     }
 
     func testProgressSnapshotStorePersistsAndRestoresSnapshots() async throws {

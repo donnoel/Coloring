@@ -7,8 +7,6 @@ actor TemplateProgressEstimator {
     private static let sampleSize = CGSize(width: 32, height: 32)
     private static let maxEstimatedProgress = 0.99
     private static let minimumVisibleAlpha: UInt8 = 8
-    // Coloring pages often have large paper/background areas that should not make finished work look barely started.
-    private static let expectedCompleteVisibleCoverage = 0.28
 
     func estimateProgress(
         layerStack: LayerStack?,
@@ -117,6 +115,6 @@ actor TemplateProgressEstimator {
             return 0
         }
         let visibleCoverage = Double(visiblePixelCount) / Double(totalSampleCount)
-        return min(visibleCoverage / Self.expectedCompleteVisibleCoverage, 1)
+        return visibleCoverage
     }
 }
