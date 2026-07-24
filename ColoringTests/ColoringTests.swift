@@ -4879,6 +4879,7 @@ final class ColoringTests: XCTestCase {
         let directScrollViews = container.subviews.compactMap { $0 as? UIScrollView }
         XCTAssertEqual(directScrollViews.count, 1)
         XCTAssertTrue(directScrollViews.first === container.canvasView)
+        XCTAssertTrue(container.clipsToBounds)
         XCTAssertTrue(container.contentView.superview === container)
         XCTAssertTrue(container.canvasView.superview === container)
         XCTAssertTrue(container.aboveLayerImageView.superview === container)

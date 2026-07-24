@@ -1149,6 +1149,9 @@ final class ZoomableCanvasContainerView: UIView {
 
     private func setupSubviews() {
         backgroundColor = .clear
+        // PencilKit clips its drawing to the canvas viewport. Keep the manually
+        // transformed artwork layers inside that same viewport during zoom and pan.
+        clipsToBounds = true
 
         contentView.backgroundColor = .white
         contentView.isUserInteractionEnabled = false
