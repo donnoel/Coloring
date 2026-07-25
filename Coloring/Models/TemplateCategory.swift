@@ -16,6 +16,7 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
         "cityscapes": "Cityscapes",
         "interiors": "Interiors",
         "landscapes": "Landscapes",
+        "motorsport": "Motorsport",
         "objects": "Objects",
         "scifi": "Sci-Fi"
     ]

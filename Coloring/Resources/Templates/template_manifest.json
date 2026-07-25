@@ -8,7 +8,7 @@
   },
   {
     "id": "builtin_002",
-    "title": "Quiet Moment in the Backyard",
+    "title": "Moment in the backyard",
     "category": "animals",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/animals/animals_quiet_moment_in_the_backyard_landscape.png"
@@ -36,7 +36,7 @@
   },
   {
     "id": "builtin_006",
-    "title": "Fluffy Cat in a Cozy Perch House",
+    "title": "Cat in a Cozy Perch House",
     "category": "animals",
     "orientation": "portrait",
     "file": "Templates/BuiltIn/animals/animals_fluffy_cat_in_a_cozy_perch_house_portrait.png"
@@ -85,7 +85,7 @@
   },
   {
     "id": "builtin_013",
-    "title": "Historic Clock Tower and City Façade",
+    "title": "Clock Tower and City Facade",
     "category": "cityscapes",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/cityscapes/cityscapes_historic_clock_tower_and_city_facade_landscape.png"
@@ -120,7 +120,7 @@
   },
   {
     "id": "builtin_018",
-    "title": "Historic Tower in a Bustling Square",
+    "title": "Town in a Bustling Square",
     "category": "cityscapes",
     "orientation": "portrait",
     "file": "Templates/BuiltIn/cityscapes/cityscapes_historic_tower_in_a_bustling_square_portrait.png"
@@ -383,5 +383,75 @@
     "category": "scifi",
     "orientation": "portrait",
     "file": "Templates/BuiltIn/scifi/scifi_alien_with_elongated_head_and_wrinkles_portrait.png"
+  },
+  {
+    "id": "builtin_056",
+    "title": "Formula Race Cars on the Track",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_formula_race_cars_on_the_track_landscape.png"
+  },
+  {
+    "id": "builtin_057",
+    "title": "High-Speed Wheelie Action on Track",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_high_speed_wheelie_action_on_track_landscape.png"
+  },
+  {
+    "id": "builtin_058",
+    "title": "Monaco Race Track Through City Hills",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_monaco_race_track_through_city_hills_landscape.png"
+  },
+  {
+    "id": "builtin_059",
+    "title": "Motorcycle Racer in Aggressive Tuck Position",
+    "category": "motorsport",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/motorsport/motorsport_motorcycle_racer_in_aggressive_tuck_position_portrait.png"
+  },
+  {
+    "id": "builtin_060",
+    "title": "Motorsport Race on a Winding Track",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_race_on_a_winding_track_landscape.png"
+  },
+  {
+    "id": "builtin_061",
+    "title": "Racer Leaning into a Sharp Turn",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_racer_leaning_into_a_sharp_turn_landscape.png"
+  },
+  {
+    "id": "builtin_062",
+    "title": "Rider's Wheelie Under the Stadium Lights",
+    "category": "motorsport",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/motorsport/motorsport_riders_wheelie_under_the_stadium_lights_portrait.png"
+  },
+  {
+    "id": "builtin_063",
+    "title": "Speeding Around the Racetrack Curve",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_speeding_around_the_racetrack_curve_landscape.png"
+  },
+  {
+    "id": "builtin_064",
+    "title": "Street Circuit Race",
+    "category": "motorsport",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/motorsport/motorsport_street_circuit_race_portrait.png"
+  },
+  {
+    "id": "builtin_065",
+    "title": "Wheelie Rider on Racetrack in Motion",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_wheelie_rider_on_racetrack_in_motion_landscape.png"
   }
 ]

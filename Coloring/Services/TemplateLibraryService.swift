@@ -490,6 +490,7 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         "cityscapes": "Cityscapes",
         "interiors": "Interiors",
         "landscapes": "Landscapes",
+        "motorsport": "Motorsport",
         "objects": "Objects",
         "scifi": "Sci-Fi"
     ]

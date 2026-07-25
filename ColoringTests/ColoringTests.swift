@@ -210,6 +210,13 @@ final class ColoringTests: XCTestCase {
                 category: "Sci-Fi",
                 shelfCategory: "scifi",
                 canvasOrientation: .landscape
+            ),
+            Self.makeTemplate(
+                id: "builtin-race",
+                title: "Formula Race",
+                category: "Motorsport",
+                shelfCategory: "motorsport",
+                canvasOrientation: .landscape
             )
         ]
         let library = StubTemplateLibrary(templates: templates)
@@ -236,6 +243,7 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(categoryNames.contains("Landscapes"))
             XCTAssertTrue(categoryNames.contains("Objects"))
             XCTAssertTrue(categoryNames.contains("Sci-Fi"))
+            XCTAssertTrue(categoryNames.contains("Motorsport"))
             XCTAssertTrue(categoryNames.contains("Landscape"))
             XCTAssertTrue(categoryNames.contains("Portrait"))
             XCTAssertFalse(categoryNames.contains("Easy"))
@@ -2589,7 +2597,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(entry.resolvedComplexity, "dense")
     }
 
-    func testBuiltInManifestContainsExpected55PhotoPack() throws {
+    func testBuiltInManifestContainsExpected65PhotoPack() throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -2597,7 +2605,7 @@ final class ColoringTests: XCTestCase {
         let data = try Data(contentsOf: manifestURL)
 
         let rawManifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
-        XCTAssertEqual(rawManifest.count, 55)
+        XCTAssertEqual(rawManifest.count, 65)
 
         let requiredKeys = Set(["id", "title", "category", "orientation", "file"])
         rawManifest.forEach { entry in
@@ -2605,27 +2613,28 @@ final class ColoringTests: XCTestCase {
         }
 
         let decodedEntries = try JSONDecoder().decode([TemplateLibraryService.ManifestEntry].self, from: data)
-        XCTAssertEqual(decodedEntries.count, 55)
+        XCTAssertEqual(decodedEntries.count, 65)
         XCTAssertEqual(decodedEntries.first?.id, "builtin_001")
-        XCTAssertEqual(decodedEntries.last?.id, "builtin_055")
+        XCTAssertEqual(decodedEntries.last?.id, "builtin_065")
         XCTAssertEqual(
             decodedEntries.map(\.resolvedTemplateID),
-            (1...55).map { String(format: "builtin_%03d", $0) }
+            (1...65).map { String(format: "builtin_%03d", $0) }
         )
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 55)
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 55)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 65)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 65)
 
         let categoryCounts = Dictionary(grouping: decodedEntries, by: \.category).mapValues(\.count)
         XCTAssertEqual(categoryCounts["animals"], 10)
         XCTAssertEqual(categoryCounts["cityscapes"], 15)
         XCTAssertEqual(categoryCounts["interiors"], 4)
         XCTAssertEqual(categoryCounts["landscapes"], 10)
+        XCTAssertEqual(categoryCounts["motorsport"], 10)
         XCTAssertEqual(categoryCounts["objects"], 6)
         XCTAssertEqual(categoryCounts["scifi"], 10)
 
         let orientationCounts = Dictionary(grouping: decodedEntries, by: \.orientation).mapValues(\.count)
-        XCTAssertEqual(orientationCounts[.landscape], 39)
-        XCTAssertEqual(orientationCounts[.portrait], 16)
+        XCTAssertEqual(orientationCounts[.landscape], 46)
+        XCTAssertEqual(orientationCounts[.portrait], 19)
 
         let resourcesURL = repoRootURL.appendingPathComponent("Coloring/Resources")
         for entry in decodedEntries {
