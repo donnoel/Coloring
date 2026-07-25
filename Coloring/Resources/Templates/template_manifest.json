@@ -49,6 +49,27 @@
     "file": "Templates/BuiltIn/animals/animals_shaggy_dog_in_a_cozy_living_room_portrait.png"
   },
   {
+    "id": "animals_008",
+    "title": "Two Fawns Beneath a Garden Tree",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_two_fawns_beneath_a_garden_tree_portrait.png"
+  },
+  {
+    "id": "animals_009",
+    "title": "Tabby Resting on Soft Blankets",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_tabby_resting_on_soft_blankets_portrait.png"
+  },
+  {
+    "id": "animals_010",
+    "title": "Cat Watching the Hallway",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_cat_watching_the_hallway_portrait.png"
+  },
+  {
     "id": "cityscapes_001",
     "title": "Urban City Street",
     "category": "cityscapes",
@@ -117,6 +138,41 @@
     "category": "cityscapes",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/cityscapes/cityscapes_alpine_village_in_the_mountains_landscape.png"
+  },
+  {
+    "id": "cityscapes_011",
+    "title": "Whimsical Towers from Below",
+    "category": "cityscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cityscapes/cityscapes_whimsical_towers_from_below_landscape.png"
+  },
+  {
+    "id": "cityscapes_012",
+    "title": "Neoclassical Memorial and Grand Staircase",
+    "category": "cityscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cityscapes/cityscapes_neoclassical_memorial_and_grand_staircase_landscape.png"
+  },
+  {
+    "id": "cityscapes_013",
+    "title": "Castle Along a Winding Drive",
+    "category": "cityscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cityscapes/cityscapes_castle_along_a_winding_drive_landscape.png"
+  },
+  {
+    "id": "cityscapes_014",
+    "title": "Canal Through the City",
+    "category": "cityscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cityscapes/cityscapes_canal_through_the_city_landscape.png"
+  },
+  {
+    "id": "cityscapes_015",
+    "title": "Historic Square and Clock Tower",
+    "category": "cityscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cityscapes/cityscapes_historic_square_and_clock_tower_landscape.png"
   },
   {
     "id": "interiors_001",
@@ -243,5 +299,19 @@
     "category": "objects",
     "orientation": "portrait",
     "file": "Templates/BuiltIn/objects/objects_musical_instruments_in_a_cozy_corner_portrait.png"
+  },
+  {
+    "id": "objects_005",
+    "title": "ATV Across the Open Prairie",
+    "category": "objects",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/objects/objects_atv_across_the_open_prairie_landscape.png"
+  },
+  {
+    "id": "objects_006",
+    "title": "Four Guitars on a Woven Rug",
+    "category": "objects",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/objects/objects_four_guitars_on_a_woven_rug_landscape.png"
   }
 ]
