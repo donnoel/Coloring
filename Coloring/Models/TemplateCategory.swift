@@ -12,20 +12,11 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
     static let completedCategory = TemplateCategory(id: "completed", name: "Completed", isUserCreated: false)
     static let importedCategory = TemplateCategory(id: "imported", name: "Imported", isUserCreated: false)
     private static let shelfDisplayNameByKey: [String: String] = [
-        "cozy": "Cozy",
-        "nature": "Nature",
         "animals": "Animals",
-        "fantasy": "Fantasy",
-        "patterns": "Patterns",
-        "seasonal": "Seasonal",
-        "motorsport": "Motorsport",
-        "scifi": "Sci-Fi"
-    ]
-    private static let complexityDisplayNameByKey: [String: String] = [
-        "easy": "Easy",
-        "medium": "Medium",
-        "detailed": "Detailed",
-        "dense": "Dense"
+        "cityscapes": "Cityscapes",
+        "interiors": "Interiors",
+        "landscapes": "Landscapes",
+        "objects": "Objects"
     ]
 
     static func builtInCategoryNames(for template: ColoringTemplate) -> Set<String> {
@@ -44,12 +35,6 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
             if !fallbackCategory.isEmpty {
                 names.insert(fallbackCategory)
             }
-        }
-
-        if let complexityKey = normalizedKey(template.complexity),
-           let complexityDisplayName = complexityDisplayNameByKey[complexityKey]
-        {
-            names.insert(complexityDisplayName)
         }
 
         switch template.canvasOrientation {

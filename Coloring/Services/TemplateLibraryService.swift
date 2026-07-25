@@ -438,12 +438,9 @@ actor TemplateLibraryService: TemplateLibraryProviding {
             return normalized
         }
 
-        var resolvedComplexity: String {
+        var resolvedComplexity: String? {
             let normalized = normalizedKey(complexity)
-            if TemplateLibraryService.complexityDisplayNameByKey.keys.contains(normalized) {
-                return normalized
-            }
-            return "medium"
+            return normalized.isEmpty ? nil : normalized
         }
 
         var resolvedMood: [String] {
@@ -489,21 +486,11 @@ actor TemplateLibraryService: TemplateLibraryProviding {
     }
 
     private static let shelfCategoryDisplayNameByKey: [String: String] = [
-        "cozy": "Cozy",
-        "nature": "Nature",
         "animals": "Animals",
-        "fantasy": "Fantasy",
-        "patterns": "Patterns",
-        "seasonal": "Seasonal",
-        "motorsport": "Motorsport",
-        "scifi": "Sci-Fi"
-    ]
-
-    private static let complexityDisplayNameByKey: [String: String] = [
-        "easy": "Easy",
-        "medium": "Medium",
-        "detailed": "Detailed",
-        "dense": "Dense"
+        "cityscapes": "Cityscapes",
+        "interiors": "Interiors",
+        "landscapes": "Landscapes",
+        "objects": "Objects"
     ]
 
     private let bundle: Bundle
