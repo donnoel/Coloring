@@ -42,10 +42,10 @@ struct ColoringRoomWidgetView: View {
 
             HStack(spacing: 10) {
                 currentArtworkCard
-                    .frame(width: availableCardWidth * 0.56)
+                    .frame(width: availableCardWidth / 2)
 
                 galleryArtworkCard
-                    .frame(maxWidth: .infinity)
+                    .frame(width: availableCardWidth / 2)
             }
         }
         .padding(12)
