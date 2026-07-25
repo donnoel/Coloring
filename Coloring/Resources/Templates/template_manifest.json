@@ -1,10 +1,10 @@
 [
   {
     "id": "animals_001",
-    "title": "Cozy Living Room with a Dog",
+    "title": "Living Room with a Dog",
     "category": "animals",
     "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_cozy_living_room_with_a_dog_portrait.png"
+    "file": "Templates/BuiltIn/animals/animals_living_room_with_a_dog_portrait.png"
   },
   {
     "id": "animals_002",
@@ -19,6 +19,34 @@
     "category": "animals",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/animals/animals_cat_lounging_in_a_box_landscape.png"
+  },
+  {
+    "id": "animals_004",
+    "title": "Kitten in a Serene Workspace",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_kitten_in_a_serene_workspace_landscape.png"
+  },
+  {
+    "id": "animals_005",
+    "title": "Fluffy Dog Relaxing at Home",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_fluffy_dog_relaxing_at_home_portrait.png"
+  },
+  {
+    "id": "animals_006",
+    "title": "Fluffy Cat in a Cozy Perch House",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_fluffy_cat_in_a_cozy_perch_house_portrait.png"
+  },
+  {
+    "id": "animals_007",
+    "title": "Shaggy Dog in a Cozy Living Room",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_shaggy_dog_in_a_cozy_living_room_portrait.png"
   },
   {
     "id": "cityscapes_001",
@@ -112,6 +140,13 @@
     "file": "Templates/BuiltIn/interiors/interiors_rustic_wine_cellar_landscape.png"
   },
   {
+    "id": "interiors_004",
+    "title": "Dining Room with a Lounging Cat",
+    "category": "interiors",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/interiors/interiors_dining_room_with_a_lounging_cat_landscape.png"
+  },
+  {
     "id": "landscapes_001",
     "title": "Trailhead Parking in a Forest Clearing",
     "category": "landscapes",
@@ -161,6 +196,27 @@
     "file": "Templates/BuiltIn/landscapes/landscapes_mountain_landscape_with_trees_and_meadow_landscape.png"
   },
   {
+    "id": "landscapes_008",
+    "title": "Forest Campsite with Campfire and Bike",
+    "category": "landscapes",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/landscapes/landscapes_forest_campsite_with_campfire_and_bike_portrait.png"
+  },
+  {
+    "id": "landscapes_009",
+    "title": "Mountain Lake Reflections",
+    "category": "landscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/landscapes/landscapes_mountain_lake_reflections_landscape.png"
+  },
+  {
+    "id": "landscapes_010",
+    "title": "Peaceful Riverfront with Teepees and Cliffs",
+    "category": "landscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/landscapes/landscapes_peaceful_riverfront_with_teepees_and_cliffs_landscape.png"
+  },
+  {
     "id": "objects_001",
     "title": "Sportbike in a Suburban Driveway",
     "category": "objects",
@@ -173,5 +229,19 @@
     "category": "objects",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/objects/objects_ornate_elephant_statue_in_a_lush_park_landscape.png"
+  },
+  {
+    "id": "objects_003",
+    "title": "Decorative Horse Statue on an Urban Street",
+    "category": "objects",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/objects/objects_decorative_horse_statue_on_an_urban_street_portrait.png"
+  },
+  {
+    "id": "objects_004",
+    "title": "Musical Instruments in a Cozy Corner",
+    "category": "objects",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/objects/objects_musical_instruments_in_a_cozy_corner_portrait.png"
   }
 ]
