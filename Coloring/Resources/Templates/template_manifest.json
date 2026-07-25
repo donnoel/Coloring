@@ -453,5 +453,75 @@
     "category": "motorsport",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/motorsport/motorsport_wheelie_rider_on_racetrack_in_motion_landscape.png"
+  },
+  {
+    "id": "builtin_066",
+    "title": "Sunlit Reading Nook",
+    "category": "interiors",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/interiors/interiors_sunlit_reading_nook_portrait.png"
+  },
+  {
+    "id": "builtin_067",
+    "title": "Library with Spiral Staircase",
+    "category": "interiors",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/interiors/interiors_library_with_spiral_staircase_portrait.png"
+  },
+  {
+    "id": "builtin_068",
+    "title": "Conservatory Tea Room",
+    "category": "interiors",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/interiors/interiors_conservatory_tea_room_portrait.png"
+  },
+  {
+    "id": "builtin_069",
+    "title": "Potting Bench with Hanging Herbs",
+    "category": "interiors",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/interiors/interiors_potting_bench_with_hanging_herbs_portrait.png"
+  },
+  {
+    "id": "builtin_070",
+    "title": "Antique Typewriter and Writing Desk",
+    "category": "objects",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/objects/objects_antique_typewriter_and_writing_desk_landscape.png"
+  },
+  {
+    "id": "builtin_071",
+    "title": "Vintage Camera and Travel Keepsakes",
+    "category": "objects",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/objects/objects_vintage_camera_and_travel_keepsakes_landscape.png"
+  },
+  {
+    "id": "builtin_072",
+    "title": "Sailboat Rigging at the Marina",
+    "category": "objects",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/objects/objects_sailboat_rigging_at_the_marina_portrait.png"
+  },
+  {
+    "id": "builtin_073",
+    "title": "Lighthouse Above a Rocky Coast",
+    "category": "landscapes",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/landscapes/landscapes_lighthouse_above_a_rocky_coast_portrait.png"
+  },
+  {
+    "id": "builtin_074",
+    "title": "Covered Bridge in Autumn Woods",
+    "category": "landscapes",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/landscapes/landscapes_covered_bridge_in_autumn_woods_landscape.png"
+  },
+  {
+    "id": "builtin_075",
+    "title": "Peacock in a Formal Garden",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_peacock_in_a_formal_garden_portrait.png"
   }
 ]
