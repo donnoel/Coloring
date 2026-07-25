@@ -16,7 +16,8 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
         "cityscapes": "Cityscapes",
         "interiors": "Interiors",
         "landscapes": "Landscapes",
-        "objects": "Objects"
+        "objects": "Objects",
+        "scifi": "Sci-Fi"
     ]
 
     static func builtInCategoryNames(for template: ColoringTemplate) -> Set<String> {

@@ -13,8 +13,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Unified sidebar list containing built-in and imported drawings
 - Drawing-title search scoped to the currently selected library folder
 - PNG export + share flow
-- Apple Pencil Template Studio with 45 manifest-driven, photo-derived built-in templates, including orientation metadata
-- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, and manifest-driven shelf folders (Animals, Cityscapes, Interiors, Landscapes, Objects) with multi-folder membership support
+- Apple Pencil Template Studio with 55 manifest-driven, photo-derived built-in templates, including orientation metadata
+- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, and manifest-driven shelf folders (Animals, Cityscapes, Interiors, Landscapes, Objects, Sci-Fi) with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Manage Categories supports creating, renaming, deleting, and reordering custom folders; imported drawings can be assigned into those folders
 - Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)
@@ -27,6 +27,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - SwiftUI views handle presentation and interaction only
 - View model owns screen state and user actions
 - Services own template catalog/import persistence, category state persistence, drawing persistence, and export/gallery IO
+- Built-in template IDs are permanent drawing-persistence keys: never reuse a retired ID, and continue new library additions with the global `builtin_NNN` sequence
 
 3) Reliability and UX goals
 - Clean build with no warnings

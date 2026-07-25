@@ -490,7 +490,8 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         "cityscapes": "Cityscapes",
         "interiors": "Interiors",
         "landscapes": "Landscapes",
-        "objects": "Objects"
+        "objects": "Objects",
+        "scifi": "Sci-Fi"
     ]
 
     private let bundle: Bundle

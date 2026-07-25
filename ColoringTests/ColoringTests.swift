@@ -203,6 +203,13 @@ final class ColoringTests: XCTestCase {
                 category: "Objects",
                 shelfCategory: "objects",
                 canvasOrientation: .portrait
+            ),
+            Self.makeTemplate(
+                id: "builtin-space",
+                title: "Spacecraft",
+                category: "Sci-Fi",
+                shelfCategory: "scifi",
+                canvasOrientation: .landscape
             )
         ]
         let library = StubTemplateLibrary(templates: templates)
@@ -228,6 +235,7 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(categoryNames.contains("Interiors"))
             XCTAssertTrue(categoryNames.contains("Landscapes"))
             XCTAssertTrue(categoryNames.contains("Objects"))
+            XCTAssertTrue(categoryNames.contains("Sci-Fi"))
             XCTAssertTrue(categoryNames.contains("Landscape"))
             XCTAssertTrue(categoryNames.contains("Portrait"))
             XCTAssertFalse(categoryNames.contains("Easy"))
@@ -2581,7 +2589,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(entry.resolvedComplexity, "dense")
     }
 
-    func testBuiltInManifestContainsExpected45PhotoPack() throws {
+    func testBuiltInManifestContainsExpected55PhotoPack() throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -2589,7 +2597,7 @@ final class ColoringTests: XCTestCase {
         let data = try Data(contentsOf: manifestURL)
 
         let rawManifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
-        XCTAssertEqual(rawManifest.count, 45)
+        XCTAssertEqual(rawManifest.count, 55)
 
         let requiredKeys = Set(["id", "title", "category", "orientation", "file"])
         rawManifest.forEach { entry in
@@ -2597,11 +2605,15 @@ final class ColoringTests: XCTestCase {
         }
 
         let decodedEntries = try JSONDecoder().decode([TemplateLibraryService.ManifestEntry].self, from: data)
-        XCTAssertEqual(decodedEntries.count, 45)
-        XCTAssertEqual(decodedEntries.first?.id, "animals_001")
-        XCTAssertEqual(decodedEntries.last?.id, "objects_006")
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 45)
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 45)
+        XCTAssertEqual(decodedEntries.count, 55)
+        XCTAssertEqual(decodedEntries.first?.id, "builtin_001")
+        XCTAssertEqual(decodedEntries.last?.id, "builtin_055")
+        XCTAssertEqual(
+            decodedEntries.map(\.resolvedTemplateID),
+            (1...55).map { String(format: "builtin_%03d", $0) }
+        )
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 55)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 55)
 
         let categoryCounts = Dictionary(grouping: decodedEntries, by: \.category).mapValues(\.count)
         XCTAssertEqual(categoryCounts["animals"], 10)
@@ -2609,10 +2621,11 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(categoryCounts["interiors"], 4)
         XCTAssertEqual(categoryCounts["landscapes"], 10)
         XCTAssertEqual(categoryCounts["objects"], 6)
+        XCTAssertEqual(categoryCounts["scifi"], 10)
 
         let orientationCounts = Dictionary(grouping: decodedEntries, by: \.orientation).mapValues(\.count)
-        XCTAssertEqual(orientationCounts[.landscape], 33)
-        XCTAssertEqual(orientationCounts[.portrait], 12)
+        XCTAssertEqual(orientationCounts[.landscape], 39)
+        XCTAssertEqual(orientationCounts[.portrait], 16)
 
         let resourcesURL = repoRootURL.appendingPathComponent("Coloring/Resources")
         for entry in decodedEntries {
@@ -2699,6 +2712,26 @@ final class ColoringTests: XCTestCase {
 
         try await service.deleteImportedTemplate(id: renamedTemplate.id)
         XCTAssertFalse(FileManager.default.fileExists(atPath: renamedTemplate.filePath))
+    }
+
+    func testTemplateLibraryServiceAssignsUniquePersistenceIDsToRepeatedImports() async throws {
+        let documentsURL = try makeTemporaryDocumentsDirectory()
+        let service = TemplateLibraryService(
+            documentsDirectoryURLProvider: { documentsURL },
+            ubiquityContainerURLProvider: { _ in nil }
+        )
+
+        let firstTemplate = try await service.importTemplate(
+            imageData: sampleTemplateImageData,
+            preferredName: "Repeated Drawing"
+        )
+        let secondTemplate = try await service.importTemplate(
+            imageData: sampleTemplateImageData,
+            preferredName: "Repeated Drawing"
+        )
+
+        XCTAssertNotEqual(firstTemplate.id, secondTemplate.id)
+        XCTAssertNotEqual(firstTemplate.filePath, secondTemplate.filePath)
     }
 
     func testTemplateLibraryServiceRejectsInvalidImageData() async throws {
