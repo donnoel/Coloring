@@ -182,6 +182,13 @@
     "file": "Templates/BuiltIn/interiors/interiors_tiled_kitchen_with_produce_landscape.png"
   },
   {
+    "id": "builtin_027",
+    "title": "Cyberpunk Girl",
+    "category": "scifi",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/scifi/scifi_cyberpunk_girl_portrait.png"
+  },
+  {
     "id": "builtin_028",
     "title": "Rustic Wine Cellar",
     "category": "interiors",
