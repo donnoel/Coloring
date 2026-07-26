@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.scenePhase) private var scenePhase
 
     private enum RootTab: String {
         case studio
@@ -17,8 +16,6 @@ struct ContentView: View {
     @State private var hasShownOnboardingThisLaunch = false
     @State private var isStudioTabPillVisible = true
     @State private var studioTabPillAutoShowTask: Task<Void, Never>?
-    @State private var sceneTransitionCoverTask: Task<Void, Never>?
-    @State private var isSceneTransitionCoverVisible = false
     @State private var requestedGalleryEntryID: String?
 
     init() {
@@ -85,20 +82,7 @@ struct ContentView: View {
         .task {
             await galleryViewModel.loadEntries()
         }
-        .overlay {
-            if isSceneTransitionCoverVisible {
-                backgroundGradient
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            handleScenePhaseChange(newPhase)
-        }
         .onOpenURL(perform: handleWidgetURL)
-        .onDisappear {
-            sceneTransitionCoverTask?.cancel()
-        }
     }
 
     private var isOnboardingPresented: Bool {
@@ -111,7 +95,6 @@ struct ContentView: View {
 
     private var shouldSuppressStudioToolPicker: Bool {
         isOnboardingPresented
-            || isSceneTransitionCoverVisible
             || selectedTabRawValue != RootTab.studio.rawValue
     }
 
@@ -271,7 +254,6 @@ struct ContentView: View {
         switch url.host {
         case "studio":
             selectedTabRawValue = RootTab.studio.rawValue
-            revealContentAfterWidgetRouting()
             guard let templateID = queryItems.first(where: { $0.name == "templateID" })?.value,
                   !templateID.isEmpty
             else {
@@ -285,34 +267,9 @@ struct ContentView: View {
         case "gallery":
             requestedGalleryEntryID = queryItems.first(where: { $0.name == "entryID" })?.value
             selectedTabRawValue = RootTab.gallery.rawValue
-            revealContentAfterWidgetRouting()
         default:
             return
         }
-    }
-
-    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
-        sceneTransitionCoverTask?.cancel()
-
-        guard newPhase == .active else {
-            isSceneTransitionCoverVisible = true
-            return
-        }
-
-        sceneTransitionCoverTask = Task {
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            isSceneTransitionCoverVisible = false
-        }
-    }
-
-    private func revealContentAfterWidgetRouting() {
-        sceneTransitionCoverTask?.cancel()
-        sceneTransitionCoverTask = nil
-        isSceneTransitionCoverVisible = false
     }
 }
 
