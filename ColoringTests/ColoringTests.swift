@@ -2616,13 +2616,11 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(decodedEntries.count, 75)
         XCTAssertEqual(decodedEntries.first?.id, "builtin_001")
         XCTAssertEqual(decodedEntries.last?.id, "builtin_075")
-        XCTAssertEqual(decodedEntries[26].id, "builtin_076")
-        let expectedIDs = (1...76)
-            .filter { $0 != 27 }
+        let expectedIDs = (1...75)
             .map { String(format: "builtin_%03d", $0) }
         XCTAssertEqual(
-            Set(decodedEntries.compactMap(\.resolvedTemplateID)),
-            Set(expectedIDs)
+            decodedEntries.map(\.resolvedTemplateID),
+            expectedIDs
         )
         XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 75)
         XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 75)
@@ -2658,136 +2656,6 @@ final class ColoringTests: XCTestCase {
                 XCTFail("Missing orientation for \(fileName)")
             }
         }
-    }
-
-    func testBuiltInIdentityRegistryRetiresIDsAndPreservesEveryAssignment() throws {
-        let repoRootURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let manifestURL = repoRootURL.appendingPathComponent("Coloring/Resources/Templates/template_manifest.json")
-        let registryURL = repoRootURL.appendingPathComponent("Coloring/Resources/Templates/template_identity_registry.json")
-
-        let manifestData = try Data(contentsOf: manifestURL)
-        let registryData = try Data(contentsOf: registryURL)
-        let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [[String: Any]])
-        let registry = try XCTUnwrap(JSONSerialization.jsonObject(with: registryData) as? [String: Any])
-        let registryEntries = try XCTUnwrap(registry["entries"] as? [[String: String]])
-
-        XCTAssertEqual(registry["nextID"] as? Int, 77)
-        XCTAssertEqual(
-            registryEntries.compactMap { $0["id"] },
-            (1...76).map { String(format: "builtin_%03d", $0) }
-        )
-
-        let retiredEntries = registryEntries.filter { $0["status"] == "retired" }
-        let retiredIDs = Set(retiredEntries.compactMap { $0["id"] })
-        XCTAssertEqual(retiredIDs, BuiltInTemplateIdentityPolicy.retiredManifestTemplateIDs)
-        XCTAssertEqual(retiredEntries.first?["file"], "Templates/BuiltIn/interiors/interiors_bar_interior_landscape.png")
-
-        let activeAssignments = Dictionary(
-            uniqueKeysWithValues: registryEntries.compactMap { entry -> (String, String)? in
-                guard entry["status"] == "active",
-                      let id = entry["id"],
-                      let file = entry["file"]
-                else {
-                    return nil
-                }
-                return (id, file)
-            }
-        )
-        let manifestAssignments = Dictionary(
-            uniqueKeysWithValues: manifest.compactMap { entry -> (String, String)? in
-                guard let id = entry["id"] as? String,
-                      let file = entry["file"] as? String
-                else {
-                    return nil
-                }
-                return (id, file)
-            }
-        )
-
-        XCTAssertEqual(manifestAssignments, activeAssignments)
-        XCTAssertTrue(retiredIDs.isDisjoint(with: manifestAssignments.keys))
-        XCTAssertEqual(manifestAssignments["builtin_076"], "Templates/BuiltIn/scifi/scifi_cyberpunk_girl_portrait.png")
-    }
-
-    func testRetiredTemplateCleanupDeletesAllStoredReferences() async throws {
-        let retiredTemplateID = "builtin-builtin_027"
-        let activeTemplateID = "builtin-builtin_028"
-        let drawingStore = StubTemplateDrawingStore()
-        let categoryStore = StubCategoryStore()
-        let recentColorsStore = StubRecentColorsStore()
-        let progressStore = StubProgressSnapshotStore()
-        let galleryStore = RetiredCleanupGalleryStore()
-        let widgetWriter = RecordingColoringWidgetSnapshotWriter()
-
-        try await drawingStore.saveDrawingData(Data([1]), for: retiredTemplateID)
-        try await drawingStore.saveFillData(Data([2]), for: retiredTemplateID)
-        try await drawingStore.saveLayerStackData(Data([3]), for: retiredTemplateID)
-        try await drawingStore.saveDrawingData(Data([4]), for: activeTemplateID)
-
-        await categoryStore.seedTemplateState(retiredTemplateID: retiredTemplateID, activeTemplateID: activeTemplateID)
-        try await recentColorsStore.saveRecentColorsByTemplateID([
-            retiredTemplateID: [RecentColorToken(red: 255, green: 0, blue: 0, alpha: 255)],
-            activeTemplateID: [RecentColorToken(red: 0, green: 0, blue: 255, alpha: 255)]
-        ])
-        try await progressStore.saveSnapshots([
-            retiredTemplateID: TemplateProgressSnapshot(templateID: retiredTemplateID, estimatedProgress: 0.5),
-            activeTemplateID: TemplateProgressSnapshot(templateID: activeTemplateID, estimatedProgress: 0.25)
-        ])
-        _ = try await galleryStore.saveArtwork(
-            imageData: Data([1]),
-            sourceTemplateID: retiredTemplateID,
-            sourceTemplateName: "Bar Interior"
-        )
-        _ = try await galleryStore.saveArtwork(
-            imageData: Data([2]),
-            sourceTemplateID: activeTemplateID,
-            sourceTemplateName: "Rustic Wine Cellar"
-        )
-
-        let cleanupService = RetiredTemplateDataCleanupService(
-            drawingStore: drawingStore,
-            categoryStore: categoryStore,
-            recentColorsStore: recentColorsStore,
-            progressSnapshotStore: progressStore,
-            galleryStore: galleryStore,
-            widgetSnapshotWriter: widgetWriter
-        )
-        await cleanupService.clean()
-
-        let retiredDrawingData = try await drawingStore.loadDrawingData(for: retiredTemplateID)
-        let retiredFillData = try await drawingStore.loadFillData(for: retiredTemplateID)
-        let retiredLayerStackData = try await drawingStore.loadLayerStackData(for: retiredTemplateID)
-        let activeDrawingData = try await drawingStore.loadDrawingData(for: activeTemplateID)
-        XCTAssertNil(retiredDrawingData)
-        XCTAssertNil(retiredFillData)
-        XCTAssertNil(retiredLayerStackData)
-        XCTAssertEqual(activeDrawingData, Data([4]))
-
-        let categoryState = try await TemplateCategoryPersistenceCoordinator(
-            categoryStore: categoryStore
-        ).loadState()
-        XCTAssertFalse(categoryState.categoryAssignments.keys.contains(retiredTemplateID))
-        XCTAssertFalse(categoryState.favoriteTemplateIDs.contains(retiredTemplateID))
-        XCTAssertFalse(categoryState.completedTemplateIDs.contains(retiredTemplateID))
-        XCTAssertFalse(categoryState.recentTemplateIDs.contains(retiredTemplateID))
-        XCTAssertFalse(categoryState.hiddenTemplateIDs.contains(retiredTemplateID))
-        XCTAssertTrue(categoryState.favoriteTemplateIDs.contains(activeTemplateID))
-
-        let recentColors = try await recentColorsStore.loadRecentColorsByTemplateID()
-        XCTAssertNil(recentColors[retiredTemplateID])
-        XCTAssertNotNil(recentColors[activeTemplateID])
-
-        let snapshots = try await progressStore.loadSnapshots()
-        XCTAssertNil(snapshots[retiredTemplateID])
-        XCTAssertNotNil(snapshots[activeTemplateID])
-
-        let galleryEntries = try await galleryStore.loadEntries()
-        XCTAssertFalse(galleryEntries.contains { $0.sourceTemplateID == retiredTemplateID })
-        XCTAssertTrue(galleryEntries.contains { $0.sourceTemplateID == activeTemplateID })
-        let removedWidgetTemplateIDs = await widgetWriter.removedTemplateIDs()
-        XCTAssertEqual(removedWidgetTemplateIDs, [retiredTemplateID])
     }
 
     func testTemplateLibraryServiceResolvesManifestFilePathWhenBundleResourcesAreFlattened() async throws {
@@ -5966,48 +5834,6 @@ private actor StubRecentColorsStore: RecentColorsStoreProviding {
     }
 }
 
-private actor RetiredCleanupGalleryStore: GalleryStoreProviding {
-    private var entries: [ArtworkEntry] = []
-
-    func loadEntries() throws -> [ArtworkEntry] {
-        entries
-    }
-
-    func saveArtwork(
-        imageData _: Data,
-        sourceTemplateID: String,
-        sourceTemplateName: String
-    ) throws -> ArtworkEntry {
-        let entryID = UUID().uuidString
-        let entry = ArtworkEntry(
-            id: entryID,
-            sourceTemplateID: sourceTemplateID,
-            sourceTemplateName: sourceTemplateName,
-            createdAt: Date(),
-            fullImageFilename: "\(entryID).png",
-            thumbnailFilename: "\(entryID)_thumb.png"
-        )
-        entries.insert(entry, at: 0)
-        return entry
-    }
-
-    func saveArtwork(
-        at _: URL,
-        sourceTemplateID: String,
-        sourceTemplateName: String
-    ) throws -> ArtworkEntry {
-        try saveArtwork(
-            imageData: Data(),
-            sourceTemplateID: sourceTemplateID,
-            sourceTemplateName: sourceTemplateName
-        )
-    }
-
-    func deleteEntry(_ id: String) throws {
-        entries.removeAll { $0.id == id }
-    }
-}
-
 private let sampleTemplateImageData = Data(
     base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBgGd9mKsAAAAASUVORK5CYII="
 )!
@@ -6243,17 +6069,6 @@ private actor StubCategoryStore: TemplateCategoryStoreProviding {
     func saveHiddenTemplateIDs(_ templateIDs: Set<String>) throws {
         hidden = templateIDs
     }
-
-    func seedTemplateState(retiredTemplateID: String, activeTemplateID: String) {
-        assignments = [
-            retiredTemplateID: "user-retired",
-            activeTemplateID: "user-active"
-        ]
-        favorites = [retiredTemplateID, activeTemplateID]
-        completed = [retiredTemplateID, activeTemplateID]
-        recent = [retiredTemplateID, activeTemplateID]
-        hidden = [retiredTemplateID, activeTemplateID]
-    }
 }
 
 @MainActor
@@ -6307,7 +6122,6 @@ private final class StubGalleryStore: GalleryStoreProviding {
 private actor RecordingColoringWidgetSnapshotWriter: ColoringWidgetSnapshotWriting {
     private(set) var currentTemplateID: String?
     private(set) var latestGalleryEntryID: String?
-    private var recordedRemovedTemplateIDs: [String] = []
 
     func updateCurrentArtwork(
         templateID: String,
@@ -6319,7 +6133,6 @@ private actor RecordingColoringWidgetSnapshotWriter: ColoringWidgetSnapshotWriti
     }
 
     func removeCurrentArtwork(ifMatching templateID: String) async {
-        recordedRemovedTemplateIDs.append(templateID)
         guard currentTemplateID == templateID else {
             return
         }
@@ -6328,9 +6141,5 @@ private actor RecordingColoringWidgetSnapshotWriter: ColoringWidgetSnapshotWriti
 
     func updateLatestGalleryArtwork(_ entry: ArtworkEntry?) async {
         latestGalleryEntryID = entry?.id
-    }
-
-    func removedTemplateIDs() -> [String] {
-        recordedRemovedTemplateIDs
     }
 }

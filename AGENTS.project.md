@@ -27,7 +27,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - SwiftUI views handle presentation and interaction only
 - View model owns screen state and user actions
 - Services own template catalog/import persistence, category state persistence, drawing persistence, and export/gallery IO
-- Built-in template IDs are permanent drawing-persistence keys: never reuse a retired ID, allocate new drawings from `nextID` in `template_identity_registry.json`, and keep retired assignments in that registry forever
+- Built-in template IDs are permanent drawing-persistence keys: never reuse a retired ID, and continue new library additions with the global `builtin_NNN` sequence
 
 3) Reliability and UX goals
 - Clean build with no warnings
