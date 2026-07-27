@@ -10,6 +10,7 @@ struct ContentView: View {
 
     @StateObject private var templateViewModel = TemplateStudioViewModel()
     @StateObject private var galleryViewModel = GalleryViewModel()
+    private let retiredTemplateDataCleanupService = RetiredTemplateDataCleanupService()
     @AppStorage("contentView.selectedTab") private var selectedTabRawValue: String = RootTab.studio.rawValue
     @AppStorage("onboarding.hasCompletedFirstRun") private var hasCompletedFirstRunOnboarding = false
     private let shouldAlwaysShowOnboardingForTesting = false
@@ -80,6 +81,7 @@ struct ContentView: View {
             }
         }
         .task {
+            await retiredTemplateDataCleanupService.clean()
             await galleryViewModel.loadEntries()
         }
         .onOpenURL(perform: handleWidgetURL)
