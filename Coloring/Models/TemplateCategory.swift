@@ -13,12 +13,11 @@ struct TemplateCategory: Codable, Identifiable, Hashable, Sendable {
     static let importedCategory = TemplateCategory(id: "imported", name: "Imported", isUserCreated: false)
     private static let shelfDisplayNameByKey: [String: String] = [
         "animals": "Animals",
-        "cityscapes": "Cityscapes",
-        "interiors": "Interiors",
-        "landscapes": "Landscapes",
+        "aviation": "Aviation",
+        "cities": "Cities & Architecture",
         "motorsport": "Motorsport",
-        "objects": "Objects",
-        "scifi": "Sci-Fi"
+        "nature": "Nature",
+        "space": "Space & Sci-Fi"
     ]
 
     static func builtInCategoryNames(for template: ColoringTemplate) -> Set<String> {

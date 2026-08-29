@@ -487,12 +487,11 @@ actor TemplateLibraryService: TemplateLibraryProviding {
 
     private static let shelfCategoryDisplayNameByKey: [String: String] = [
         "animals": "Animals",
-        "cityscapes": "Cityscapes",
-        "interiors": "Interiors",
-        "landscapes": "Landscapes",
+        "aviation": "Aviation",
+        "cities": "Cities & Architecture",
         "motorsport": "Motorsport",
-        "objects": "Objects",
-        "scifi": "Sci-Fi"
+        "nature": "Nature",
+        "space": "Space & Sci-Fi"
     ]
 
     private let bundle: Bundle

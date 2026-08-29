@@ -1,527 +1,177 @@
 [
   {
-    "id": "builtin_001",
-    "title": "Living Room with a Dog",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_living_room_with_a_dog_portrait.png"
-  },
-  {
-    "id": "builtin_002",
-    "title": "Moment in the backyard",
-    "category": "animals",
+    "id": "builtin_076",
+    "title": "Alien Arrival in Times Square",
+    "category": "space",
     "orientation": "landscape",
-    "file": "Templates/BuiltIn/animals/animals_quiet_moment_in_the_backyard_landscape.png"
+    "file": "Templates/BuiltIn/space/space_alien_arrival_in_times_square_landscape.png"
   },
   {
-    "id": "builtin_003",
-    "title": "Lounging in a box",
-    "category": "animals",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/animals/animals_cat_lounging_in_a_box_landscape.png"
-  },
-  {
-    "id": "builtin_004",
-    "title": "Kitten in a Serene Workspace",
-    "category": "animals",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/animals/animals_kitten_in_a_serene_workspace_landscape.png"
-  },
-  {
-    "id": "builtin_005",
-    "title": "Fluffy Dog Relaxing at Home",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_fluffy_dog_relaxing_at_home_portrait.png"
-  },
-  {
-    "id": "builtin_006",
-    "title": "Cat in a Cozy Perch House",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_fluffy_cat_in_a_cozy_perch_house_portrait.png"
-  },
-  {
-    "id": "builtin_007",
-    "title": "Shaggy Dog in a Cozy Living Room",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_shaggy_dog_in_a_cozy_living_room_portrait.png"
-  },
-  {
-    "id": "builtin_008",
-    "title": "Two Fawns Beneath a Garden Tree",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_two_fawns_beneath_a_garden_tree_portrait.png"
-  },
-  {
-    "id": "builtin_009",
-    "title": "Tabby Resting on Soft Blankets",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_tabby_resting_on_soft_blankets_portrait.png"
-  },
-  {
-    "id": "builtin_010",
-    "title": "Watching the Hallway",
-    "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_cat_watching_the_hallway_portrait.png"
-  },
-  {
-    "id": "builtin_011",
-    "title": "Urban City Street",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_urban_city_street_landscape.png"
-  },
-  {
-    "id": "builtin_012",
-    "title": "Leafy Urban Street in Europe",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_leafy_urban_street_in_europe_landscape.png"
-  },
-  {
-    "id": "builtin_013",
-    "title": "Clock Tower and City Facade",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_historic_clock_tower_and_city_facade_landscape.png"
-  },
-  {
-    "id": "builtin_014",
-    "title": "Grand Neoclassical Building",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_grand_neoclassical_building_landscape.png"
-  },
-  {
-    "id": "builtin_015",
-    "title": "Canal-Side Cityscape",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_canal_side_cityscape_landscape.png"
-  },
-  {
-    "id": "builtin_016",
-    "title": "Venetian Canal",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_venetian_canal_landscape.png"
-  },
-  {
-    "id": "builtin_017",
-    "title": "Quiet Canal Town",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_quiet_canal_town_landscape.png"
-  },
-  {
-    "id": "builtin_018",
-    "title": "Town in a Bustling Square",
-    "category": "cityscapes",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_historic_tower_in_a_bustling_square_portrait.png"
-  },
-  {
-    "id": "builtin_019",
-    "title": "Venice Canal and Rialto Bridge",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_venice_canal_and_rialto_bridge_landscape.png"
-  },
-  {
-    "id": "builtin_020",
-    "title": "Alpine Village in the Mountains",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_alpine_village_in_the_mountains_landscape.png"
-  },
-  {
-    "id": "builtin_021",
-    "title": "Whimsical Towers from Below",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_whimsical_towers_from_below_landscape.png"
-  },
-  {
-    "id": "builtin_022",
-    "title": "Neoclassical Memorial and Grand Staircase",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_neoclassical_memorial_and_grand_staircase_landscape.png"
-  },
-  {
-    "id": "builtin_023",
-    "title": "Castle Along a Winding Drive",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_castle_along_a_winding_drive_landscape.png"
-  },
-  {
-    "id": "builtin_024",
-    "title": "Canal Through the City",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_canal_through_the_city_landscape.png"
-  },
-  {
-    "id": "builtin_025",
-    "title": "Historic Square and Clock Tower",
-    "category": "cityscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/cityscapes/cityscapes_historic_square_and_clock_tower_landscape.png"
-  },
-  {
-    "id": "builtin_026",
-    "title": "Tiled Kitchen with Produce",
-    "category": "interiors",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/interiors/interiors_tiled_kitchen_with_produce_landscape.png"
-  },
-  {
-    "id": "builtin_027",
-    "title": "Cyberpunk Girl",
-    "category": "scifi",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/scifi/scifi_cyberpunk_girl_portrait.png"
-  },
-  {
-    "id": "builtin_028",
-    "title": "Rustic Wine Cellar",
-    "category": "interiors",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/interiors/interiors_rustic_wine_cellar_landscape.png"
-  },
-  {
-    "id": "builtin_029",
-    "title": "Dining Room with a Lounging Cat",
-    "category": "interiors",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/interiors/interiors_dining_room_with_a_lounging_cat_landscape.png"
-  },
-  {
-    "id": "builtin_030",
-    "title": "Trailhead Parking in a Forest Clearing",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_trailhead_parking_in_a_forest_clearing_landscape.png"
-  },
-  {
-    "id": "builtin_031",
-    "title": "Tranquil Park with Mansion and Pond",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_tranquil_park_with_mansion_and_pond_landscape.png"
-  },
-  {
-    "id": "builtin_032",
-    "title": "Lush Garden Path",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_lush_garden_path_landscape.png"
-  },
-  {
-    "id": "builtin_033",
-    "title": "Walking Along the Quiet Beach",
-    "category": "landscapes",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/landscapes/landscapes_walking_along_the_quiet_beach_portrait.png"
-  },
-  {
-    "id": "builtin_034",
-    "title": "Fountain Terrace with Vineyard Views",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_fountain_terrace_with_vineyard_views_landscape.png"
-  },
-  {
-    "id": "builtin_035",
-    "title": "Serene Mountain Valley with Waterfall",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_serene_mountain_valley_with_waterfall_landscape.png"
-  },
-  {
-    "id": "builtin_036",
-    "title": "Mountain Landscape with Trees and Meadow",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_mountain_landscape_with_trees_and_meadow_landscape.png"
-  },
-  {
-    "id": "builtin_037",
-    "title": "Forest Campsite with Campfire and Bike",
-    "category": "landscapes",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/landscapes/landscapes_forest_campsite_with_campfire_and_bike_portrait.png"
-  },
-  {
-    "id": "builtin_038",
-    "title": "Lake Reflections",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_mountain_lake_reflections_landscape.png"
-  },
-  {
-    "id": "builtin_039",
-    "title": "Peaceful Riverfront with Teepees and Cliffs",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_peaceful_riverfront_with_teepees_and_cliffs_landscape.png"
-  },
-  {
-    "id": "builtin_040",
-    "title": "Sportbike in a Suburban Driveway",
-    "category": "objects",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/objects/objects_sportbike_in_a_suburban_driveway_landscape.png"
-  },
-  {
-    "id": "builtin_041",
-    "title": "Ornate Elephant Statue in a Lush Park",
-    "category": "objects",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/objects/objects_ornate_elephant_statue_in_a_lush_park_landscape.png"
-  },
-  {
-    "id": "builtin_042",
-    "title": "Decorative Horse Statue on an Urban Street",
-    "category": "objects",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/objects/objects_decorative_horse_statue_on_an_urban_street_portrait.png"
-  },
-  {
-    "id": "builtin_043",
-    "title": "Musical Instruments in a Cozy Corner",
-    "category": "objects",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/objects/objects_musical_instruments_in_a_cozy_corner_portrait.png"
-  },
-  {
-    "id": "builtin_044",
-    "title": "ATV Across the Open Prairie",
-    "category": "objects",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/objects/objects_atv_across_the_open_prairie_landscape.png"
-  },
-  {
-    "id": "builtin_045",
-    "title": "Four Guitars on a Woven Rug",
-    "category": "objects",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/objects/objects_four_guitars_on_a_woven_rug_landscape.png"
-  },
-  {
-    "id": "builtin_046",
-    "title": "Spacecraft Above a Planet",
-    "category": "scifi",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/scifi/scifi_spacecraft_above_a_planet_landscape.png"
-  },
-  {
-    "id": "builtin_047",
-    "title": "Futuristic Spaceship Bridge and Cityscape",
-    "category": "scifi",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/scifi/scifi_futuristic_spaceship_bridge_and_cityscape_landscape.png"
-  },
-  {
-    "id": "builtin_048",
-    "title": "Docking Platform and Cityscape",
-    "category": "scifi",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/scifi/scifi_docking_platform_and_cityscape_landscape.png"
-  },
-  {
-    "id": "builtin_049",
-    "title": "Tower by a Tranquil Lake",
-    "category": "scifi",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/scifi/scifi_tower_by_a_tranquil_lake_portrait.png"
-  },
-  {
-    "id": "builtin_050",
-    "title": "City Boulevard with Flying Vehicles",
-    "category": "scifi",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/scifi/scifi_city_boulevard_with_flying_vehicles_portrait.png"
-  },
-  {
-    "id": "builtin_051",
-    "title": "Colony on an Alien Landscape",
-    "category": "scifi",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/scifi/scifi_colony_on_an_alien_landscape_landscape.png"
-  },
-  {
-    "id": "builtin_052",
-    "title": "Cityscape Reflected in Water",
-    "category": "scifi",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/scifi/scifi_cityscape_reflected_in_water_landscape.png"
-  },
-  {
-    "id": "builtin_053",
-    "title": "Astronaut Amidst Alien Mountain Ranges",
-    "category": "scifi",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/scifi/scifi_astronaut_amidst_alien_mountain_ranges_portrait.png"
-  },
-  {
-    "id": "builtin_054",
-    "title": "Friendly Aliens in a Desert Landscape",
-    "category": "scifi",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/scifi/scifi_friendly_aliens_in_a_desert_landscape_landscape.png"
-  },
-  {
-    "id": "builtin_055",
-    "title": "Alien with Elongated Head and Wrinkles",
-    "category": "scifi",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/scifi/scifi_alien_with_elongated_head_and_wrinkles_portrait.png"
-  },
-  {
-    "id": "builtin_056",
-    "title": "Formula Race Cars on the Track",
+    "id": "builtin_077",
+    "title": "Battle for P1",
     "category": "motorsport",
     "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_formula_race_cars_on_the_track_landscape.png"
+    "file": "Templates/BuiltIn/motorsport/motorsport_battle_for_p1_landscape.png"
   },
   {
-    "id": "builtin_057",
-    "title": "High-Speed Wheelie Action on Track",
-    "category": "motorsport",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_high_speed_wheelie_action_on_track_landscape.png"
-  },
-  {
-    "id": "builtin_058",
-    "title": "Monaco Race Track Through City Hills",
-    "category": "motorsport",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_monaco_race_track_through_city_hills_landscape.png"
-  },
-  {
-    "id": "builtin_059",
-    "title": "Motorcycle Racer in Aggressive Tuck Position",
-    "category": "motorsport",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/motorsport/motorsport_motorcycle_racer_in_aggressive_tuck_position_portrait.png"
-  },
-  {
-    "id": "builtin_060",
-    "title": "Motorsport Race on a Winding Track",
-    "category": "motorsport",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_race_on_a_winding_track_landscape.png"
-  },
-  {
-    "id": "builtin_061",
-    "title": "Racer Leaning into a Sharp Turn",
-    "category": "motorsport",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_racer_leaning_into_a_sharp_turn_landscape.png"
-  },
-  {
-    "id": "builtin_062",
-    "title": "Rider's Wheelie Under the Stadium Lights",
-    "category": "motorsport",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/motorsport/motorsport_riders_wheelie_under_the_stadium_lights_portrait.png"
-  },
-  {
-    "id": "builtin_063",
-    "title": "Speeding Around the Racetrack Curve",
-    "category": "motorsport",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_speeding_around_the_racetrack_curve_landscape.png"
-  },
-  {
-    "id": "builtin_064",
-    "title": "Street Circuit Race",
-    "category": "motorsport",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/motorsport/motorsport_street_circuit_race_portrait.png"
-  },
-  {
-    "id": "builtin_065",
-    "title": "Wheelie Rider on Racetrack in Motion",
-    "category": "motorsport",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/motorsport/motorsport_wheelie_rider_on_racetrack_in_motion_landscape.png"
-  },
-  {
-    "id": "builtin_066",
-    "title": "Sunlit Reading Nook",
-    "category": "interiors",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/interiors/interiors_sunlit_reading_nook_portrait.png"
-  },
-  {
-    "id": "builtin_067",
-    "title": "Library with Spiral Staircase",
-    "category": "interiors",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/interiors/interiors_library_with_spiral_staircase_portrait.png"
-  },
-  {
-    "id": "builtin_068",
-    "title": "Conservatory Tea Room",
-    "category": "interiors",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/interiors/interiors_conservatory_tea_room_portrait.png"
-  },
-  {
-    "id": "builtin_069",
-    "title": "Potting Bench with Hanging Herbs",
-    "category": "interiors",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/interiors/interiors_potting_bench_with_hanging_herbs_portrait.png"
-  },
-  {
-    "id": "builtin_070",
-    "title": "Antique Typewriter and Writing Desk",
-    "category": "objects",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/objects/objects_antique_typewriter_and_writing_desk_landscape.png"
-  },
-  {
-    "id": "builtin_071",
-    "title": "Vintage Camera and Travel Keepsakes",
-    "category": "objects",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/objects/objects_vintage_camera_and_travel_keepsakes_landscape.png"
-  },
-  {
-    "id": "builtin_072",
-    "title": "Sailboat Rigging at the Marina",
-    "category": "objects",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/objects/objects_sailboat_rigging_at_the_marina_portrait.png"
-  },
-  {
-    "id": "builtin_073",
-    "title": "Lighthouse Above a Rocky Coast",
-    "category": "landscapes",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/landscapes/landscapes_lighthouse_above_a_rocky_coast_portrait.png"
-  },
-  {
-    "id": "builtin_074",
-    "title": "Covered Bridge in Autumn Woods",
-    "category": "landscapes",
-    "orientation": "landscape",
-    "file": "Templates/BuiltIn/landscapes/landscapes_covered_bridge_in_autumn_woods_landscape.png"
-  },
-  {
-    "id": "builtin_075",
-    "title": "Peacock in a Formal Garden",
+    "id": "builtin_078",
+    "title": "Border Collie on Lakeview Trail",
     "category": "animals",
-    "orientation": "portrait",
-    "file": "Templates/BuiltIn/animals/animals_peacock_in_a_formal_garden_portrait.png"
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_border_collie_on_lakeview_trail_landscape.png"
+  },
+  {
+    "id": "builtin_079",
+    "title": "Cat Apartment with City View",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_cat_apartment_with_city_view_landscape.png"
+  },
+  {
+    "id": "builtin_080",
+    "title": "Cat and Skyline",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_cat_and_skyline_landscape.png"
+  },
+  {
+    "id": "builtin_081",
+    "title": "City Park Bridge and Skyline",
+    "category": "cities",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cities/cities_city_park_bridge_and_skyline_landscape.png"
+  },
+  {
+    "id": "builtin_082",
+    "title": "Elephant Meadow by the Mountain Lake",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_elephant_meadow_by_the_mountain_lake_landscape.png"
+  },
+  {
+    "id": "builtin_083",
+    "title": "Forest Hike",
+    "category": "nature",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/nature/nature_forest_hike_landscape.png"
+  },
+  {
+    "id": "builtin_084",
+    "title": "Frogs Leaping Over a Mountain Pond",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_frogs_leaping_over_a_mountain_pond_landscape.png"
+  },
+  {
+    "id": "builtin_085",
+    "title": "Good Day on Maple Street",
+    "category": "cities",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cities/cities_good_day_on_maple_street_landscape.png"
+  },
+  {
+    "id": "builtin_086",
+    "title": "Grand Mansion Estate",
+    "category": "cities",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/cities/cities_grand_mansion_estate_landscape.png"
+  },
+  {
+    "id": "builtin_087",
+    "title": "Moonlit Lakeside Camping",
+    "category": "nature",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/nature/nature_moonlit_lakeside_camping_landscape.png"
+  },
+  {
+    "id": "builtin_088",
+    "title": "Motocross Tabletop",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_motocross_tabletop_landscape.png"
+  },
+  {
+    "id": "builtin_089",
+    "title": "Motorcycle Race into the Curve",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_motorcycle_race_into_the_curve_landscape.png"
+  },
+  {
+    "id": "builtin_090",
+    "title": "Mountain Lake Trail",
+    "category": "nature",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/nature/nature_mountain_lake_trail_landscape.png"
+  },
+  {
+    "id": "builtin_091",
+    "title": "Neon Future City Nova Overlook",
+    "category": "space",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/space/space_neon_future_city_nova_overlook_landscape.png"
+  },
+  {
+    "id": "builtin_092",
+    "title": "Off-Road Expedition",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_off_road_expedition_landscape.png"
+  },
+  {
+    "id": "builtin_093",
+    "title": "Playful Dogs in the City Park",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_playful_dogs_in_the_city_park_landscape.png"
+  },
+  {
+    "id": "builtin_094",
+    "title": "Playful Farmyard Dogs and Chickens",
+    "category": "animals",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/animals/animals_playful_farmyard_dogs_and_chickens_landscape.png"
+  },
+  {
+    "id": "builtin_095",
+    "title": "Private Jet Over Mountain Clouds",
+    "category": "aviation",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/aviation/aviation_private_jet_over_mountain_clouds_landscape.png"
+  },
+  {
+    "id": "builtin_096",
+    "title": "Rocket Launchpad Liftoff",
+    "category": "space",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/space/space_rocket_launchpad_liftoff_landscape.png"
+  },
+  {
+    "id": "builtin_097",
+    "title": "Ship Over a Ringed Planet",
+    "category": "space",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/space/space_ship_over_a_ringed_planet_landscape.png"
+  },
+  {
+    "id": "builtin_098",
+    "title": "Skybound Fighter Dogfight",
+    "category": "aviation",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/aviation/aviation_skybound_fighter_dogfight_landscape.png"
+  },
+  {
+    "id": "builtin_099",
+    "title": "Starship Bridge Control Room",
+    "category": "space",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/space/space_starship_bridge_control_room_landscape.png"
+  },
+  {
+    "id": "builtin_100",
+    "title": "Wheelie at the Grand Prix Circuit",
+    "category": "motorsport",
+    "orientation": "landscape",
+    "file": "Templates/BuiltIn/motorsport/motorsport_wheelie_at_the_grand_prix_circuit_landscape.png"
   }
 ]

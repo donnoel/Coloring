@@ -4,7 +4,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift">
   <img src="https://img.shields.io/badge/Platform-iPadOS-blue">
-  <img src="https://img.shields.io/badge/Templates-80%20Built--In-purple">
+  <img src="https://img.shields.io/badge/Templates-25%20Built--In-purple">
   <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud">
 </p>
 
@@ -37,7 +37,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
 | **Imported Default Folder** | Imported drawings with no custom folder assignment appear in the built-in `Imported` folder. |
 | **Reversible Hidden Templates** | Long-press any built-in or imported drawing to hide it from normal browsing and recover it later from a dedicated `Hidden` management view. |
-| **Expanded Built-In Folders** | Adds manifest-driven shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`) for built-in drawings. |
+| **Built-In Folders** | Organizes the 25 landscape drawings into manifest-driven shelf folders (`Animals`, `Aviation`, `Cities & Architecture`, `Motorsport`, `Nature`, `Space & Sci-Fi`) plus the orientation folder (`Landscape`). |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
 | **Custom Folder Management** | Create, rename, delete, and reorder custom folders from Manage Categories, and assign imported drawings into them. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
@@ -72,7 +72,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
 - **Drawing Search**: Use **Search Drawings** to filter titles within the currently selected folder.
 - **Persistent Library Browsing**: Selecting a drawing keeps the sidebar open so you can quickly move through multiple drawings.
-- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, `Imported`, shelf folders (`Cozy`, `Nature`, `Animals`, `Fantasy`, `Patterns`, `Seasonal`, `Motorsport`, `Sci-Fi`), complexity folders (`Easy`, `Medium`, `Detailed`, `Dense`), and orientation folders (`Landscape`, `Portrait`); built-in drawings can appear in multiple metadata-driven folders.
+- **Category Folders**: Use built-in filters including `In Progress` (with a live count badge), `Favorites`, `Recent`, `Completed`, `Imported`, shelf folders (`Animals`, `Aviation`, `Cities & Architecture`, `Motorsport`, `Nature`, `Space & Sci-Fi`), and the current `Landscape` orientation folder.
 - **Folder Management**: Open **Manage Categories** to create, rename, delete, and reorder custom folders alongside built-in folder ordering.
 - **Favorites / Completed / Hide**: Long-press a drawing in the sidebar to favorite it, mark it completed, or hide it.
 - **Hidden Management**: Tap the `eye.slash` button in the Drawings header to open `Hidden`, where you can unhide individual drawings or use `Unhide All`.

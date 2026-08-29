@@ -13,8 +13,8 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Unified sidebar list containing built-in and imported drawings
 - Drawing-title search scoped to the currently selected library folder
 - PNG export + share flow
-- Apple Pencil Template Studio with 75 manifest-driven, photo-derived built-in templates, including orientation metadata
-- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, and manifest-driven shelf folders (Animals, Cityscapes, Interiors, Landscapes, Motorsport, Objects, Sci-Fi) with multi-folder membership support
+- Apple Pencil Template Studio with 25 manifest-driven landscape built-in templates, including orientation metadata
+- Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, and manifest-driven shelf folders (Animals, Aviation, Cities & Architecture, Motorsport, Nature, Space & Sci-Fi) with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Manage Categories supports creating, renaming, deleting, and reordering custom folders; imported drawings can be assigned into those folders
 - Reversible hidden-template workflow (hide from library via context menu, restore from Hidden management view)

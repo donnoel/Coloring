@@ -177,38 +177,31 @@ final class ColoringTests: XCTestCase {
                 canvasOrientation: .landscape
             ),
             Self.makeTemplate(
-                id: "builtin-city",
-                title: "Canal Street",
-                category: "Cityscapes",
-                shelfCategory: "cityscapes",
+                id: "builtin-jet",
+                title: "Mountain Jet",
+                category: "Aviation",
+                shelfCategory: "aviation",
                 canvasOrientation: .landscape
             ),
             Self.makeTemplate(
-                id: "builtin-room",
-                title: "Wine Cellar",
-                category: "Interiors",
-                shelfCategory: "interiors",
-                canvasOrientation: .portrait
+                id: "builtin-city",
+                title: "Maple Street",
+                category: "Cities & Architecture",
+                shelfCategory: "cities",
+                canvasOrientation: .landscape
             ),
             Self.makeTemplate(
                 id: "builtin-forest",
                 title: "Forest Trail",
-                category: "Landscapes",
-                shelfCategory: "landscapes",
-                canvasOrientation: .landscape
-            ),
-            Self.makeTemplate(
-                id: "builtin-bike",
-                title: "Sportbike",
-                category: "Objects",
-                shelfCategory: "objects",
+                category: "Nature",
+                shelfCategory: "nature",
                 canvasOrientation: .portrait
             ),
             Self.makeTemplate(
                 id: "builtin-space",
                 title: "Spacecraft",
-                category: "Sci-Fi",
-                shelfCategory: "scifi",
+                category: "Space & Sci-Fi",
+                shelfCategory: "space",
                 canvasOrientation: .landscape
             ),
             Self.makeTemplate(
@@ -238,12 +231,11 @@ final class ColoringTests: XCTestCase {
         await MainActor.run {
             let categoryNames = Set(viewModel.builtInCategories.map(\.name))
             XCTAssertTrue(categoryNames.contains("Animals"))
-            XCTAssertTrue(categoryNames.contains("Cityscapes"))
-            XCTAssertTrue(categoryNames.contains("Interiors"))
-            XCTAssertTrue(categoryNames.contains("Landscapes"))
-            XCTAssertTrue(categoryNames.contains("Objects"))
-            XCTAssertTrue(categoryNames.contains("Sci-Fi"))
+            XCTAssertTrue(categoryNames.contains("Aviation"))
+            XCTAssertTrue(categoryNames.contains("Cities & Architecture"))
             XCTAssertTrue(categoryNames.contains("Motorsport"))
+            XCTAssertTrue(categoryNames.contains("Nature"))
+            XCTAssertTrue(categoryNames.contains("Space & Sci-Fi"))
             XCTAssertTrue(categoryNames.contains("Landscape"))
             XCTAssertTrue(categoryNames.contains("Portrait"))
             XCTAssertFalse(categoryNames.contains("Easy"))
@@ -2597,7 +2589,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(entry.resolvedComplexity, "dense")
     }
 
-    func testBuiltInManifestContainsExpected75PhotoPack() throws {
+    func testBuiltInManifestContainsExpected25LandscapeCollection() throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -2605,7 +2597,7 @@ final class ColoringTests: XCTestCase {
         let data = try Data(contentsOf: manifestURL)
 
         let rawManifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
-        XCTAssertEqual(rawManifest.count, 75)
+        XCTAssertEqual(rawManifest.count, 25)
 
         let requiredKeys = Set(["id", "title", "category", "orientation", "file"])
         rawManifest.forEach { entry in
@@ -2613,30 +2605,30 @@ final class ColoringTests: XCTestCase {
         }
 
         let decodedEntries = try JSONDecoder().decode([TemplateLibraryService.ManifestEntry].self, from: data)
-        XCTAssertEqual(decodedEntries.count, 75)
-        XCTAssertEqual(decodedEntries.first?.id, "builtin_001")
-        XCTAssertEqual(decodedEntries.last?.id, "builtin_075")
-        let expectedIDs = (1...75)
+        XCTAssertEqual(decodedEntries.count, 25)
+        XCTAssertEqual(decodedEntries.first?.id, "builtin_076")
+        XCTAssertEqual(decodedEntries.last?.id, "builtin_100")
+        let expectedIDs = (76...100)
             .map { String(format: "builtin_%03d", $0) }
         XCTAssertEqual(
             decodedEntries.map(\.resolvedTemplateID),
             expectedIDs
         )
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 75)
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 75)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 25)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 25)
 
         let categoryCounts = Dictionary(grouping: decodedEntries, by: \.category).mapValues(\.count)
-        XCTAssertEqual(categoryCounts["animals"], 11)
-        XCTAssertEqual(categoryCounts["cityscapes"], 15)
-        XCTAssertEqual(categoryCounts["interiors"], 7)
-        XCTAssertEqual(categoryCounts["landscapes"], 12)
-        XCTAssertEqual(categoryCounts["motorsport"], 10)
-        XCTAssertEqual(categoryCounts["objects"], 9)
-        XCTAssertEqual(categoryCounts["scifi"], 11)
+        XCTAssertEqual(categoryCounts, [
+            "animals": 7,
+            "aviation": 2,
+            "cities": 3,
+            "motorsport": 5,
+            "nature": 3,
+            "space": 5
+        ])
 
         let orientationCounts = Dictionary(grouping: decodedEntries, by: \.orientation).mapValues(\.count)
-        XCTAssertEqual(orientationCounts[.landscape], 48)
-        XCTAssertEqual(orientationCounts[.portrait], 27)
+        XCTAssertEqual(orientationCounts, [.landscape: 25])
 
         let resourcesURL = repoRootURL.appendingPathComponent("Coloring/Resources")
         for entry in decodedEntries {
@@ -2647,7 +2639,8 @@ final class ColoringTests: XCTestCase {
 
             switch entry.orientation {
             case .some(.landscape):
-                XCTAssertGreaterThan(cgImage.width, cgImage.height, fileName)
+                XCTAssertEqual(cgImage.width, 1_448, fileName)
+                XCTAssertEqual(cgImage.height, 1_086, fileName)
             case .some(.portrait):
                 XCTAssertGreaterThan(cgImage.height, cgImage.width, fileName)
             case .some(.any):

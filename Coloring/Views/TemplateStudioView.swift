@@ -594,7 +594,7 @@ struct TemplateStudioView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea(edges: .horizontal)
+        .ignoresSafeArea()
     }
 
     private var paletteBar: some View {
