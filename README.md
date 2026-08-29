@@ -32,12 +32,13 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Unified Library Sidebar** | Built-in and imported templates shown together in one list. |
 | **Drawing Title Search** | Search drawing titles within the currently selected library folder. |
 | **Resizable Library Sidebar** | Drag the sidebar edge to tune library width; preferred width is remembered per scene. |
-| **80 Built-In Templates** | Manifest-driven built-ins across eight shelf categories with orientation metadata for filtering/layout. |
+| **50 Built-In Templates** | Manifest-driven built-ins across nine shelf categories with orientation metadata for filtering/layout. |
 | **In Progress Smart Folder** | A built-in folder automatically tracks drawings with saved strokes or fills, shows a live count badge, and restores quiet per-drawing progress estimates in the library. |
 | **Favorites, Recent, and Completed Folders** | Pin favorite drawings, jump back into recently opened work, and mark drawings as finished with built-in sidebar folders. |
 | **Imported Default Folder** | Imported drawings with no custom folder assignment appear in the built-in `Imported` folder. |
 | **Reversible Hidden Templates** | Long-press any built-in or imported drawing to hide it from normal browsing and recover it later from a dedicated `Hidden` management view. |
 | **Built-In Folders** | Organizes 25 landscape and 25 portrait drawings into manifest-driven shelf folders (`Animals`, `Aviation`, `Cities & Architecture`, `Cozy`, `Fantasy`, `Motorsport`, `Nature`, `Science & Technology`, `Space & Sci-Fi`) plus orientation folders (`Landscape`, `Portrait`). |
+| **Edge Coloring Margin** | Every built-in drawing includes a narrow white canvas margin so Apple Pencil strokes remain reachable at the artwork edge while zooming. |
 | **Folder Drag Reordering** | Reorder built-in and custom folders from Manage Categories using drag and drop. |
 | **Custom Folder Management** | Create, rename, delete, and reorder custom folders from Manage Categories, and assign imported drawings into them. |
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |

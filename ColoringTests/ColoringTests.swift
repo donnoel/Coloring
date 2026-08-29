@@ -2613,6 +2613,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(entry.resolvedComplexity, "dense")
     }
 
+    @MainActor
     func testBuiltInManifestContainsExpected50DrawingCollection() throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -2658,6 +2659,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(orientationCounts, [.landscape: 25, .portrait: 25])
 
         let resourcesURL = repoRootURL.appendingPathComponent("Coloring/Resources")
+        let canvasMargin = 32
         for entry in decodedEntries {
             let fileName = try XCTUnwrap(entry.resolvedFileName)
             let imageURL = resourcesURL.appendingPathComponent(fileName)
@@ -2666,15 +2668,33 @@ final class ColoringTests: XCTestCase {
 
             switch entry.orientation {
             case .some(.landscape):
-                XCTAssertEqual(cgImage.width, 1_448, fileName)
-                XCTAssertEqual(cgImage.height, 1_086, fileName)
+                XCTAssertEqual(cgImage.width, 1_512, fileName)
+                XCTAssertEqual(cgImage.height, 1_150, fileName)
             case .some(.portrait):
-                XCTAssertEqual(cgImage.width, 1_086, fileName)
-                XCTAssertEqual(cgImage.height, 1_448, fileName)
+                XCTAssertEqual(cgImage.width, 1_150, fileName)
+                XCTAssertEqual(cgImage.height, 1_512, fileName)
             case .some(.any):
                 XCTFail("Unexpected unrestricted orientation for \(fileName)")
             case nil:
                 XCTFail("Missing orientation for \(fileName)")
+            }
+
+            let borderRects = [
+                CGRect(x: 0, y: 0, width: cgImage.width, height: canvasMargin),
+                CGRect(x: 0, y: cgImage.height - canvasMargin, width: cgImage.width, height: canvasMargin),
+                CGRect(x: 0, y: 0, width: canvasMargin, height: cgImage.height),
+                CGRect(x: cgImage.width - canvasMargin, y: 0, width: canvasMargin, height: cgImage.height)
+            ]
+            for borderRect in borderRects {
+                let borderImage = try XCTUnwrap(cgImage.cropping(to: borderRect), fileName)
+                let signature = try XCTUnwrap(
+                    imageSignature(from: UIImage(cgImage: borderImage)),
+                    fileName
+                )
+                XCTAssertGreaterThanOrEqual(signature[0], 254, fileName)
+                XCTAssertGreaterThanOrEqual(signature[1], 254, fileName)
+                XCTAssertGreaterThanOrEqual(signature[2], 254, fileName)
+                XCTAssertEqual(signature[3], 255, fileName)
             }
         }
     }

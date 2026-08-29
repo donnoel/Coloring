@@ -13,7 +13,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Unified sidebar list containing built-in and imported drawings
 - Drawing-title search scoped to the currently selected library folder
 - PNG export + share flow
-- Apple Pencil Template Studio with 50 manifest-driven built-in templates split evenly between landscape and portrait, including orientation metadata
+- Apple Pencil Template Studio with 50 manifest-driven built-in templates split evenly between landscape and portrait, including orientation metadata and a 32-pixel white canvas margin for edge coloring
 - Built-in folder filters include In Progress (with a live count badge), Favorites, Recent, Completed, Imported (unassigned imported drawings), Landscape/Portrait, and manifest-driven shelf folders (Animals, Aviation, Cities & Architecture, Cozy, Fantasy, Motorsport, Nature, Science & Technology, Space & Sci-Fi) with multi-folder membership support
 - Folder order is user-reorderable via drag-and-drop in Manage Categories and persists locally
 - Manage Categories supports creating, renaming, deleting, and reordering custom folders; imported drawings can be assigned into those folders
@@ -87,6 +87,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Hidden template IDs persist locally and hidden drawings remain excluded from normal browsing/category results until unhidden.
 - Apple Pencil strokes can be exported composited with the selected template.
 - Export canvas geometry must preserve the live template aspect ratio to keep coloring aligned with line art.
+- Built-in template artwork must preserve its 32-pixel white canvas margin so Pencil strokes can extend beyond the drawing edge while zoomed.
 - Library sidebar lists both built-in and imported templates together.
 - Drawing search filters titles within the currently selected library folder and restores the folder result when cleared.
 - Library sidebar resize should remain responsive during drag and persist the chosen width after drag ends.
