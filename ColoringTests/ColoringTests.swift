@@ -191,10 +191,31 @@ final class ColoringTests: XCTestCase {
                 canvasOrientation: .landscape
             ),
             Self.makeTemplate(
+                id: "builtin-cozy",
+                title: "Cabin Companions",
+                category: "Cozy",
+                shelfCategory: "cozy",
+                canvasOrientation: .portrait
+            ),
+            Self.makeTemplate(
+                id: "builtin-dragon",
+                title: "Mountain Dragon",
+                category: "Fantasy",
+                shelfCategory: "fantasy",
+                canvasOrientation: .portrait
+            ),
+            Self.makeTemplate(
                 id: "builtin-forest",
                 title: "Forest Trail",
                 category: "Nature",
                 shelfCategory: "nature",
+                canvasOrientation: .portrait
+            ),
+            Self.makeTemplate(
+                id: "builtin-lab",
+                title: "Cleanroom Lab",
+                category: "Science & Technology",
+                shelfCategory: "science",
                 canvasOrientation: .portrait
             ),
             Self.makeTemplate(
@@ -233,8 +254,11 @@ final class ColoringTests: XCTestCase {
             XCTAssertTrue(categoryNames.contains("Animals"))
             XCTAssertTrue(categoryNames.contains("Aviation"))
             XCTAssertTrue(categoryNames.contains("Cities & Architecture"))
+            XCTAssertTrue(categoryNames.contains("Cozy"))
+            XCTAssertTrue(categoryNames.contains("Fantasy"))
             XCTAssertTrue(categoryNames.contains("Motorsport"))
             XCTAssertTrue(categoryNames.contains("Nature"))
+            XCTAssertTrue(categoryNames.contains("Science & Technology"))
             XCTAssertTrue(categoryNames.contains("Space & Sci-Fi"))
             XCTAssertTrue(categoryNames.contains("Landscape"))
             XCTAssertTrue(categoryNames.contains("Portrait"))
@@ -2589,7 +2613,7 @@ final class ColoringTests: XCTestCase {
         XCTAssertEqual(entry.resolvedComplexity, "dense")
     }
 
-    func testBuiltInManifestContainsExpected25LandscapeCollection() throws {
+    func testBuiltInManifestContainsExpected50DrawingCollection() throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -2597,7 +2621,7 @@ final class ColoringTests: XCTestCase {
         let data = try Data(contentsOf: manifestURL)
 
         let rawManifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
-        XCTAssertEqual(rawManifest.count, 25)
+        XCTAssertEqual(rawManifest.count, 50)
 
         let requiredKeys = Set(["id", "title", "category", "orientation", "file"])
         rawManifest.forEach { entry in
@@ -2605,30 +2629,33 @@ final class ColoringTests: XCTestCase {
         }
 
         let decodedEntries = try JSONDecoder().decode([TemplateLibraryService.ManifestEntry].self, from: data)
-        XCTAssertEqual(decodedEntries.count, 25)
+        XCTAssertEqual(decodedEntries.count, 50)
         XCTAssertEqual(decodedEntries.first?.id, "builtin_076")
-        XCTAssertEqual(decodedEntries.last?.id, "builtin_100")
-        let expectedIDs = (76...100)
+        XCTAssertEqual(decodedEntries.last?.id, "builtin_125")
+        let expectedIDs = (76...125)
             .map { String(format: "builtin_%03d", $0) }
         XCTAssertEqual(
             decodedEntries.map(\.resolvedTemplateID),
             expectedIDs
         )
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 25)
-        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 25)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedTemplateID)).count, 50)
+        XCTAssertEqual(Set(decodedEntries.map(\.resolvedFileName)).count, 50)
 
         let categoryCounts = Dictionary(grouping: decodedEntries, by: \.category).mapValues(\.count)
         XCTAssertEqual(categoryCounts, [
-            "animals": 7,
+            "animals": 14,
             "aviation": 2,
-            "cities": 3,
-            "motorsport": 5,
-            "nature": 3,
-            "space": 5
+            "cities": 4,
+            "cozy": 2,
+            "fantasy": 1,
+            "motorsport": 6,
+            "nature": 7,
+            "science": 2,
+            "space": 12
         ])
 
         let orientationCounts = Dictionary(grouping: decodedEntries, by: \.orientation).mapValues(\.count)
-        XCTAssertEqual(orientationCounts, [.landscape: 25])
+        XCTAssertEqual(orientationCounts, [.landscape: 25, .portrait: 25])
 
         let resourcesURL = repoRootURL.appendingPathComponent("Coloring/Resources")
         for entry in decodedEntries {
@@ -2642,7 +2669,8 @@ final class ColoringTests: XCTestCase {
                 XCTAssertEqual(cgImage.width, 1_448, fileName)
                 XCTAssertEqual(cgImage.height, 1_086, fileName)
             case .some(.portrait):
-                XCTAssertGreaterThan(cgImage.height, cgImage.width, fileName)
+                XCTAssertEqual(cgImage.width, 1_086, fileName)
+                XCTAssertEqual(cgImage.height, 1_448, fileName)
             case .some(.any):
                 XCTFail("Unexpected unrestricted orientation for \(fileName)")
             case nil:

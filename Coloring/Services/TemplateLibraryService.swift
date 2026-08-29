@@ -489,8 +489,11 @@ actor TemplateLibraryService: TemplateLibraryProviding {
         "animals": "Animals",
         "aviation": "Aviation",
         "cities": "Cities & Architecture",
+        "cozy": "Cozy",
+        "fantasy": "Fantasy",
         "motorsport": "Motorsport",
         "nature": "Nature",
+        "science": "Science & Technology",
         "space": "Space & Sci-Fi"
     ]
 

@@ -173,5 +173,180 @@
     "category": "motorsport",
     "orientation": "landscape",
     "file": "Templates/BuiltIn/motorsport/motorsport_wheelie_at_the_grand_prix_circuit_landscape.png"
+  },
+  {
+    "id": "builtin_101",
+    "title": "AI Robot in a Futuristic Workspace",
+    "category": "science",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/science/science_ai_robot_in_a_futuristic_workspace_portrait.png"
+  },
+  {
+    "id": "builtin_102",
+    "title": "Alien Garden of Butterflies and Blooms",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_alien_garden_of_butterflies_and_blooms_portrait.png"
+  },
+  {
+    "id": "builtin_103",
+    "title": "Alpine Motorcycle Mountain Run",
+    "category": "motorsport",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/motorsport/motorsport_alpine_motorcycle_mountain_run_portrait.png"
+  },
+  {
+    "id": "builtin_104",
+    "title": "Astronaut Maintenance Bay",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_astronaut_maintenance_bay_portrait.png"
+  },
+  {
+    "id": "builtin_105",
+    "title": "Autumn Lakeside Walk",
+    "category": "nature",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/nature/nature_autumn_lakeside_walk_portrait.png"
+  },
+  {
+    "id": "builtin_106",
+    "title": "Canal Street in Bloom",
+    "category": "cities",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/cities/cities_canal_street_in_bloom_portrait.png"
+  },
+  {
+    "id": "builtin_107",
+    "title": "Cottage Garden",
+    "category": "nature",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/nature/nature_cottage_garden_portrait.png"
+  },
+  {
+    "id": "builtin_108",
+    "title": "Cozy Cabin Companions by the Fire",
+    "category": "cozy",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/cozy/cozy_cabin_companions_by_the_fire_portrait.png"
+  },
+  {
+    "id": "builtin_109",
+    "title": "Cozy Gaming Room Showdown",
+    "category": "cozy",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/cozy/cozy_gaming_room_showdown_portrait.png"
+  },
+  {
+    "id": "builtin_110",
+    "title": "Dinosaur Family Valley",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_dinosaur_family_valley_portrait.png"
+  },
+  {
+    "id": "builtin_111",
+    "title": "Eagle Landing Over Mountain Nest",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_eagle_landing_over_mountain_nest_portrait.png"
+  },
+  {
+    "id": "builtin_112",
+    "title": "Jetpack Flight Over a Futuristic City",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_jetpack_flight_over_a_futuristic_city_portrait.png"
+  },
+  {
+    "id": "builtin_113",
+    "title": "Lioness and Cubs on the Savanna",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_lioness_and_cubs_on_the_savanna_portrait.png"
+  },
+  {
+    "id": "builtin_114",
+    "title": "Majestic Dragon by the Mountain Lake",
+    "category": "fantasy",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/fantasy/fantasy_majestic_dragon_by_the_mountain_lake_portrait.png"
+  },
+  {
+    "id": "builtin_115",
+    "title": "NASA Space Center",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_nasa_space_center_portrait.png"
+  },
+  {
+    "id": "builtin_116",
+    "title": "Nature’s Waterfall Overlook",
+    "category": "nature",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/nature/nature_natures_waterfall_overlook_portrait.png"
+  },
+  {
+    "id": "builtin_117",
+    "title": "Playful Kittens in a Rustic Barn",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_playful_kittens_in_a_rustic_barn_portrait.png"
+  },
+  {
+    "id": "builtin_118",
+    "title": "Ringed Planet Lander",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_ringed_planet_lander_portrait.png"
+  },
+  {
+    "id": "builtin_119",
+    "title": "Sailboat Adventure at Sea",
+    "category": "nature",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/nature/nature_sailboat_adventure_at_sea_portrait.png"
+  },
+  {
+    "id": "builtin_120",
+    "title": "Semiconductor Cleanroom Lab",
+    "category": "science",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/science/science_semiconductor_cleanroom_lab_portrait.png"
+  },
+  {
+    "id": "builtin_121",
+    "title": "Songbird Family in a Blossoming Nest",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_songbird_family_in_a_blossoming_nest_portrait.png"
+  },
+  {
+    "id": "builtin_122",
+    "title": "Tomorrow’s Garden Metropolis",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_tomorrows_garden_metropolis_portrait.png"
+  },
+  {
+    "id": "builtin_123",
+    "title": "Tranquil Lakeside Birds and Blooms",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_tranquil_lakeside_birds_and_blooms_portrait.png"
+  },
+  {
+    "id": "builtin_124",
+    "title": "Wildlife Waterfall",
+    "category": "animals",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/animals/animals_wildlife_waterfall_portrait.png"
+  },
+  {
+    "id": "builtin_125",
+    "title": "Zero-G Space Lounge Bar",
+    "category": "space",
+    "orientation": "portrait",
+    "file": "Templates/BuiltIn/space/space_zero_g_space_lounge_bar_portrait.png"
   }
 ]
