@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5A63FFF62F44E9F400885BD6 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5A63FFF72F44E9F400885BD6 /* AppIntents.framework */; };
-		6C1000010000000000000001 /* ColoringWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 6C1000050000000000000005 /* ColoringWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		6C1000010000000000000001 /* ColoringWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6C1000050000000000000005 /* ColoringWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		6C1000020000000000000002 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6C1000060000000000000006 /* WidgetKit.framework */; };
 		6C1000030000000000000003 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6C1000070000000000000007 /* SwiftUI.framework */; };
 /* End PBXBuildFile section */
@@ -38,15 +38,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		6C1000100000000000000010 /* Embed App Extensions */ = {
+		6C1000100000000000000010 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				6C1000010000000000000001 /* ColoringWidgetExtension.appex in Embed App Extensions */,
+				6C1000010000000000000001 /* ColoringWidgetExtension.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed App Extensions";
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -165,7 +165,7 @@
 				5A63FFC52F44E19C00885BD6 /* Sources */,
 				5A63FFC62F44E19C00885BD6 /* Frameworks */,
 				5A63FFC72F44E19C00885BD6 /* Resources */,
-				6C1000100000000000000010 /* Embed App Extensions */,
+				6C1000100000000000000010 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -259,7 +259,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					5A63FFC82F44E19C00885BD6 = {
 						CreatedOnToolsVersion = 16.3;
@@ -294,8 +294,8 @@
 			targets = (
 				5A63FFC82F44E19C00885BD6 /* Coloring */,
 				5A63FFD92F44E19C00885BD6 /* ColoringTests */,
-					5A63FFE32F44E19C00885BD6 /* ColoringUITests */,
-					6C10000C000000000000000C /* ColoringWidgetExtension */,
+				5A63FFE32F44E19C00885BD6 /* ColoringUITests */,
+				6C10000C000000000000000C /* ColoringWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -512,7 +512,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = coloringroom;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -566,7 +566,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = coloringroom;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -745,7 +745,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = coloringroom.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -786,7 +786,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = coloringroom.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
