@@ -329,7 +329,7 @@ final class ColoringTests: XCTestCase {
         let templates = [
             Self.makeTemplate(id: "builtin-forest", title: "Forest Trail", shelfCategory: "landscapes"),
             Self.makeTemplate(id: "builtin-river", title: "River Walk", shelfCategory: "landscapes"),
-            Self.makeTemplate(id: "builtin-bike", title: "Sportbike", shelfCategory: "objects")
+            Self.makeTemplate(id: "builtin-bike", title: "Sportbike", category: "Objects", shelfCategory: "objects")
         ]
         let viewModel = await MainActor.run {
             Self.makeTemplateStudioViewModel(templates: templates)
@@ -409,7 +409,7 @@ final class ColoringTests: XCTestCase {
         let templates = [
             Self.makeTemplate(id: "builtin-forest", title: "Forest Trail", shelfCategory: "landscapes"),
             Self.makeTemplate(id: "builtin-river", title: "River Walk", shelfCategory: "landscapes"),
-            Self.makeTemplate(id: "builtin-bike", title: "Sportbike", shelfCategory: "objects")
+            Self.makeTemplate(id: "builtin-bike", title: "Sportbike", category: "Objects", shelfCategory: "objects")
         ]
         let viewModel = await MainActor.run {
             Self.makeTemplateStudioViewModel(templates: templates)
