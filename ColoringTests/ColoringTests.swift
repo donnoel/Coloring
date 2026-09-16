@@ -4757,6 +4757,39 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilDoubleTapPreferenceSwitchesBetweenInkAndEraser() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+            let coordinator = view.makeCoordinator()
+            let containerView = ZoomableCanvasContainerView()
+            let canvasView = containerView.canvasView
+            let inkTool = PKInkingTool(.marker, color: .systemBlue, width: 12)
+            canvasView.tool = inkTool
+            coordinator.connect(to: canvasView, containerView: containerView)
+            canvasView.tool = inkTool
+
+            coordinator.handlePencilTap(preferredAction: .switchEraser)
+
+            XCTAssertTrue(canvasView.tool is PKEraserTool)
+
+            coordinator.handlePencilTap(preferredAction: .switchEraser)
+
+            let restoredInkTool = canvasView.tool as? PKInkingTool
+            XCTAssertEqual(restoredInkTool?.inkType, inkTool.inkType)
+            XCTAssertEqual(restoredInkTool?.color, inkTool.color)
+            XCTAssertEqual(restoredInkTool?.width, inkTool.width)
+            coordinator.disconnect(from: canvasView)
+        }
+    }
+
     @MainActor
     func testPencilCanvasCoordinatorRetriesFailedFirstResponderAcquisition() async {
         let drawingState = DrawingStateBox()

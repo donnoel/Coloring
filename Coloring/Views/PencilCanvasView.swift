@@ -648,7 +648,7 @@ struct PencilCanvasView: UIViewRepresentable {
             syncPickerDisplayedTool(to: updatedTool, on: canvasView)
         }
 
-        private func syncPickerDisplayedTool(to tool: PKInkingTool, on canvasView: PKCanvasView) {
+        private func syncPickerDisplayedTool(to tool: PKTool, on canvasView: PKCanvasView) {
             guard let toolPicker else {
                 return
             }
@@ -838,7 +838,15 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func pencilInteraction(_: UIPencilInteraction, didReceiveTap _: UIPencilInteraction.Tap) {
-            showToolPicker()
+            handlePencilTap(preferredAction: UIPencilInteraction.preferredTapAction)
+        }
+
+        func handlePencilTap(preferredAction: UIPencilPreferredAction) {
+            if preferredAction == .switchEraser {
+                toggleEraser()
+            } else {
+                showToolPicker()
+            }
         }
 
         func pencilInteraction(_: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
@@ -961,7 +969,22 @@ struct PencilCanvasView: UIViewRepresentable {
                 lastInkTool = inkingTool
             }
 
-            canvasView.tool = PKEraserTool(.bitmap)
+            let eraserTool = PKEraserTool(.bitmap)
+            canvasView.tool = eraserTool
+            syncPickerDisplayedTool(to: eraserTool, on: canvasView)
+        }
+
+        private func toggleEraser() {
+            guard let canvasView else {
+                return
+            }
+
+            if canvasView.tool is PKEraserTool {
+                canvasView.tool = lastInkTool
+                syncPickerDisplayedTool(to: lastInkTool, on: canvasView)
+            } else {
+                switchToEraser()
+            }
         }
 
         func gestureRecognizer(

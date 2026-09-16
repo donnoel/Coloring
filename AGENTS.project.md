@@ -91,7 +91,7 @@ Success means users can pick a scene, color it intuitively, and export finished 
 - Library sidebar lists both built-in and imported templates together.
 - Drawing search filters titles within the currently selected library folder and restores the folder result when cleared.
 - Library sidebar resize should remain responsive during drag and persist the chosen width after drag ends.
-- Pencil gesture behavior remains native-first: squeeze for eraser, tap for tool/color picker.
+- Pencil gesture behavior remains native-first: squeeze for eraser, and a double-tap configured in iPad Settings to switch tools must toggle between the current tool and eraser.
 - Brush selection should rely on the native PencilKit picker rather than duplicate in-app brush chrome.
 - Fill color selection should rely on the active native PencilKit color rather than a separate in-app swatch palette.
 - Recent color swatches should be scoped to the selected drawing, with fresh drawings starting with no recent-color row.

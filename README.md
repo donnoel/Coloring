@@ -44,7 +44,7 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Import from Photos or Files** | Bring in custom outlines and color them in the same studio. |
 | **Native PencilKit Controls** | Apple-native pen, marker, eraser, and color interactions. |
 | **Recent Colors** | Recently chosen PencilKit colors appear per drawing as a quiet swatch row in the floating palette for quick reselection. |
-| **Apple Pencil Gesture Support** | Squeeze for eraser and double-tap to open tool/color picker. |
+| **Apple Pencil Gesture Support** | Squeeze for eraser; when configured in iPad Settings, double-tap switches between the current tool and eraser. |
 | **Fill Mode with Region Targeting** | Tap-to-fill uses normalized hit mapping so fills land in the tapped region across zoom levels, using the active PencilKit tool color. |
 | **Fill Erasing in Coloring Mode** | The PencilKit eraser can remove touched fill regions after you switch back from fill mode. |
 | **Unified Undo / Redo** | Toolbar undo and redo work across drawing strokes, fills, fill erasing, clears, and layer changes for the selected drawing. |
