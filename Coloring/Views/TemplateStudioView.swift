@@ -56,7 +56,9 @@ struct TemplateStudioView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
-                viewModel.flushPendingColoringPersistence()
+                Task {
+                    await viewModel.flushPendingColoringPersistence()
+                }
                 return
             }
 
@@ -574,7 +576,6 @@ struct TemplateStudioView: View {
                 },
                 belowLayerImage: viewModel.belowLayerImage,
                 aboveLayerImage: viewModel.aboveLayerImage,
-                brushTool: viewModel.currentBrushTool,
                 activeColorOverride: viewModel.appliedRecentColor,
                 activeColorOverrideRevision: viewModel.appliedRecentColorRevision,
                 activationToken: pencilKitActivationToken,

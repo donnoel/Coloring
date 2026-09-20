@@ -119,6 +119,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private let fillEraseCoordinator = TemplateFillEraseCoordinator()
     private let progressSnapshotCoordinator = TemplateProgressSnapshotCoordinator()
     private var pendingPersistTemplateIDs: Set<String> = []
+    private var inFlightPersistenceTasks: [UUID: Task<Void, Never>] = [:]
     private var persistenceRevisionStore = TemplatePersistenceRevisionStore()
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
     private var isStrokeInteractionActive = false
@@ -127,6 +128,18 @@ final class TemplateStudioViewModel: ObservableObject {
     private var hasPendingCombinedFillEraseEdit = false
     private var didDrawingChangeDuringFillErase = false
     private let maxRecentTemplates = 20
+
+    private struct LayerPersistenceRequest: Sendable {
+        let templateID: String
+        let data: Data
+        let revision: Int
+    }
+
+    private struct FillPersistenceRequest: Sendable {
+        let templateID: String
+        let data: Data?
+        let revision: Int
+    }
 
     init(
         templateLibrary: any TemplateLibraryProviding,
@@ -385,6 +398,7 @@ final class TemplateStudioViewModel: ObservableObject {
         } else {
             isStrokeInteractionActive = false
             finalizeCurrentEditInteractionIfNeeded()
+            flushPendingLayerPersist(for: selectedTemplateID)
         }
     }
 
@@ -516,10 +530,20 @@ final class TemplateStudioViewModel: ObservableObject {
         invalidateExport()
     }
 
-    func flushPendingColoringPersistence() {
+    func flushPendingColoringPersistence() async {
         debouncedPersistTask?.cancel()
         debouncedPersistTask = nil
-        flushPendingPersists()
+        let requests = takePendingLayerPersistenceRequests()
+        for request in requests {
+            scheduleLayerPersistence(request)
+        }
+
+        while !inFlightPersistenceTasks.isEmpty {
+            let tasks = Array(inFlightPersistenceTasks.values)
+            for task in tasks {
+                await task.value
+            }
+        }
     }
 
     func normalizeSelectedTemplateColoring(using traitCollection: UITraitCollection?) {
@@ -1520,10 +1544,11 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func makeProgressSnapshotInput(for templateID: String) -> TemplateProgressSnapshotCoordinator.Input {
-        TemplateProgressSnapshotCoordinator.Input(
+        let layerStack = layerStacksByTemplateID[templateID]
+        return TemplateProgressSnapshotCoordinator.Input(
             hasColoring: hasColoring(for: templateID),
-            layerStack: layerStacksByTemplateID[templateID],
-            fallbackDrawingData: drawingsByTemplateID[templateID]?.dataRepresentation(),
+            layerStack: layerStack,
+            fallbackDrawingData: layerStack == nil ? drawingsByTemplateID[templateID]?.dataRepresentation() : nil,
             fillData: fillStateStore.fillData(for: templateID),
             canvasSize: bestExportSize(for: selectedTemplateID == templateID ? selectedTemplateImage : nil),
             currentSnapshot: progressSnapshotsByTemplateID[templateID]
@@ -2003,19 +2028,28 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func persistLayerStack(for templateID: String) {
-        guard !templateID.isEmpty else {
+        guard let request = makeLayerPersistenceRequest(for: templateID) else {
             return
+        }
+
+        scheduleLayerPersistence(request)
+    }
+
+    private func makeLayerPersistenceRequest(for templateID: String) -> LayerPersistenceRequest? {
+        guard !templateID.isEmpty else {
+            return nil
         }
 
         let layerStack = layerStacksByTemplateID[templateID] ?? currentLayerStack
         guard let data = try? JSONEncoder().encode(layerStack) else {
-            return
+            return nil
         }
 
-        let revision = persistenceRevisionStore.nextLayerRevision(for: templateID)
-        Task { [persistenceCoordinator, templateID, data, revision] in
-            await persistenceCoordinator.persistLayerStackData(data, for: templateID, revision: revision)
-        }
+        return LayerPersistenceRequest(
+            templateID: templateID,
+            data: data,
+            revision: persistenceRevisionStore.nextLayerRevision(for: templateID)
+        )
     }
 
     /// Debounced version of persistLayerStack — coalesces rapid stroke updates
@@ -2036,10 +2070,39 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func flushPendingPersists() {
+        let requests = takePendingLayerPersistenceRequests()
+        for request in requests {
+            scheduleLayerPersistence(request)
+        }
+    }
+
+    private func flushPendingLayerPersist(for templateID: String) {
+        guard pendingPersistTemplateIDs.remove(templateID) != nil else {
+            return
+        }
+
+        if pendingPersistTemplateIDs.isEmpty {
+            debouncedPersistTask?.cancel()
+            debouncedPersistTask = nil
+        }
+        persistLayerStack(for: templateID)
+    }
+
+    private func takePendingLayerPersistenceRequests() -> [LayerPersistenceRequest] {
         let templateIDs = pendingPersistTemplateIDs
         pendingPersistTemplateIDs.removeAll()
-        for templateID in templateIDs {
-            persistLayerStack(for: templateID)
+        return templateIDs.compactMap(makeLayerPersistenceRequest(for:))
+    }
+
+    private func scheduleLayerPersistence(_ request: LayerPersistenceRequest) {
+        let taskID = UUID()
+        inFlightPersistenceTasks[taskID] = Task { [weak self, persistenceCoordinator, request] in
+            await persistenceCoordinator.persistLayerStackData(
+                request.data,
+                for: request.templateID,
+                revision: request.revision
+            )
+            self?.inFlightPersistenceTasks.removeValue(forKey: taskID)
         }
     }
 
@@ -2191,10 +2254,19 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        let fillData = fillStateStore.fillData(for: templateID)
-        let revision = persistenceRevisionStore.nextFillRevision(for: templateID)
-        Task { [persistenceCoordinator, templateID, fillData, revision] in
-            await persistenceCoordinator.persistFillData(fillData, for: templateID, revision: revision)
+        let request = FillPersistenceRequest(
+            templateID: templateID,
+            data: fillStateStore.fillData(for: templateID),
+            revision: persistenceRevisionStore.nextFillRevision(for: templateID)
+        )
+        let taskID = UUID()
+        inFlightPersistenceTasks[taskID] = Task { [weak self, persistenceCoordinator, request] in
+            await persistenceCoordinator.persistFillData(
+                request.data,
+                for: request.templateID,
+                revision: request.revision
+            )
+            self?.inFlightPersistenceTasks.removeValue(forKey: taskID)
         }
     }
 

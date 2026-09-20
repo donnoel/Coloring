@@ -116,7 +116,6 @@ struct PencilCanvasView: UIViewRepresentable {
     var onAppearanceStyleChanged: ((UITraitCollection?) -> Void)?
     var belowLayerImage: UIImage?
     var aboveLayerImage: UIImage?
-    var brushTool: PKInkingTool?
     var activeColorOverride: UIColor?
     var activeColorOverrideRevision: Int = 0
     var activationToken: Int = 0
@@ -195,7 +194,6 @@ struct PencilCanvasView: UIViewRepresentable {
         context.coordinator.updateToolPickerSuppression(isToolPickerSuppressed, on: canvasView)
         context.coordinator.updateActivationToken(activationToken, on: canvasView)
         context.coordinator.updateFillMode(fillMode, in: uiView)
-        context.coordinator.updateBrushTool(brushTool, on: canvasView)
         context.coordinator.applyActiveColorOverride(
             activeColorOverride,
             revision: activeColorOverrideRevision,
@@ -224,6 +222,8 @@ struct PencilCanvasView: UIViewRepresentable {
         private var pencilInteraction: UIPencilInteraction?
         private var isToolPickerSuppressed = false
         private var lastInkTool: PKTool = PKInkingTool(.marker, color: .black, width: 12)
+        private var lastInkToolItemIdentifier: String?
+        private var lastEraserToolItemIdentifier: String?
         private var isApplyingExternalDrawing = false
         var lastTemplateID: String?
         var lastTemplateImageIdentity: ObjectIdentifier?
@@ -231,15 +231,11 @@ struct PencilCanvasView: UIViewRepresentable {
         private var fillEraseGesture: UILongPressGestureRecognizer?
         private var isFillEraseInteractionActive = false
         private weak var drawingGestureRecognizer: UIGestureRecognizer?
-        private var lastAppliedBrushTool: PKInkingTool?
         private var lastSourceFillImageIdentity: ObjectIdentifier?
         private var lastSourceBelowLayerImageIdentity: ObjectIdentifier?
         private var lastSourceAboveLayerImageIdentity: ObjectIdentifier?
-        private var latestLocalDrawingData: Data?
-        private var hasPendingLocalDrawingSync = false
+        private var latestLocalDrawing: PKDrawing?
         var lastDrawingSyncToken = 0
-        private var pendingLocalSyncResetWorkItem: DispatchWorkItem?
-        private let localDrawingSyncGraceInterval: TimeInterval = 1.0
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
@@ -285,10 +281,13 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             let toolPicker = PKToolPicker()
+            toolPicker.stateAutosaveName = "Coloring.TemplateStudio.ToolPicker"
             toolPicker.addObserver(canvasView)
             toolPicker.addObserver(self)
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
+            canvasView.pencilKitResponderState.activeToolPicker = toolPicker
             self.toolPicker = toolPicker
+            rememberSelectedToolItem(from: toolPicker, on: canvasView)
         }
 
         func disconnect(from canvasView: PKCanvasView) {
@@ -299,7 +298,8 @@ struct PencilCanvasView: UIViewRepresentable {
             if let toolPicker {
                 toolPicker.removeObserver(canvasView)
                 toolPicker.removeObserver(self)
-                toolPicker.setVisible(false, forFirstResponder: canvasView)
+                canvasView.pencilKitResponderState.toolPickerVisibility = .inactive
+                canvasView.pencilKitResponderState.activeToolPicker = nil
             }
 
             if let pencilInteraction {
@@ -317,8 +317,6 @@ struct PencilCanvasView: UIViewRepresentable {
             lastSourceFillImageIdentity = nil
             lastSourceBelowLayerImageIdentity = nil
             lastSourceAboveLayerImageIdentity = nil
-            pendingLocalSyncResetWorkItem?.cancel()
-            pendingLocalSyncResetWorkItem = nil
             pendingToolPickerRecoveryWorkItem?.cancel()
             pendingToolPickerRecoveryWorkItem = nil
             toolPickerRecoveryAttemptCount = 0
@@ -437,7 +435,6 @@ struct PencilCanvasView: UIViewRepresentable {
 
         func resetLocalDrawingSyncTracking() {
             clearPendingLocalDrawingSync()
-            latestLocalDrawingData = nil
         }
 
         private func installFillEraseGestureIfNeeded(on canvasView: PKCanvasView) {
@@ -464,8 +461,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return currentCanvasDrawing != externalDrawing
             }
 
-            let externalData = externalDrawing.dataRepresentation()
-            if let latestLocalDrawingData, latestLocalDrawingData == externalData {
+            if let latestLocalDrawing, latestLocalDrawing == externalDrawing {
                 clearPendingLocalDrawingSync()
                 return false
             }
@@ -474,7 +470,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return false
             }
 
-            if hasPendingLocalDrawingSync {
+            if latestLocalDrawing != nil {
                 return false
             }
 
@@ -488,25 +484,12 @@ struct PencilCanvasView: UIViewRepresentable {
             refreshUndoAvailability()
         }
 
-        private func markLocalDrawingChanged(_ drawingData: Data) {
-            latestLocalDrawingData = drawingData
-            hasPendingLocalDrawingSync = true
-
-            pendingLocalSyncResetWorkItem?.cancel()
-            let workItem = DispatchWorkItem { [weak self] in
-                self?.clearPendingLocalDrawingSync()
-            }
-            pendingLocalSyncResetWorkItem = workItem
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + localDrawingSyncGraceInterval,
-                execute: workItem
-            )
+        private func markLocalDrawingChanged(_ drawing: PKDrawing) {
+            latestLocalDrawing = drawing
         }
 
         private func clearPendingLocalDrawingSync() {
-            hasPendingLocalDrawingSync = false
-            pendingLocalSyncResetWorkItem?.cancel()
-            pendingLocalSyncResetWorkItem = nil
+            latestLocalDrawing = nil
         }
 
         private func performUndo() -> Bool {
@@ -603,29 +586,6 @@ struct PencilCanvasView: UIViewRepresentable {
             }
         }
 
-        func updateBrushTool(_ brushTool: PKInkingTool?, on canvasView: PKCanvasView) {
-            guard let brushTool else {
-                return
-            }
-
-            let normalizedBrushTool = brushTool.stableResolvedTool(
-                using: colorResolutionTraitCollection(for: canvasView)
-            )
-
-            // Only apply if the brush tool actually changed to avoid fighting with PKToolPicker.
-            if let last = lastAppliedBrushTool,
-               last.inkType == normalizedBrushTool.inkType,
-               last.width == normalizedBrushTool.width,
-               last.color == normalizedBrushTool.color
-            {
-                return
-            }
-
-            lastAppliedBrushTool = normalizedBrushTool
-            lastInkTool = normalizedBrushTool
-            canvasView.tool = normalizedBrushTool
-        }
-
         func applyActiveColorOverride(_ color: UIColor?, revision: Int, on canvasView: PKCanvasView) {
             guard revision != lastColorOverrideRevision else {
                 return
@@ -670,7 +630,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
         }
 
-        func toolPickerSelectedToolDidChange(_ toolPicker: PKToolPicker) {
+        func toolPickerSelectedToolItemDidChange(_ toolPicker: PKToolPicker) {
             guard let canvasView else {
                 return
             }
@@ -680,10 +640,23 @@ struct PencilCanvasView: UIViewRepresentable {
                     return
                 }
 
+                self.rememberSelectedToolItem(from: toolPicker, on: canvasView)
                 self.normalizeCurrentTool(
                     using: self.colorResolutionTraitCollection(for: canvasView),
                     on: canvasView
                 )
+            }
+        }
+
+        private func rememberSelectedToolItem(from toolPicker: PKToolPicker, on canvasView: PKCanvasView) {
+            let selectedItem = toolPicker.selectedToolItem
+            if selectedItem.tool is PKInkingTool {
+                lastInkToolItemIdentifier = selectedItem.identifier
+                if let inkingTool = canvasView.tool as? PKInkingTool {
+                    lastInkTool = inkingTool
+                }
+            } else if selectedItem.tool is PKEraserTool {
+                lastEraserToolItemIdentifier = selectedItem.identifier
             }
         }
 
@@ -772,14 +745,13 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             let updatedDrawing = canvasView.drawing
-            let updatedDrawingData = updatedDrawing.dataRepresentation()
-            if latestLocalDrawingData == updatedDrawingData,
+            if latestLocalDrawing == updatedDrawing,
                parent.drawing == updatedDrawing
             {
                 return
             }
 
-            markLocalDrawingChanged(updatedDrawingData)
+            markLocalDrawingChanged(updatedDrawing)
             if canvasView.undoManager?.isUndoing == true,
                let onPencilKitUndoDrawingChanged = parent.onPencilKitUndoDrawingChanged {
                 onPencilKitUndoDrawingChanged(updatedDrawing)
@@ -862,7 +834,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func hideToolPicker(on canvasView: PKCanvasView) {
-            toolPicker?.setVisible(false, forFirstResponder: canvasView)
+            canvasView.pencilKitResponderState.toolPickerVisibility = .inactive
             canvasView.resignFirstResponder()
         }
 
@@ -903,7 +875,8 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             applyToolPickerAppearance(for: toolPicker, on: canvasView)
-            toolPicker.setVisible(true, forFirstResponder: canvasView)
+            canvasView.pencilKitResponderState.activeToolPicker = toolPicker
+            canvasView.pencilKitResponderState.toolPickerVisibility = .visible
             guard toolPicker.isVisible else {
                 scheduleToolPickerRecovery(on: canvasView)
                 return
@@ -969,9 +942,18 @@ struct PencilCanvasView: UIViewRepresentable {
                 lastInkTool = inkingTool
             }
 
-            let eraserTool = PKEraserTool(.bitmap)
-            canvasView.tool = eraserTool
-            syncPickerDisplayedTool(to: eraserTool, on: canvasView)
+            if let eraserItem = preferredToolPickerItem(
+                identifier: lastEraserToolItemIdentifier,
+                matching: { $0.tool is PKEraserTool }
+            ) {
+                toolPicker?.selectedToolItem = eraserItem
+                if let eraserTool = eraserItem.tool {
+                    canvasView.tool = eraserTool
+                }
+            } else {
+                canvasView.tool = PKEraserTool(.bitmap)
+            }
+            showToolPicker(on: canvasView)
         }
 
         private func toggleEraser() {
@@ -980,11 +962,36 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             if canvasView.tool is PKEraserTool {
-                canvasView.tool = lastInkTool
-                syncPickerDisplayedTool(to: lastInkTool, on: canvasView)
+                if let inkItem = preferredToolPickerItem(
+                    identifier: lastInkToolItemIdentifier,
+                    matching: { $0.tool is PKInkingTool }
+                ) {
+                    toolPicker?.selectedToolItem = inkItem
+                    canvasView.tool = inkItem.tool ?? lastInkTool
+                } else {
+                    canvasView.tool = lastInkTool
+                }
+                showToolPicker(on: canvasView)
             } else {
                 switchToEraser()
             }
+        }
+
+        private func preferredToolPickerItem(
+            identifier: String?,
+            matching predicate: (PKToolPickerItem) -> Bool
+        ) -> PKToolPickerItem? {
+            guard let toolPicker else {
+                return nil
+            }
+
+            if let identifier,
+               let rememberedItem = toolPicker.toolItems.first(where: { $0.identifier == identifier && predicate($0) })
+            {
+                return rememberedItem
+            }
+
+            return toolPicker.toolItems.first(where: predicate)
         }
 
         func gestureRecognizer(

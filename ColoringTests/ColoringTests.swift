@@ -2116,14 +2116,105 @@ final class ColoringTests: XCTestCase {
         let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
         await MainActor.run {
             viewModel.updateDrawing(sampleDrawing)
-            viewModel.flushPendingColoringPersistence()
+        }
+        await viewModel.flushPendingColoringPersistence()
+
+        let persistedLayerData = try? await drawingStore.loadLayerStackData(for: template.id)
+        XCTAssertEqual(
+            persistedLayerData?.isEmpty,
+            false,
+            "Expected scene deactivation to await the pending local stroke write."
+        )
+    }
+
+    func testFlushPendingColoringPersistenceWaitsForStrokeEndWriteAlreadyInFlight() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let drawingStore = StubTemplateDrawingStore()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: FloodFillService(),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
         }
 
-        let didPersistDrawing = await waitForCondition(timeout: 1.0) {
-            let persistedLayerData = try? await drawingStore.loadLayerStackData(for: template.id)
-            return persistedLayerData?.isEmpty == false
+        await viewModel.loadTemplatesIfNeeded()
+        await drawingStore.enqueueLayerSaveDelay(0.25)
+        let sampleDrawing = await MainActor.run { makeSampleTemplateDrawing() }
+        await MainActor.run {
+            viewModel.updateDrawing(sampleDrawing)
+            viewModel.updateStrokeInteraction(isActive: false)
         }
-        XCTAssertTrue(didPersistDrawing, "Expected scene deactivation to flush pending strokes immediately.")
+
+        let flushStartedAt = Date()
+        await viewModel.flushPendingColoringPersistence()
+        let flushDuration = Date().timeIntervalSince(flushStartedAt)
+
+        let persistedLayerData = try? await drawingStore.loadLayerStackData(for: template.id)
+        XCTAssertEqual(persistedLayerData?.isEmpty, false)
+        XCTAssertGreaterThanOrEqual(
+            flushDuration,
+            0.2,
+            "Expected scene deactivation to wait for the stroke-end write already in flight."
+        )
+    }
+
+    func testFlushPendingColoringPersistenceWaitsForFillWriteAlreadyInFlight() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let templateImageData = await MainActor.run {
+            solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
+        }
+        let filledImage = await MainActor.run {
+            solidColorTemplateImage(.red, size: CGSize(width: 8, height: 8))
+        }
+        let drawingStore = StubTemplateDrawingStore()
+        let viewModel = await MainActor.run {
+            TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(
+                    templates: [template],
+                    imageDataSequence: [templateImageData]
+                ),
+                exportService: StubTemplateExportService(),
+                drawingStore: drawingStore,
+                floodFillService: StubFloodFillService(images: [filledImage]),
+                layerCompositor: LayerCompositorService(),
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+        }
+
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.isFillModeActive = true
+            viewModel.handleFillTap(at: CGPoint(x: 0.5, y: 0.5), color: .red)
+        }
+        let didApplyFill = await waitForCondition {
+            await MainActor.run { viewModel.currentFillImage != nil }
+        }
+        XCTAssertTrue(didApplyFill)
+        await viewModel.flushPendingColoringPersistence()
+
+        await drawingStore.enqueueFillSaveDelay(0.25)
+        await MainActor.run {
+            viewModel.clearFills()
+        }
+        let flushStartedAt = Date()
+        await viewModel.flushPendingColoringPersistence()
+        let flushDuration = Date().timeIntervalSince(flushStartedAt)
+
+        let persistedFillData = try? await drawingStore.loadFillData(for: template.id)
+        XCTAssertEqual(persistedFillData, Data())
+        XCTAssertGreaterThanOrEqual(
+            flushDuration,
+            0.2,
+            "Expected scene deactivation to wait for the fill write already in flight."
+        )
     }
 
     func testTemplateDrawingPersistsAcrossViewModelReload() async {
@@ -5790,6 +5881,8 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     private var fillDataByTemplateID: [String: Data] = [:]
     private var layerStackDataByTemplateID: [String: Data] = [:]
     private var fillLoadDelays: [TimeInterval] = []
+    private var fillSaveDelays: [TimeInterval] = []
+    private var layerSaveDelays: [TimeInterval] = []
     private var fillSaveCountByTemplateID: [String: Int] = [:]
     private var fillDeleteCountByTemplateID: [String: Int] = [:]
 
@@ -5826,6 +5919,12 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     }
 
     func saveFillData(_ fillData: Data, for templateID: String) throws {
+        if !fillSaveDelays.isEmpty {
+            let delay = fillSaveDelays.removeFirst()
+            if delay > 0 {
+                Thread.sleep(forTimeInterval: delay)
+            }
+        }
         fillDataByTemplateID[templateID] = fillData
         fillSaveCountByTemplateID[templateID, default: 0] += 1
     }
@@ -5850,6 +5949,12 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
     }
 
     func saveLayerStackData(_ data: Data, for templateID: String) throws {
+        if !layerSaveDelays.isEmpty {
+            let delay = layerSaveDelays.removeFirst()
+            if delay > 0 {
+                Thread.sleep(forTimeInterval: delay)
+            }
+        }
         layerStackDataByTemplateID[templateID] = data
     }
 
@@ -5873,6 +5978,14 @@ private actor StubTemplateDrawingStore: TemplateDrawingStoreProviding {
 
     func enqueueFillLoadDelay(_ delay: TimeInterval) {
         fillLoadDelays.append(delay)
+    }
+
+    func enqueueFillSaveDelay(_ delay: TimeInterval) {
+        fillSaveDelays.append(delay)
+    }
+
+    func enqueueLayerSaveDelay(_ delay: TimeInterval) {
+        layerSaveDelays.append(delay)
     }
 
     func fillSaveCount(for templateID: String) -> Int {
