@@ -235,7 +235,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var lastSourceBelowLayerImageIdentity: ObjectIdentifier?
         private var lastSourceAboveLayerImageIdentity: ObjectIdentifier?
         private var latestLocalDrawing: PKDrawing?
-        var lastDrawingSyncToken = 0
+        var lastDrawingSyncToken: Int
         private var lastFillModeState: Bool?
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
@@ -247,6 +247,7 @@ struct PencilCanvasView: UIViewRepresentable {
 
         init(_ parent: PencilCanvasView) {
             self.parent = parent
+            lastDrawingSyncToken = parent.drawingSyncToken
         }
 
         func connect(to canvasView: PKCanvasView, containerView: ZoomableCanvasContainerView) {
@@ -462,7 +463,6 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             if let latestLocalDrawing, latestLocalDrawing == externalDrawing {
-                clearPendingLocalDrawingSync()
                 return false
             }
 
@@ -470,6 +470,8 @@ struct PencilCanvasView: UIViewRepresentable {
                 return false
             }
 
+            // Ordinary SwiftUI updates can arrive out of order after the binding catches up.
+            // Only a model restore with a new sync token may replace the live canvas.
             if latestLocalDrawing != nil {
                 return false
             }

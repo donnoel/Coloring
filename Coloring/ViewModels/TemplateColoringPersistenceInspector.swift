@@ -50,7 +50,12 @@ actor TemplateColoringPersistenceInspector {
 
     static func hasStrokeColoring(layerStack: LayerStack?, drawing: PKDrawing?) -> Bool {
         if let layerStack {
-            return layerStack.layers.contains { drawingDataContainsVisibleStrokes($0.drawingData) }
+            return layerStack.layers.contains { layer in
+                if layer.id == layerStack.activeLayerID, let drawing {
+                    return !drawing.strokes.isEmpty
+                }
+                return drawingDataContainsVisibleStrokes(layer.drawingData)
+            }
         }
 
         if let drawing {

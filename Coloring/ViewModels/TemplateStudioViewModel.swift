@@ -123,6 +123,7 @@ final class TemplateStudioViewModel: ObservableObject {
     private var persistenceRevisionStore = TemplatePersistenceRevisionStore()
     private let editHistoryStore = TemplateEditHistoryStore<TemplateEditSnapshot>(maxSteps: 100)
     private var isStrokeInteractionActive = false
+    private var hasUnserializedActiveDrawing = false
     private var isFillEraseInteractionActive = false
     private var isFillEraseRasterWorkPending = false
     private var hasPendingCombinedFillEraseEdit = false
@@ -496,8 +497,15 @@ final class TemplateStudioViewModel: ObservableObject {
             didDrawingChangeDuringFillErase = true
         }
         drawingsByTemplateID[selectedTemplateID] = drawing
-        currentLayerStack.updateDrawingData(serializedDrawingData(for: drawing), for: currentLayerStack.activeLayerID)
-        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        if isStrokeInteractionActive,
+           pencilKitHistoryOperation == nil,
+           editHistoryStore.hasPendingStroke(for: templateID)
+        {
+            hasUnserializedActiveDrawing = true
+        } else {
+            syncActiveLayerDrawingToStack()
+            layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        }
         recordUsedStrokeColorIfNeeded(from: drawing, previousStrokeCount: previousStrokeCount)
         if let pencilKitHistoryOperation {
             recordPencilKitHistoryOperation(
@@ -509,7 +517,9 @@ final class TemplateStudioViewModel: ObservableObject {
             recordEditChange(from: previousSnapshot, for: selectedTemplateID, kind: .canvasStroke)
         }
         refreshInProgressState(for: selectedTemplateID)
-        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
+        if !hasUnserializedActiveDrawing {
+            scheduleProgressSnapshotUpdate(for: selectedTemplateID)
+        }
         debouncedPersistLayerStack(for: selectedTemplateID)
         invalidateExport()
     }
@@ -531,6 +541,16 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     func flushPendingColoringPersistence() async {
+        if isStrokeInteractionActive {
+            updateStrokeInteraction(isActive: false)
+        }
+        if isFillEraseInteractionActive {
+            updateFillEraseInteraction(isActive: false)
+        }
+        if isFillEraseRasterWorkPending {
+            await fillEraseCoordinator.finishSessionAndWait()
+        }
+
         debouncedPersistTask?.cancel()
         debouncedPersistTask = nil
         let requests = takePendingLayerPersistenceRequests()
@@ -551,6 +571,7 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
+        flushActiveDrawingToLayerStackIfNeeded()
         let normalizedDrawing = currentDrawing.stableColorDrawing(using: traitCollection)
         let normalizedLayerStack = TemplateColorNormalization.normalizedLayerStack(
             currentLayerStack,
@@ -686,10 +707,23 @@ final class TemplateStudioViewModel: ObservableObject {
     private func syncActiveLayerDrawingToStack() {
         let drawingData = serializedDrawingData(for: currentDrawing)
         currentLayerStack.updateDrawingData(drawingData, for: currentLayerStack.activeLayerID)
+        hasUnserializedActiveDrawing = false
+    }
+
+    private func flushActiveDrawingToLayerStackIfNeeded() {
+        guard hasUnserializedActiveDrawing, !selectedTemplateID.isEmpty else {
+            return
+        }
+
+        syncActiveLayerDrawingToStack()
+        layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+        refreshInProgressState(for: selectedTemplateID)
+        scheduleProgressSnapshotUpdate(for: selectedTemplateID)
     }
 
     private func setCurrentDrawingFromModel(_ drawing: PKDrawing) {
         currentDrawing = drawing
+        hasUnserializedActiveDrawing = false
         drawingSyncToken += 1
     }
 
@@ -1352,6 +1386,8 @@ final class TemplateStudioViewModel: ObservableObject {
 
             // Sync the active layer before export.
             syncActiveLayerDrawingToStack()
+            layerStacksByTemplateID[selectedTemplateID] = currentLayerStack
+            scheduleProgressSnapshotUpdate(for: selectedTemplateID)
             let normalizedExportLayerStack = TemplateColorNormalization.normalizedLayerStack(
                 currentLayerStack,
                 using: exportTraitCollection
@@ -1835,6 +1871,9 @@ final class TemplateStudioViewModel: ObservableObject {
         for templateID: String,
         kind: TemplateEditChangeKind = .canvasStroke
     ) {
+        if templateID == selectedTemplateID {
+            flushActiveDrawingToLayerStackIfNeeded()
+        }
         if editHistoryStore.finalizePendingStrokeIfNeeded(
             for: templateID,
             currentSnapshot: snapshot(for: templateID),
@@ -2040,6 +2079,9 @@ final class TemplateStudioViewModel: ObservableObject {
             return nil
         }
 
+        if templateID == selectedTemplateID {
+            flushActiveDrawingToLayerStackIfNeeded()
+        }
         let layerStack = layerStacksByTemplateID[templateID] ?? currentLayerStack
         guard let data = try? JSONEncoder().encode(layerStack) else {
             return nil

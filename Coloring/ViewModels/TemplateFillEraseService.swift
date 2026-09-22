@@ -10,6 +10,13 @@ struct TemplateFillEraseResult {
 
 enum TemplateFillEraseService {
     static func eraseRegion(in fillImage: UIImage, at normalizedPoint: CGPoint) -> TemplateFillEraseResult {
+        eraseRegions(in: fillImage, at: [normalizedPoint])
+    }
+
+    static func eraseRegions(in fillImage: UIImage, at normalizedPoints: [CGPoint]) -> TemplateFillEraseResult {
+        guard !normalizedPoints.isEmpty else {
+            return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
+        }
         guard let fillCGImage = fillImage.cgImage else {
             return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
@@ -19,13 +26,6 @@ enum TemplateFillEraseService {
         guard width > 0, height > 0 else {
             return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
         }
-
-        let clampedPoint = CGPoint(
-            x: min(max(normalizedPoint.x, 0), 1),
-            y: min(max(normalizedPoint.y, 0), 1)
-        )
-        let pixelX = min(max(Int(clampedPoint.x * CGFloat(max(width - 1, 0))), 0), width - 1)
-        let pixelY = min(max(Int(clampedPoint.y * CGFloat(max(height - 1, 0))), 0), height - 1)
 
         let bytesPerPixel = 4
         let bytesPerRow = width * bytesPerPixel
@@ -55,130 +55,144 @@ enum TemplateFillEraseService {
         }
 
         let pixels = data.bindMemory(to: UInt8.self, capacity: totalBytes)
-        let targetIndex = (pixelY * bytesPerRow) + (pixelX * bytesPerPixel)
-        let targetAlpha = pixels[targetIndex + 3]
-        guard targetAlpha > 0 else {
-            return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
-        }
-
-        let targetRed = pixels[targetIndex]
-        let targetGreen = pixels[targetIndex + 1]
-        let targetBlue = pixels[targetIndex + 2]
         let tolerance = 12
-
-        var stack: [(Int, Int)] = [(pixelX, pixelY)]
-        var visited = [Bool](repeating: false, count: width * height)
+        var visited: [Bool] = []
         var didErase = false
 
-        while let (seedX, seedY) = stack.popLast() {
+        for normalizedPoint in normalizedPoints {
             guard !FillEraseCancellation.isCancelled() else {
                 return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
             }
 
-            let visitIndex = seedY * width + seedX
-            guard !visited[visitIndex] else {
+            let clampedPoint = CGPoint(
+                x: min(max(normalizedPoint.x, 0), 1),
+                y: min(max(normalizedPoint.y, 0), 1)
+            )
+            let pixelX = min(max(Int(clampedPoint.x * CGFloat(max(width - 1, 0))), 0), width - 1)
+            let pixelY = min(max(Int(clampedPoint.y * CGFloat(max(height - 1, 0))), 0), height - 1)
+            let targetIndex = (pixelY * bytesPerRow) + (pixelX * bytesPerPixel)
+            guard pixels[targetIndex + 3] > 0 else {
                 continue
             }
-
-            let seedPixelIndex = (seedY * bytesPerRow) + (seedX * bytesPerPixel)
-            guard pixelMatchesTarget(
-                pixels: pixels,
-                pixelIndex: seedPixelIndex,
-                targetRed: targetRed,
-                targetGreen: targetGreen,
-                targetBlue: targetBlue,
-                tolerance: tolerance
-            ) else {
-                continue
+            if visited.isEmpty {
+                visited = [Bool](repeating: false, count: width * height)
             }
 
-            var leftX = seedX
-            while leftX > 0 {
-                let checkIndex = (seedY * bytesPerRow) + ((leftX - 1) * bytesPerPixel)
-                guard pixelMatchesTarget(
-                    pixels: pixels,
-                    pixelIndex: checkIndex,
-                    targetRed: targetRed,
-                    targetGreen: targetGreen,
-                    targetBlue: targetBlue,
-                    tolerance: tolerance
-                ) else {
-                    break
-                }
-                leftX -= 1
-            }
+            let targetRed = pixels[targetIndex]
+            let targetGreen = pixels[targetIndex + 1]
+            let targetBlue = pixels[targetIndex + 2]
+            var stack: [(Int, Int)] = [(pixelX, pixelY)]
 
-            var x = leftX
-            var aboveAdded = false
-            var belowAdded = false
-
-            while x < width {
-                if x.isMultiple(of: 256), FillEraseCancellation.isCancelled() {
+            while let (seedX, seedY) = stack.popLast() {
+                guard !FillEraseCancellation.isCancelled() else {
                     return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
                 }
 
-                let pixelIndex = (seedY * bytesPerRow) + (x * bytesPerPixel)
+                let visitIndex = seedY * width + seedX
+                guard !visited[visitIndex] else {
+                    continue
+                }
+
+                let seedPixelIndex = (seedY * bytesPerRow) + (seedX * bytesPerPixel)
                 guard pixelMatchesTarget(
                     pixels: pixels,
-                    pixelIndex: pixelIndex,
+                    pixelIndex: seedPixelIndex,
                     targetRed: targetRed,
                     targetGreen: targetGreen,
                     targetBlue: targetBlue,
                     tolerance: tolerance
                 ) else {
-                    break
+                    continue
                 }
 
-                pixels[pixelIndex] = 0
-                pixels[pixelIndex + 1] = 0
-                pixels[pixelIndex + 2] = 0
-                pixels[pixelIndex + 3] = 0
-                visited[seedY * width + x] = true
-                didErase = true
+                var leftX = seedX
+                while leftX > 0 {
+                    let checkIndex = (seedY * bytesPerRow) + ((leftX - 1) * bytesPerPixel)
+                    guard pixelMatchesTarget(
+                        pixels: pixels,
+                        pixelIndex: checkIndex,
+                        targetRed: targetRed,
+                        targetGreen: targetGreen,
+                        targetBlue: targetBlue,
+                        tolerance: tolerance
+                    ) else {
+                        break
+                    }
+                    leftX -= 1
+                }
 
-                if seedY > 0 {
-                    let aboveVisitIndex = (seedY - 1) * width + x
-                    if !visited[aboveVisitIndex] {
-                        let aboveIndex = ((seedY - 1) * bytesPerRow) + (x * bytesPerPixel)
-                        let aboveMatches = pixelMatchesTarget(
-                            pixels: pixels,
-                            pixelIndex: aboveIndex,
-                            targetRed: targetRed,
-                            targetGreen: targetGreen,
-                            targetBlue: targetBlue,
-                            tolerance: tolerance
-                        )
-                        if aboveMatches, !aboveAdded {
-                            stack.append((x, seedY - 1))
-                            aboveAdded = true
-                        } else if !aboveMatches {
-                            aboveAdded = false
+                var x = leftX
+                var aboveAdded = false
+                var belowAdded = false
+
+                while x < width {
+                    if x.isMultiple(of: 256), FillEraseCancellation.isCancelled() {
+                        return TemplateFillEraseResult(didChange: false, fillData: nil, fillImage: nil)
+                    }
+
+                    let pixelIndex = (seedY * bytesPerRow) + (x * bytesPerPixel)
+                    guard pixelMatchesTarget(
+                        pixels: pixels,
+                        pixelIndex: pixelIndex,
+                        targetRed: targetRed,
+                        targetGreen: targetGreen,
+                        targetBlue: targetBlue,
+                        tolerance: tolerance
+                    ) else {
+                        break
+                    }
+
+                    pixels[pixelIndex] = 0
+                    pixels[pixelIndex + 1] = 0
+                    pixels[pixelIndex + 2] = 0
+                    pixels[pixelIndex + 3] = 0
+                    visited[seedY * width + x] = true
+                    didErase = true
+
+                    if seedY > 0 {
+                        let aboveVisitIndex = (seedY - 1) * width + x
+                        if !visited[aboveVisitIndex] {
+                            let aboveIndex = ((seedY - 1) * bytesPerRow) + (x * bytesPerPixel)
+                            let aboveMatches = pixelMatchesTarget(
+                                pixels: pixels,
+                                pixelIndex: aboveIndex,
+                                targetRed: targetRed,
+                                targetGreen: targetGreen,
+                                targetBlue: targetBlue,
+                                tolerance: tolerance
+                            )
+                            if aboveMatches, !aboveAdded {
+                                stack.append((x, seedY - 1))
+                                aboveAdded = true
+                            } else if !aboveMatches {
+                                aboveAdded = false
+                            }
                         }
                     }
-                }
 
-                if seedY < height - 1 {
-                    let belowVisitIndex = (seedY + 1) * width + x
-                    if !visited[belowVisitIndex] {
-                        let belowIndex = ((seedY + 1) * bytesPerRow) + (x * bytesPerPixel)
-                        let belowMatches = pixelMatchesTarget(
-                            pixels: pixels,
-                            pixelIndex: belowIndex,
-                            targetRed: targetRed,
-                            targetGreen: targetGreen,
-                            targetBlue: targetBlue,
-                            tolerance: tolerance
-                        )
-                        if belowMatches, !belowAdded {
-                            stack.append((x, seedY + 1))
-                            belowAdded = true
-                        } else if !belowMatches {
-                            belowAdded = false
+                    if seedY < height - 1 {
+                        let belowVisitIndex = (seedY + 1) * width + x
+                        if !visited[belowVisitIndex] {
+                            let belowIndex = ((seedY + 1) * bytesPerRow) + (x * bytesPerPixel)
+                            let belowMatches = pixelMatchesTarget(
+                                pixels: pixels,
+                                pixelIndex: belowIndex,
+                                targetRed: targetRed,
+                                targetGreen: targetGreen,
+                                targetBlue: targetBlue,
+                                tolerance: tolerance
+                            )
+                            if belowMatches, !belowAdded {
+                                stack.append((x, seedY + 1))
+                                belowAdded = true
+                            } else if !belowMatches {
+                                belowAdded = false
+                            }
                         }
                     }
-                }
 
-                x += 1
+                    x += 1
+                }
             }
         }
 
@@ -245,7 +259,6 @@ final class TemplateFillEraseCoordinator {
     private var onResult: ((Result) -> Void)?
     private var onFinish: (() -> Void)?
     private let minimumPointDistance: CGFloat = 1.0 / 1024.0
-    private let maximumQueuedPointCount = 64
 
     func startSession(
         templateID: String,
@@ -276,11 +289,7 @@ final class TemplateFillEraseCoordinator {
         }
 
         lastQueuedPoint = normalizedPoint
-        if pendingPoints.count >= maximumQueuedPointCount {
-            pendingPoints[pendingPoints.count - 1] = normalizedPoint
-        } else {
-            pendingPoints.append(normalizedPoint)
-        }
+        pendingPoints.append(normalizedPoint)
         processNextPointIfNeeded()
     }
 
@@ -291,6 +300,13 @@ final class TemplateFillEraseCoordinator {
 
         isFinishing = true
         finishIfIdle()
+    }
+
+    func finishSessionAndWait() async {
+        finishSession()
+        while let task {
+            await task.value
+        }
     }
 
     func cancel() {
@@ -315,15 +331,16 @@ final class TemplateFillEraseCoordinator {
             return
         }
 
-        let normalizedPoint = pendingPoints.removeFirst()
+        let normalizedPoints = pendingPoints
+        pendingPoints.removeAll(keepingCapacity: true)
         let operationID = operationID
         let templateID = templateID
         let initialFillData = initialFillData
         task = Task { [weak self, worker] in
-            let fillData = await worker.eraseRegion(
+            let fillData = await worker.eraseRegions(
                 sessionID: operationID,
                 initialFillData: initialFillData,
-                at: normalizedPoint
+                at: normalizedPoints
             )
             guard let self,
                   !Task.isCancelled,
@@ -358,10 +375,10 @@ private actor TemplateFillEraseRasterWorker {
     private var sessionID: Int?
     private var fillImage: UIImage?
 
-    func eraseRegion(
+    func eraseRegions(
         sessionID: Int,
         initialFillData: Data,
-        at normalizedPoint: CGPoint
+        at normalizedPoints: [CGPoint]
     ) -> Data? {
         guard !Task.isCancelled else {
             return nil
@@ -376,7 +393,7 @@ private actor TemplateFillEraseRasterWorker {
             return nil
         }
 
-        let result = TemplateFillEraseService.eraseRegion(in: fillImage, at: normalizedPoint)
+        let result = TemplateFillEraseService.eraseRegions(in: fillImage, at: normalizedPoints)
         guard !Task.isCancelled, result.didChange else {
             return nil
         }

@@ -756,6 +756,47 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testActiveStrokeSerializesLatestDrawingAtStrokeEnd() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run { Self.makeTemplateStudioViewModel(templates: [template]) }
+        await viewModel.loadTemplatesIfNeeded()
+        let partialDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .red) }
+        let completedDrawing = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+
+        await MainActor.run {
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(partialDrawing)
+            XCTAssertTrue(viewModel.inProgressTemplateIDs.contains(template.id))
+            viewModel.updateDrawing(completedDrawing)
+            XCTAssertTrue(viewModel.currentLayerStack.activeLayer?.drawingData.isEmpty ?? false)
+
+            viewModel.updateStrokeInteraction(isActive: false)
+            XCTAssertEqual(
+                TemplateEditSnapshotResolver.drawing(from: viewModel.currentLayerStack),
+                completedDrawing
+            )
+            XCTAssertTrue(viewModel.canUndoEdit)
+        }
+    }
+
+    func testAppearanceNormalizationKeepsActiveStrokeInLayerStack() async {
+        let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let viewModel = await MainActor.run { Self.makeTemplateStudioViewModel(templates: [template]) }
+        await viewModel.loadTemplatesIfNeeded()
+        let drawing = await MainActor.run { makeSampleTemplateDrawing(color: .blue) }
+
+        await MainActor.run {
+            viewModel.updateStrokeInteraction(isActive: true)
+            viewModel.updateDrawing(drawing)
+            viewModel.normalizeSelectedTemplateColoring(using: UITraitCollection(userInterfaceStyle: .light))
+
+            let restoredDrawing = TemplateEditSnapshotResolver.drawing(from: viewModel.currentLayerStack)
+            XCTAssertEqual(restoredDrawing.strokes.count, drawing.strokes.count)
+            XCTAssertEqual(restoredDrawing.strokes.first?.ink.color, viewModel.currentDrawing.strokes.first?.ink.color)
+            viewModel.updateStrokeInteraction(isActive: false)
+        }
+    }
+
     func testPaletteStrokeHistoryUsesPencilKitUndoRedoPath() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
         let viewModel = await MainActor.run { Self.makeTemplateStudioViewModel(templates: [template]) }
@@ -3761,8 +3802,37 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    func testFillEraseInteractionRunsOffMainAndRestoresWithUndo() async {
+    func testBatchedFillEraseRemovesEveryTouchedRegion() async {
+        await MainActor.run {
+            let format = UIGraphicsImageRendererFormat.default()
+            format.opaque = false
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 9, height: 3), format: format).image { context in
+                UIColor.red.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 4, height: 3))
+                UIColor.blue.setFill()
+                context.fill(CGRect(x: 5, y: 0, width: 4, height: 3))
+            }
+
+            let oneRegion = TemplateFillEraseService.eraseRegions(
+                in: image,
+                at: [CGPoint(x: 0.2, y: 0.5)]
+            )
+            XCTAssertTrue(oneRegion.didChange)
+            XCTAssertNotNil(oneRegion.fillImage)
+
+            let bothRegions = TemplateFillEraseService.eraseRegions(
+                in: image,
+                at: [CGPoint(x: 0.2, y: 0.5), CGPoint(x: 0.8, y: 0.5)]
+            )
+            XCTAssertTrue(bothRegions.didChange)
+            XCTAssertNil(bothRegions.fillImage)
+            XCTAssertNil(bothRegions.fillData)
+        }
+    }
+
+    func testFillEraseInteractionFlushesPendingWorkAndRestoresWithUndo() async {
         let template = Self.makeTemplate(id: "builtin-1", title: "Template One")
+        let drawingStore = StubTemplateDrawingStore()
         let templateImageData = await MainActor.run {
             solidColorTemplateImageData(.white, size: CGSize(width: 8, height: 8))
         }
@@ -3773,7 +3843,7 @@ final class ColoringTests: XCTestCase {
                     imageDataSequence: [templateImageData]
                 ),
                 exportService: StubTemplateExportService(),
-                drawingStore: StubTemplateDrawingStore(),
+                drawingStore: drawingStore,
                 floodFillService: FloodFillService(),
                 layerCompositor: LayerCompositorService(),
                 brushPresetStore: StubBrushPresetStore(),
@@ -3792,17 +3862,20 @@ final class ColoringTests: XCTestCase {
         }
         XCTAssertTrue(didApplyFill)
         let filledSignature = await MainActor.run { imageSignature(from: viewModel.currentFillImage) }
+        await viewModel.flushPendingColoringPersistence()
 
         await MainActor.run {
             viewModel.isFillModeActive = false
             viewModel.updateFillEraseInteraction(isActive: true)
             viewModel.handleFillErase(at: CGPoint(x: 0.5, y: 0.5))
-            viewModel.updateFillEraseInteraction(isActive: false)
         }
+        await viewModel.flushPendingColoringPersistence()
         let didEraseFill = await waitForCondition {
             await MainActor.run { viewModel.currentFillImage == nil }
         }
         XCTAssertTrue(didEraseFill)
+        let persistedFill = try? await drawingStore.loadFillData(for: template.id)
+        XCTAssertEqual(persistedFill, Data())
 
         await MainActor.run {
             XCTAssertTrue(viewModel.canUndoAppManagedEdit)
@@ -4503,6 +4576,24 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorStartsAtDisplayedDrawingSyncToken() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            drawingState.drawing = PKDrawing()
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                ),
+                drawingSyncToken: 42
+            )
+
+            XCTAssertEqual(view.makeCoordinator().lastDrawingSyncToken, 42)
+        }
+    }
+
     func testPencilCanvasCoordinatorUsesLightTraitsForDynamicStrokeNormalization() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
@@ -4595,7 +4686,7 @@ final class ColoringTests: XCTestCase {
         }
     }
 
-    func testPencilCanvasCoordinatorClearsPendingSyncWhenBindingCatchesUp() async {
+    func testPencilCanvasCoordinatorRejectsStaleBindingAfterLocalSync() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
             let initialDrawing = PKDrawing()
@@ -4633,7 +4724,7 @@ final class ColoringTests: XCTestCase {
                 )
             )
 
-            XCTAssertTrue(
+            XCTAssertFalse(
                 coordinator.shouldApplyExternalDrawing(
                     initialDrawing,
                     currentCanvasDrawing: canvasView.drawing
