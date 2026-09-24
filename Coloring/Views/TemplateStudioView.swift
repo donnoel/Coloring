@@ -40,13 +40,8 @@ struct TemplateStudioView: View {
     @State private var sidebarResizeStartWidth: Double?
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            templateLibrary
-        } detail: {
-            templateWorkspace
-        }
+        studioLayout
         .accessibilityIdentifier("studio.root")
-        .navigationSplitViewStyle(.prominentDetail)
         .ignoresSafeArea(edges: .top)
         .task {
             await viewModel.loadTemplatesIfNeeded()
@@ -167,6 +162,46 @@ struct TemplateStudioView: View {
         .onDisappear {
             paletteAutoShowTask?.cancel()
             paletteAutoShowTask = nil
+        }
+    }
+
+    @ViewBuilder
+    private var studioLayout: some View {
+        if #available(iOS 27.0, *) {
+            ZStack(alignment: .leading) {
+                templateWorkspace
+
+                if columnVisibility != .detailOnly {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                columnVisibility = .detailOnly
+                            }
+                        }
+                        .accessibilityHidden(true)
+
+                    templateLibrary
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .padding(10)
+                        .frame(width: CGFloat(liveSidebarWidth))
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .accessibilitySortPriority(1)
+                        .zIndex(1)
+                }
+            }
+        } else {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                templateLibrary
+                    .navigationSplitViewColumnWidth(
+                        min: Self.sidebarMinWidth,
+                        ideal: CGFloat(liveSidebarWidth),
+                        max: Self.sidebarMaxWidth
+                    )
+            } detail: {
+                templateWorkspace
+            }
+            .navigationSplitViewStyle(.prominentDetail)
         }
     }
 
@@ -333,11 +368,6 @@ struct TemplateStudioView: View {
         .overlay(alignment: .trailing) {
             sidebarResizeHandle
         }
-        .navigationSplitViewColumnWidth(
-            min: Self.sidebarMinWidth,
-            ideal: CGFloat(liveSidebarWidth),
-            max: Self.sidebarMaxWidth
-        )
         .toolbar(.hidden, for: .navigationBar)
     }
 
