@@ -4939,6 +4939,27 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorIgnoresRepeatedToolPickerSuppressionState() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+            let coordinator = view.makeCoordinator()
+            let canvasView = PKCanvasView()
+
+            XCTAssertTrue(coordinator.updateToolPickerSuppression(true, on: canvasView))
+            XCTAssertFalse(coordinator.updateToolPickerSuppression(true, on: canvasView))
+            XCTAssertTrue(coordinator.updateToolPickerSuppression(false, on: canvasView))
+            coordinator.disconnect(from: canvasView)
+        }
+    }
+
     func testPencilDoubleTapPreferenceSwitchesBetweenInkAndEraser() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()

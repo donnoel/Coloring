@@ -221,6 +221,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var toolPicker: PKToolPicker?
         private var pencilInteraction: UIPencilInteraction?
         private var isToolPickerSuppressed = false
+        private var lastAppliedToolPickerSuppression: Bool?
         private var lastInkTool: PKTool = PKInkingTool(.marker, color: .black, width: 12)
         private var lastInkToolItemIdentifier: String?
         private var lastEraserToolItemIdentifier: String?
@@ -324,6 +325,7 @@ struct PencilCanvasView: UIViewRepresentable {
             isDrawingInteractionActive = false
             lastFillModeState = nil
             isToolPickerSuppressed = false
+            lastAppliedToolPickerSuppression = nil
             lastActivationToken = 0
             undoBridge?.disconnect()
             undoBridge = nil
@@ -351,12 +353,19 @@ struct PencilCanvasView: UIViewRepresentable {
             refreshUndoAvailability()
         }
 
-        func updateToolPickerSuppression(_ isSuppressed: Bool, on canvasView: PKCanvasView) {
+        @discardableResult
+        func updateToolPickerSuppression(_ isSuppressed: Bool, on canvasView: PKCanvasView) -> Bool {
+            guard lastAppliedToolPickerSuppression != isSuppressed else {
+                return false
+            }
+
+            lastAppliedToolPickerSuppression = isSuppressed
             isToolPickerSuppressed = isSuppressed
             if isSuppressed {
                 cancelPendingToolPickerRecovery()
             }
             applyToolPickerVisibility(on: canvasView)
+            return true
         }
 
         func updateActivationToken(_ activationToken: Int, on canvasView: PKCanvasView) {
@@ -607,18 +616,6 @@ struct PencilCanvasView: UIViewRepresentable {
             )
             lastInkTool = updatedTool
             canvasView.tool = updatedTool
-            syncPickerDisplayedTool(to: updatedTool, on: canvasView)
-        }
-
-        private func syncPickerDisplayedTool(to tool: PKTool, on canvasView: PKCanvasView) {
-            guard let toolPicker else {
-                return
-            }
-
-            // On current PencilKit, selectedToolItem selection does not always refresh item color from app-side overrides.
-            // Setting the legacy selectedTool value keeps the compact picker glyph in sync with actual drawing color.
-            toolPicker.setValue(tool, forKey: "selectedTool")
-            showToolPicker(on: canvasView)
         }
 
         func suppressEditMenuInteractions(on canvasView: PKCanvasView) {
@@ -876,7 +873,6 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
-            applyToolPickerAppearance(for: toolPicker, on: canvasView)
             canvasView.pencilKitResponderState.activeToolPicker = toolPicker
             canvasView.pencilKitResponderState.toolPickerVisibility = .visible
             guard toolPicker.isVisible else {
