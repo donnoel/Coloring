@@ -616,6 +616,18 @@ struct PencilCanvasView: UIViewRepresentable {
             )
             lastInkTool = updatedTool
             canvasView.tool = updatedTool
+            syncPickerDisplayedTool(to: updatedTool, on: canvasView)
+        }
+
+        private func syncPickerDisplayedTool(to tool: PKTool, on canvasView: PKCanvasView) {
+            guard let toolPicker else {
+                return
+            }
+
+            // selectedToolItem can select an item by identifier, but it does not apply an
+            // app-selected color to that item. Keep the compact glyph aligned with the canvas.
+            toolPicker.setValue(tool, forKey: "selectedTool")
+            showToolPicker(on: canvasView)
         }
 
         func suppressEditMenuInteractions(on canvasView: PKCanvasView) {

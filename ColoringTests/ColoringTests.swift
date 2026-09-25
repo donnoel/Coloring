@@ -4960,6 +4960,48 @@ final class ColoringTests: XCTestCase {
         }
     }
 
+    func testPencilCanvasCoordinatorKeepsPickerGlyphColorAlignedWithRecentColor() async {
+        await MainActor.run {
+            let drawingState = DrawingStateBox()
+            let view = PencilCanvasView(
+                templateImage: solidColorTemplateImage(.white),
+                templateID: "builtin-1",
+                drawing: Binding(
+                    get: { drawingState.drawing },
+                    set: { drawingState.drawing = $0 }
+                )
+            )
+            let coordinator = view.makeCoordinator()
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+                XCTFail("Expected a window scene for coordinator test host.")
+                return
+            }
+
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+            let hostController = UIViewController()
+            window.rootViewController = hostController
+            window.makeKeyAndVisible()
+
+            let containerView = ZoomableCanvasContainerView(frame: hostController.view.bounds)
+            hostController.view.addSubview(containerView)
+            hostController.view.layoutIfNeeded()
+            coordinator.connect(to: containerView.canvasView, containerView: containerView)
+            coordinator.updateToolPickerSuppression(false, on: containerView.canvasView)
+
+            coordinator.applyActiveColorOverride(.purple, revision: 1, on: containerView.canvasView)
+
+            let canvasInk = containerView.canvasView.tool as? PKInkingTool
+            let pickerInk = containerView.canvasView.pencilKitResponderState.activeToolPicker?
+                .selectedToolItem.tool as? PKInkingTool
+            XCTAssertEqual(canvasInk?.color, .purple)
+            XCTAssertEqual(pickerInk?.color, .purple)
+
+            coordinator.disconnect(from: containerView.canvasView)
+            window.isHidden = true
+        }
+    }
+
     func testPencilDoubleTapPreferenceSwitchesBetweenInkAndEraser() async {
         await MainActor.run {
             let drawingState = DrawingStateBox()
