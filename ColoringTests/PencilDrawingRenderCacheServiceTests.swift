@@ -101,7 +101,26 @@ final class PencilDrawingRenderCacheServiceTests: XCTestCase {
     }
 
     @MainActor
-    private func makeDrawing(canvasSize: CGSize, color: UIColor = .black) -> PKDrawing {
+    func testCacheBypassesPencilAndMixedInkWithoutChangingStrokes() async {
+        let canvasSize = CGSize(width: 128, height: 96)
+        let pencil = makeDrawing(canvasSize: canvasSize, inkType: .pencil)
+        let pen = makeDrawing(canvasSize: canvasSize)
+        let renderer = PencilDrawingRenderCacheService()
+        for drawing in [
+            pencil,
+            PKDrawing(strokes: pencil.strokes + pen.strokes),
+            PKDrawing(strokes: pen.strokes + pencil.strokes)
+        ] {
+            let originalData = drawing.dataRepresentation()
+            let image = await renderer.image(for: .init(drawing: drawing, canvasSize: canvasSize))
+
+            XCTAssertNil(image)
+            XCTAssertEqual(drawing.dataRepresentation(), originalData)
+        }
+    }
+
+    @MainActor
+    private func makeDrawing(canvasSize: CGSize, color: UIColor = .black, inkType: PKInk.InkType = .pen) -> PKDrawing {
         let points = [canvasSize.width / 4, canvasSize.width * 3 / 4].enumerated().map { index, x in
             PKStrokePoint(
                 location: CGPoint(x: x, y: canvasSize.height / 2),
@@ -114,7 +133,7 @@ final class PencilDrawingRenderCacheServiceTests: XCTestCase {
             )
         }
         return PKDrawing(strokes: [PKStroke(
-            ink: PKInk(.pen, color: color),
+            ink: PKInk(inkType, color: color),
             path: PKStrokePath(controlPoints: points, creationDate: Date())
         )])
     }

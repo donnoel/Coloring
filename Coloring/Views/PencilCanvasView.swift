@@ -993,6 +993,10 @@ struct PencilCanvasView: UIViewRepresentable {
 
             let drawing = canvasView.drawing
             guard !drawing.strokes.isEmpty else { return }
+            guard PencilDrawingRenderCacheService.supportsCaching(drawing) else {
+                invalidateDrawingRenderCache()
+                return
+            }
 
             renderCacheTask?.cancel()
             renderCacheGeneration &+= 1

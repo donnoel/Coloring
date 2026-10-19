@@ -315,13 +315,101 @@ final class PencilCanvasRenderCacheTests: XCTestCase {
         await dispose(fixture, renderer: renderer)
     }
 
+    func testPencilDrawingStaysNativeDuringZoomAndPanAfterToolChanges() async {
+        let renderer = ControlledPencilCacheRenderer()
+        let fixture = makeFixture(renderer: renderer, inkType: .pencil)
+        let canvas = fixture.container.canvasView
+        let originalData = canvas.drawing.dataRepresentation()
+        let tools: [PKTool] = [PKInkingTool(.pen, color: .black, width: 12), PKEraserTool(.bitmap)]
+
+        for tool in tools {
+            canvas.tool = tool
+            fixture.coordinator.refreshDrawingRenderCache()
+            fixture.coordinator.scrollViewWillBeginZooming(canvas, with: nil)
+            canvas.zoomScale = 2
+            fixture.coordinator.scrollViewDidZoom(canvas)
+            fixture.coordinator.scrollViewDidEndZooming(canvas, with: nil, atScale: 2)
+            fixture.coordinator.scrollViewWillBeginDragging(canvas)
+            canvas.contentOffset = CGPoint(x: 60, y: 50)
+            fixture.coordinator.scrollViewDidScroll(canvas)
+            fixture.coordinator.scrollViewDidEndDragging(canvas, willDecelerate: false)
+            fixture.coordinator.canvasViewDidFinishRendering(canvas)
+
+            XCTAssertFalse(fixture.container.isShowingCachedDrawing)
+            XCTAssertNil(fixture.container.cachedDrawingImageView.image)
+            XCTAssertNil(canvas.layer.mask)
+            XCTAssertEqual(canvas.alpha, 1)
+            XCTAssertTrue(canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertEqual(canvas.drawing.dataRepresentation(), originalData)
+        }
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        let requestCount = await renderer.requestCount()
+        XCTAssertEqual(requestCount, 0)
+        await dispose(fixture, renderer: renderer)
+    }
+
+    func testAddingPencilRejectsLatePenCacheImage() async {
+        let renderer = ControlledPencilCacheRenderer()
+        let fixture = makeFixture(renderer: renderer)
+        let requested = await waitUntil { await renderer.requestCount() >= 1 }
+        XCTAssertTrue(requested)
+        let canvas = fixture.container.canvasView
+        let mixedDrawing = PKDrawing(strokes: canvas.drawing.strokes + sampleDrawing(color: .black, inkType: .pencil).strokes)
+
+        canvas.tool = PKInkingTool(.pencil, color: .black, width: 12)
+        fixture.coordinator.canvasViewDidBeginUsingTool(canvas)
+        canvas.drawing = mixedDrawing
+        fixture.coordinator.canvasViewDrawingDidChange(canvas)
+        fixture.coordinator.canvasViewDidEndUsingTool(canvas)
+        await finishRequest(0, image: solidImage(.red), renderer: renderer)
+        fixture.coordinator.scrollViewWillBeginZooming(canvas, with: nil)
+
+        XCTAssertNil(fixture.container.cachedDrawingImageView.image)
+        XCTAssertFalse(fixture.container.isShowingCachedDrawing)
+        XCTAssertNil(canvas.layer.mask)
+        XCTAssertEqual(canvas.drawing, mixedDrawing)
+        XCTAssertEqual(fixture.state.drawing, mixedDrawing)
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        let requestCount = await renderer.requestCount()
+        XCTAssertEqual(requestCount, 1)
+        await dispose(fixture, renderer: renderer)
+    }
+
+    func testPencilRestoreDisablesCacheAndRemovingLastPencilAllowsCachingAgain() async {
+        let renderer = ControlledPencilCacheRenderer()
+        let fixture = makeFixture(renderer: renderer, inkType: .pencil)
+        let pencilDrawing = fixture.state.drawing
+        let penDrawing = sampleDrawing(color: .blue)
+        let canvas = fixture.container.canvasView
+        canvas.tool = PKEraserTool(.bitmap)
+
+        fixture.state.drawing = penDrawing
+        fixture.coordinator.applyExternalDrawing(penDrawing, to: canvas)
+        await prepareCache(in: fixture, renderer: renderer)
+        fixture.coordinator.scrollViewWillBeginZooming(canvas, with: nil)
+        XCTAssertTrue(fixture.container.isShowingCachedDrawing)
+
+        fixture.state.drawing = pencilDrawing
+        fixture.coordinator.applyExternalDrawing(pencilDrawing, to: canvas)
+        fixture.coordinator.scrollViewDidEndZooming(canvas, with: nil, atScale: canvas.zoomScale)
+        fixture.coordinator.scrollViewWillBeginDragging(canvas)
+        XCTAssertFalse(fixture.container.isShowingCachedDrawing)
+        XCTAssertNil(fixture.container.cachedDrawingImageView.image)
+        XCTAssertNil(canvas.layer.mask)
+        XCTAssertEqual(canvas.drawing, pencilDrawing)
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        let requestCount = await renderer.requestCount()
+        XCTAssertEqual(requestCount, 1)
+        await dispose(fixture, renderer: renderer)
+    }
+
     private func dispose(_ fixture: PencilCacheFixture, renderer: ControlledPencilCacheRenderer) async {
         fixture.coordinator.disconnect(from: fixture.container.canvasView)
         await renderer.completeAllPendingRequests()
     }
 
-    private func makeFixture(renderer: ControlledPencilCacheRenderer) -> PencilCacheFixture {
-        let state = PencilCacheDrawingState(drawing: sampleDrawing(color: .red))
+    private func makeFixture(renderer: ControlledPencilCacheRenderer, inkType: PKInk.InkType = .pen) -> PencilCacheFixture {
+        let state = PencilCacheDrawingState(drawing: sampleDrawing(color: .red, inkType: inkType))
         let templateImage = solidImage(.white, size: CGSize(width: 600, height: 400))
         let parent = makeParent(templateID: "cache-template-a", templateImage: templateImage, state: state)
         let container = ZoomableCanvasContainerView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
@@ -371,7 +459,7 @@ final class PencilCanvasRenderCacheTests: XCTestCase {
         return await condition()
     }
 
-    private func sampleDrawing(color: UIColor) -> PKDrawing {
+    private func sampleDrawing(color: UIColor, inkType: PKInk.InkType = .pen) -> PKDrawing {
         let points = [CGPoint(x: 30, y: 30), CGPoint(x: 180, y: 120)].enumerated().map { index, location in
             PKStrokePoint(
                 location: location,
@@ -384,7 +472,7 @@ final class PencilCanvasRenderCacheTests: XCTestCase {
             )
         }
         return PKDrawing(strokes: [PKStroke(
-            ink: PKInk(.pen, color: color),
+            ink: PKInk(inkType, color: color),
             path: PKStrokePath(controlPoints: points, creationDate: Date(timeIntervalSince1970: 1))
         )])
     }
