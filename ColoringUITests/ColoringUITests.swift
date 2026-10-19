@@ -61,7 +61,7 @@ final class ColoringUITests: XCTestCase {
         XCTAssertTrue(templateRow.waitForExistence(timeout: 15), "No built-in drawing row appeared")
         templateRow.tap()
 
-        XCTAssertTrue(app.otherElements["studio.canvas"].waitForExistence(timeout: 15), "Canvas did not appear after selecting a drawing")
+        XCTAssertTrue(app.scrollViews["studio.canvas.surface"].waitForExistence(timeout: 15), "Canvas did not appear after selecting a drawing")
 
         let sendToGalleryByIdentifier = app.buttons.matching(identifier: "studio.sendToGallery").firstMatch
         let sendToGalleryAnyByIdentifier = app.descendants(matching: .any).matching(identifier: "studio.sendToGallery").firstMatch

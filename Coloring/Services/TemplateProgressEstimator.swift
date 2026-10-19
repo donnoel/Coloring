@@ -60,9 +60,17 @@ actor TemplateProgressEstimator {
     ) -> Double {
         let renderSize = Self.sampleSize
         let sourceRect = CGRect(origin: .zero, size: canvasSize)
+        // Match the coverage sample instead of rasterizing the entire canvas first.
+        // Use the larger axis scale so neither sampled axis loses stroke detail.
+        let strokeRasterScale = min(max(
+            renderSize.width / max(canvasSize.width, 1),
+            renderSize.height / max(canvasSize.height, 1)
+        ), 1)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
+        // The alpha scan below reads 8-bit components, not extended-range floats.
+        format.preferredRange = .standard
 
         let image = UIGraphicsImageRenderer(size: renderSize, format: format).image { context in
             UIColor.clear.setFill()
@@ -83,7 +91,7 @@ actor TemplateProgressEstimator {
                 guard let drawing = try? PKDrawing(data: drawingData) else {
                     continue
                 }
-                drawing.image(from: sourceRect, scale: 1).draw(in: sourceRect)
+                drawing.image(from: sourceRect, scale: strokeRasterScale).draw(in: sourceRect)
             }
         }
 

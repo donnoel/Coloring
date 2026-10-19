@@ -110,6 +110,13 @@ actor ColoringWidgetSnapshotWriter: ColoringWidgetSnapshotWriting {
     }
 
     private func persist(_ snapshot: ColoringWidgetSnapshot) {
+        if let cachedSnapshot,
+           snapshot.currentArtwork == cachedSnapshot.currentArtwork,
+           snapshot.latestGalleryArtwork == cachedSnapshot.latestGalleryArtwork
+        {
+            return
+        }
+
         guard let fileURL = fileURLProvider() else {
             logger.error("App Group container is unavailable for widget snapshot persistence.")
             return
@@ -129,9 +136,32 @@ actor ColoringWidgetSnapshotWriter: ColoringWidgetSnapshotWriting {
     }
 }
 
-@MainActor
-enum TemplateWidgetArtworkRenderer {
-    static func makeImageData(
+actor TemplateWidgetArtworkRenderer {
+    // Images are immutable snapshots of the canvas layers. Drawing is a value copy;
+    // the renderer never accesses or mutates the live PKCanvasView.
+    struct Input: @unchecked Sendable {
+        let templateImage: UIImage
+        let drawing: PKDrawing
+        let fillImage: UIImage?
+        let belowLayerImage: UIImage?
+        let aboveLayerImage: UIImage?
+        let canvasSize: CGSize
+        var maximumLongEdge: CGFloat = 720
+    }
+
+    func makeImageData(for input: Input) -> Data? {
+        Self.makeImageData(
+            templateImage: input.templateImage,
+            drawing: input.drawing,
+            fillImage: input.fillImage,
+            belowLayerImage: input.belowLayerImage,
+            aboveLayerImage: input.aboveLayerImage,
+            canvasSize: input.canvasSize,
+            maximumLongEdge: input.maximumLongEdge
+        )
+    }
+
+    nonisolated static func makeImageData(
         templateImage: UIImage,
         drawing: PKDrawing,
         fillImage: UIImage?,
@@ -140,7 +170,9 @@ enum TemplateWidgetArtworkRenderer {
         canvasSize: CGSize,
         maximumLongEdge: CGFloat = 720
     ) -> Data? {
-        guard canvasSize.width > 0, canvasSize.height > 0, maximumLongEdge > 0 else {
+        guard !Task.isCancelled,
+              canvasSize.width > 0, canvasSize.height > 0, maximumLongEdge > 0
+        else {
             return nil
         }
 
@@ -150,6 +182,9 @@ enum TemplateWidgetArtworkRenderer {
         let canvasRect = CGRect(origin: .zero, size: canvasSize)
         let lightTraits = UITraitCollection(userInterfaceStyle: .light)
         let normalizedDrawing = drawing.stableColorDrawing(using: lightTraits)
+        guard !Task.isCancelled else {
+            return nil
+        }
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = true
         format.scale = 1
@@ -165,6 +200,9 @@ enum TemplateWidgetArtworkRenderer {
             aboveLayerImage?.stableDisplayImage().draw(in: outputRect)
         }
 
+        guard !Task.isCancelled else {
+            return nil
+        }
         return image.jpegData(compressionQuality: 0.84)
     }
 }

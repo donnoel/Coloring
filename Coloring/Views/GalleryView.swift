@@ -1,4 +1,6 @@
+import Combine
 import SwiftUI
+import UIKit
 
 struct GalleryView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -54,8 +56,14 @@ struct GalleryView: View {
             .onChange(of: viewModel.entries.map(\.id)) { _, _ in
                 syncCarouselIndex()
             }
+            .onChange(of: carouselIndex) { _, _ in
+                updateActiveArtworkWindow()
+            }
             .onChange(of: requestedEntryID) { _, _ in
                 syncCarouselIndex()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+                viewModel.purgeInactiveImageCaches()
             }
             .fullScreenCover(item: $selectedEntry) { entry in
                 ArtworkDetailView(entry: entry, viewModel: viewModel)
@@ -145,7 +153,7 @@ struct GalleryView: View {
         ZStack {
             TabView(selection: $carouselIndex) {
                 ForEach(Array(viewModel.entries.enumerated()), id: \.element.id) { index, entry in
-                    artworkCard(entry: entry)
+                    artworkCard(entry: entry, loadsFullImage: abs(index - carouselIndex) <= 1)
                         .tag(index)
                         .padding(.horizontal, artworkHorizontalInset(for: size))
                         .padding(.vertical, 14)
@@ -250,6 +258,12 @@ struct GalleryView: View {
                         }
                         .buttonStyle(.plain)
                         .id(entry.id)
+                        .onAppear {
+                            viewModel.setThumbnailVisible(entry, isVisible: true)
+                        }
+                        .onDisappear {
+                            viewModel.setThumbnailVisible(entry, isVisible: false)
+                        }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -341,14 +355,14 @@ struct GalleryView: View {
         .accessibilityValue(isSelected ? "Selected" : "")
     }
 
-    private func artworkCard(entry: ArtworkEntry) -> some View {
+    private func artworkCard(entry: ArtworkEntry, loadsFullImage: Bool) -> some View {
         Button {
             selectedEntry = entry
         } label: {
             ZStack {
-                if let fullImage = viewModel.fullImage(for: entry) {
+                if loadsFullImage, let fullImage = viewModel.fullImage(for: entry) {
                     galleryArtworkImage(fullImage)
-                } else if let thumbnail = viewModel.thumbnailImage(for: entry) {
+                } else if let thumbnail = viewModel.thumbnailImage(for: entry, loadIfNeeded: loadsFullImage) {
                     galleryArtworkImage(thumbnail)
                 } else {
                     ProgressView()
@@ -485,6 +499,7 @@ struct GalleryView: View {
     }
 
     private func syncCarouselIndex() {
+        defer { updateActiveArtworkWindow() }
         guard !viewModel.entries.isEmpty else {
             carouselIndex = 0
             return
@@ -500,6 +515,16 @@ struct GalleryView: View {
         if carouselIndex >= viewModel.entries.count {
             carouselIndex = viewModel.entries.count - 1
         }
+    }
+
+    private func updateActiveArtworkWindow() {
+        guard viewModel.entries.indices.contains(carouselIndex) else {
+            viewModel.setActiveArtworkEntries([])
+            return
+        }
+        let lowerBound = max(carouselIndex - 1, 0)
+        let upperBound = min(carouselIndex + 1, viewModel.entries.count - 1)
+        viewModel.setActiveArtworkEntries(Array(viewModel.entries[lowerBound...upperBound]))
     }
 
     private func retryGalleryLoad() {

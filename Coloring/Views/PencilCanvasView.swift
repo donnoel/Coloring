@@ -175,11 +175,15 @@ struct PencilCanvasView: UIViewRepresentable {
             || didTemplateImageChange
             || uiView.imageView.image == nil
         if shouldUpdateTemplateImage {
+            context.coordinator.invalidateDrawingRenderCache()
             uiView.applyTemplateImage(templateImage, templateID: templateID, resetZoom: shouldResetZoom)
             context.coordinator.lastTemplateImageIdentity = templateImageIdentity
         }
 
         let shouldForceExternalDrawing = context.coordinator.lastDrawingSyncToken != drawingSyncToken
+        if shouldForceExternalDrawing {
+            context.coordinator.invalidateDrawingRenderCache()
+        }
         context.coordinator.lastDrawingSyncToken = drawingSyncToken
 
         if context.coordinator.shouldApplyExternalDrawing(
@@ -199,13 +203,13 @@ struct PencilCanvasView: UIViewRepresentable {
             revision: activeColorOverrideRevision,
             on: canvasView
         )
-        context.coordinator.suppressEditMenuInteractions(on: canvasView)
         context.coordinator.updateOverlayImages(
             in: uiView,
             fillImage: fillImage,
             belowLayerImage: belowLayerImage,
             aboveLayerImage: aboveLayerImage
         )
+        context.coordinator.refreshDrawingRenderCache()
     }
 
     static func dismantleUIView(_ uiView: ZoomableCanvasContainerView, coordinator: Coordinator) {
@@ -245,15 +249,47 @@ struct PencilCanvasView: UIViewRepresentable {
         private var toolPickerRecoveryAttemptCount = 0
         private let maximumToolPickerRecoveryAttemptCount = 6
         private let toolPickerRecoveryDelay: TimeInterval = 0.15
+        private let renderCacheService: any PencilDrawingRenderCacheRendering
+        private var renderCacheTask: Task<Void, Never>?
+        private var renderCacheFallbackTask: Task<Void, Never>?
+        private var renderCacheGeneration = 0
+        private var drawingRenderRevision = 0
+        private var cachedRenderKey: DrawingRenderKey?
+        private var requestedRenderKey: DrawingRenderKey?
+        private var isCacheToolInteractionActive = false
+        private var isCacheZoomActive = false
+        private var isCachePanActive = false
+        private var isRenderCacheSuspended = false
+        private var lastFullyRenderedViewport: RenderedViewport?
 
-        init(_ parent: PencilCanvasView) {
+        private struct DrawingRenderKey: Equatable {
+            let templateID: String
+            let syncToken: Int
+            let drawingRevision: Int
+            let canvasSize: CGSize
+        }
+
+        private struct RenderedViewport: Equatable {
+            let drawingRevision: Int
+            let size: CGSize
+            let offset: CGPoint
+            let zoom: CGFloat
+            let inset: UIEdgeInsets
+        }
+
+        init(
+            _ parent: PencilCanvasView,
+            renderCacheService: any PencilDrawingRenderCacheRendering = PencilDrawingRenderCacheService()
+        ) {
             self.parent = parent
+            self.renderCacheService = renderCacheService
             lastDrawingSyncToken = parent.drawingSyncToken
         }
 
         func connect(to canvasView: PKCanvasView, containerView: ZoomableCanvasContainerView) {
             self.canvasView = canvasView
             self.containerView = containerView
+            isRenderCacheSuspended = UIApplication.shared.applicationState == .background
             lastActivationToken = parent.activationToken
             canvasView.tool = lastInkTool
             containerView.appearanceDidChangeHandler = { [weak self] previousTraitCollection in
@@ -263,6 +299,12 @@ struct PencilCanvasView: UIViewRepresentable {
             installFillEraseGestureIfNeeded(on: canvasView)
             installPencilInteractionIfNeeded(on: canvasView)
             suppressEditMenuInteractions(on: canvasView)
+            NotificationCenter.default.addObserver(self, selector: #selector(discardRenderCache(_:)), name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(discardRenderCache(_:)), name: UIApplication.didEnterBackgroundNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(resumeRenderCache), name: UIApplication.didBecomeActiveNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(prepareForNativeUndo(_:)), name: .NSUndoManagerWillUndoChange, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(prepareForNativeUndo(_:)), name: .NSUndoManagerWillRedoChange, object: nil)
+            refreshDrawingRenderCache()
         }
 
         private func installPencilInteractionIfNeeded(on canvasView: PKCanvasView) {
@@ -293,6 +335,11 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func disconnect(from canvasView: PKCanvasView) {
+            invalidateDrawingRenderCache()
+            NotificationCenter.default.removeObserver(self)
+            isCacheZoomActive = false
+            isCachePanActive = false
+            isCacheToolInteractionActive = false
             if let drawingGestureRecognizer {
                 drawingGestureRecognizer.removeTarget(self, action: #selector(handleDrawingGestureStateChange(_:)))
             }
@@ -489,10 +536,12 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func applyExternalDrawing(_ drawing: PKDrawing, to canvasView: PKCanvasView) {
+            invalidateDrawingRenderCache()
             isApplyingExternalDrawing = true
             canvasView.drawing = drawing
             isApplyingExternalDrawing = false
             refreshUndoAvailability()
+            refreshDrawingRenderCache()
         }
 
         private func markLocalDrawingChanged(_ drawing: PKDrawing) {
@@ -511,6 +560,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return false
             }
 
+            invalidateDrawingRenderCache()
             undoManager.undo()
             refreshUndoAvailability()
             return true
@@ -524,6 +574,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 return false
             }
 
+            invalidateDrawingRenderCache()
             undoManager.redo()
             refreshUndoAvailability()
             return true
@@ -538,6 +589,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         private func handleAppearanceChange(previousTraitCollection _: UITraitCollection?) {
+            invalidateDrawingRenderCache()
             guard let canvasView else {
                 return
             }
@@ -569,11 +621,15 @@ struct PencilCanvasView: UIViewRepresentable {
             } else if let inkingTool = lastInkTool as? PKInkingTool {
                 lastInkTool = inkingTool.stableResolvedTool(using: traitCollection)
             }
+            suppressEditMenuInteractions(on: canvasView)
         }
 
         func updateFillMode(_ isFillMode: Bool, in containerView: ZoomableCanvasContainerView) {
             let didFillModeChange = lastFillModeState != isFillMode
             lastFillModeState = isFillMode
+            if didFillModeChange {
+                suppressEditMenuInteractions(on: containerView.canvasView)
+            }
             fillEraseGesture?.isEnabled = PencilCanvasGesturePolicy.shouldEnableFillEraseGesture(
                 fillMode: isFillMode
             )
@@ -603,6 +659,7 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             lastColorOverrideRevision = revision
+            invalidateDrawingRenderCache()
             guard let color else {
                 return
             }
@@ -617,6 +674,7 @@ struct PencilCanvasView: UIViewRepresentable {
             lastInkTool = updatedTool
             canvasView.tool = updatedTool
             syncPickerDisplayedTool(to: updatedTool, on: canvasView)
+            suppressEditMenuInteractions(on: canvasView)
         }
 
         private func syncPickerDisplayedTool(to tool: PKTool, on canvasView: PKCanvasView) {
@@ -631,6 +689,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func suppressEditMenuInteractions(on canvasView: PKCanvasView) {
+            // Run at tooling boundaries, not during every SwiftUI drawing update.
             if #available(iOS 16.0, *) {
                 let views = [canvasView] + canvasView.subviewsRecursive
                 for view in views {
@@ -642,6 +701,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func toolPickerSelectedToolItemDidChange(_ toolPicker: PKToolPicker) {
+            invalidateDrawingRenderCache()
             guard let canvasView else {
                 return
             }
@@ -656,6 +716,7 @@ struct PencilCanvasView: UIViewRepresentable {
                     using: self.colorResolutionTraitCollection(for: canvasView),
                     on: canvasView
                 )
+                self.refreshDrawingRenderCache()
             }
         }
 
@@ -680,6 +741,11 @@ struct PencilCanvasView: UIViewRepresentable {
             scheduleToolPickerRecovery(on: canvasView)
         }
 
+        func toolPickerIsRulerActiveDidChange(_: PKToolPicker) {
+            invalidateDrawingRenderCache()
+            refreshDrawingRenderCache()
+        }
+
         @objc private func handleFillTap(_ gesture: UITapGestureRecognizer) {
             guard let normalizedPoint = normalizedTemplatePoint(for: gesture),
                   let fillColor = activeFillColor()
@@ -698,6 +764,7 @@ struct PencilCanvasView: UIViewRepresentable {
                     return
                 }
 
+                invalidateDrawingRenderCache()
                 cleanUpFillEraseInteractions()
                 isFillEraseInteractionActive = true
                 parent.onFillEraseInteractionChanged?(true)
@@ -720,6 +787,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 isFillEraseInteractionActive = false
                 parent.onFillEraseInteractionChanged?(false)
                 cleanUpFillEraseInteractions()
+                refreshDrawingRenderCache()
             default:
                 break
             }
@@ -755,6 +823,10 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            // Final Pencil pressure may arrive after tool-end; every change retires old ink.
+            invalidateDrawingRenderCache()
+            defer { refreshDrawingRenderCache() }
+
             let updatedDrawing = canvasView.drawing
             if latestLocalDrawing == updatedDrawing,
                parent.drawing == updatedDrawing
@@ -783,6 +855,7 @@ struct PencilCanvasView: UIViewRepresentable {
         @objc private func handleDrawingGestureStateChange(_ gesture: UIGestureRecognizer) {
             switch gesture.state {
             case .began:
+                invalidateDrawingRenderCache()
                 isDrawingInteractionActive = true
                 cancelPendingToolPickerRecovery()
                 parent.onStrokeInteractionChanged?(true)
@@ -794,6 +867,7 @@ struct PencilCanvasView: UIViewRepresentable {
                 }
                 DispatchQueue.main.async { [weak self] in
                     self?.refreshUndoAvailability()
+                    self?.refreshDrawingRenderCache()
                 }
             default:
                 break
@@ -808,6 +882,9 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             containerView.updateCanvasViewport()
+            if isCacheZoomActive || isCachePanActive {
+                presentCachedDrawingIfCurrent()
+            }
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -818,6 +895,201 @@ struct PencilCanvasView: UIViewRepresentable {
             }
 
             containerView.updateArtworkViewport()
+            if isCacheZoomActive || isCachePanActive {
+                presentCachedDrawingIfCurrent()
+            } else {
+                finishCachedNavigationIfReady()
+            }
+        }
+
+        func canvasViewDidBeginUsingTool(_: PKCanvasView) {
+            isCacheToolInteractionActive = true
+            invalidateDrawingRenderCache()
+        }
+
+        func canvasViewDidEndUsingTool(_: PKCanvasView) {
+            isCacheToolInteractionActive = false
+            refreshDrawingRenderCache()
+        }
+
+        func canvasViewDidFinishRendering(_ canvasView: PKCanvasView) {
+            guard canvasView === self.canvasView else { return }
+            lastFullyRenderedViewport = currentRenderedViewport()
+            finishCachedNavigationIfReady()
+            refreshDrawingRenderCache()
+        }
+
+        func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with _: UIView?) {
+            guard scrollView === canvasView else { return }
+            beginCachedNavigation()
+            isCacheZoomActive = true
+            presentCachedDrawingIfCurrent()
+        }
+
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with _: UIView?, atScale _: CGFloat) {
+            guard scrollView === canvasView else { return }
+            isCacheZoomActive = false
+            finishCachedNavigationIfReady()
+            refreshDrawingRenderCache()
+        }
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            guard scrollView === canvasView else { return }
+            beginCachedNavigation()
+            isCachePanActive = true
+            presentCachedDrawingIfCurrent()
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            guard scrollView === canvasView else { return }
+            isCachePanActive = decelerate
+            finishCachedNavigationIfReady()
+            refreshDrawingRenderCache()
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            guard scrollView === canvasView else { return }
+            isCachePanActive = false
+            finishCachedNavigationIfReady()
+            refreshDrawingRenderCache()
+        }
+
+        private func beginCachedNavigation() {
+            renderCacheFallbackTask?.cancel()
+            renderCacheFallbackTask = nil
+        }
+
+        private func currentDrawingRenderKey() -> DrawingRenderKey? {
+            guard canvasView != nil, let containerView else { return nil }
+            return DrawingRenderKey(
+                templateID: parent.templateID,
+                syncToken: parent.drawingSyncToken,
+                drawingRevision: drawingRenderRevision,
+                canvasSize: containerView.contentView.bounds.size
+            )
+        }
+
+        private func currentRenderedViewport() -> RenderedViewport? {
+            guard let canvasView else { return nil }
+            return RenderedViewport(
+                drawingRevision: drawingRenderRevision,
+                size: canvasView.bounds.size,
+                offset: canvasView.contentOffset,
+                zoom: canvasView.zoomScale,
+                inset: canvasView.contentInset
+            )
+        }
+
+        func refreshDrawingRenderCache() {
+            guard !isRenderCacheSuspended,
+                  !isDrawingInteractionActive, !isCacheToolInteractionActive,
+                  !isFillEraseInteractionActive, !isCacheZoomActive, !isCachePanActive,
+                  let canvasView, !canvasView.isRulerActive,
+                  canvasView.tool is PKInkingTool || canvasView.tool is PKEraserTool,
+                  let key = currentDrawingRenderKey(),
+                  key.canvasSize.width > 0, key.canvasSize.height > 0,
+                  cachedRenderKey != key, requestedRenderKey != key
+            else { return }
+
+            let drawing = canvasView.drawing
+            guard !drawing.strokes.isEmpty else { return }
+
+            renderCacheTask?.cancel()
+            renderCacheGeneration &+= 1
+            let generation = renderCacheGeneration
+            requestedRenderKey = key
+            renderCacheTask = Task { [weak self, renderCacheService] in
+                // Coalesce quick successive Pencil changes without rasterizing on the UI thread.
+                do { try await Task.sleep(nanoseconds: 100_000_000) } catch { return }
+                let image = await renderCacheService.image(for: PencilDrawingRenderCacheRequest(
+                    drawing: drawing,
+                    canvasSize: key.canvasSize
+                ))
+                guard !Task.isCancelled, let self,
+                      self.renderCacheGeneration == generation,
+                      self.currentDrawingRenderKey() == key,
+                      !self.isRenderCacheSuspended,
+                      !self.isDrawingInteractionActive, !self.isCacheToolInteractionActive,
+                      !self.isFillEraseInteractionActive
+                else { return }
+
+                self.requestedRenderKey = nil
+                self.renderCacheTask = nil
+                self.cachedRenderKey = image == nil ? nil : key
+                self.containerView?.setCachedDrawingImage(image)
+                if self.isCacheZoomActive || self.isCachePanActive {
+                    self.presentCachedDrawingIfCurrent()
+                }
+            }
+        }
+
+        func invalidateDrawingRenderCache() {
+            renderCacheGeneration &+= 1
+            drawingRenderRevision &+= 1
+            renderCacheTask?.cancel()
+            renderCacheTask = nil
+            renderCacheFallbackTask?.cancel()
+            renderCacheFallbackTask = nil
+            requestedRenderKey = nil
+            cachedRenderKey = nil
+            lastFullyRenderedViewport = nil
+            containerView?.clearCachedDrawing()
+        }
+
+        private func presentCachedDrawingIfCurrent() {
+            guard !isRenderCacheSuspended,
+                  !isDrawingInteractionActive, !isCacheToolInteractionActive,
+                  !isFillEraseInteractionActive,
+                  let canvasView, !canvasView.isRulerActive,
+                  canvasView.tool is PKInkingTool || canvasView.tool is PKEraserTool,
+                  let cachedRenderKey, cachedRenderKey == currentDrawingRenderKey()
+            else {
+                containerView?.showLiveDrawing()
+                return
+            }
+            _ = containerView?.showCachedDrawing()
+        }
+
+        private func finishCachedNavigationIfReady() {
+            guard !isCacheZoomActive, !isCachePanActive else { return }
+            if lastFullyRenderedViewport == currentRenderedViewport() {
+                renderCacheFallbackTask?.cancel()
+                renderCacheFallbackTask = nil
+                containerView?.showLiveDrawing()
+            } else if containerView?.isShowingCachedDrawing == true, renderCacheFallbackTask == nil {
+                // An already-rendered viewport may produce no new completion callback.
+                // Bound the cover's lifetime so the native surface is never stranded.
+                renderCacheFallbackTask = Task { [weak self] in
+                    do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { return }
+                    guard !Task.isCancelled, let self,
+                          !self.isCacheZoomActive, !self.isCachePanActive
+                    else { return }
+                    self.containerView?.showLiveDrawing()
+                    self.renderCacheFallbackTask = nil
+                }
+            }
+        }
+
+        @objc private func discardRenderCache(_ notification: Notification) {
+            invalidateDrawingRenderCache()
+            if notification.name == UIApplication.didEnterBackgroundNotification {
+                isRenderCacheSuspended = true
+                isCacheZoomActive = false
+                isCachePanActive = false
+                isCacheToolInteractionActive = false
+            }
+        }
+
+        @objc private func resumeRenderCache() {
+            isRenderCacheSuspended = false
+            refreshDrawingRenderCache()
+        }
+
+        @objc private func prepareForNativeUndo(_ notification: Notification) {
+            guard let undoManager = notification.object as? UndoManager,
+                  undoManager === canvasView?.undoManager
+            else { return }
+            invalidateDrawingRenderCache()
         }
 
         func pencilInteraction(_: UIPencilInteraction, didReceiveTap _: UIPencilInteraction.Tap) {
@@ -948,6 +1220,8 @@ struct PencilCanvasView: UIViewRepresentable {
                 return
             }
 
+            invalidateDrawingRenderCache()
+
             if let inkingTool = canvasView.tool as? PKInkingTool {
                 lastInkTool = inkingTool
             }
@@ -964,12 +1238,16 @@ struct PencilCanvasView: UIViewRepresentable {
                 canvasView.tool = PKEraserTool(.bitmap)
             }
             showToolPicker(on: canvasView)
+            suppressEditMenuInteractions(on: canvasView)
+            refreshDrawingRenderCache()
         }
 
         private func toggleEraser() {
             guard let canvasView else {
                 return
             }
+
+            invalidateDrawingRenderCache()
 
             if canvasView.tool is PKEraserTool {
                 if let inkItem = preferredToolPickerItem(
@@ -982,9 +1260,11 @@ struct PencilCanvasView: UIViewRepresentable {
                     canvasView.tool = lastInkTool
                 }
                 showToolPicker(on: canvasView)
+                suppressEditMenuInteractions(on: canvasView)
             } else {
                 switchToEraser()
             }
+            refreshDrawingRenderCache()
         }
 
         private func preferredToolPickerItem(
@@ -1071,14 +1351,23 @@ final class ZoomableCanvasContainerView: UIView {
     let imageView = UIImageView()
     let fillImageView = UIImageView()
     let belowLayerImageView = UIImageView()
+    let cachedDrawingImageView = UIImageView()
     let canvasView = PKCanvasView()
     let aboveLayerImageView = UIImageView()
 
     private var currentTemplateID: String = ""
+    private var currentTemplateImageIdentity: ObjectIdentifier?
     private var canvasBaseSize: CGSize = .zero
+    private let cachedDrawingMask = CALayer()
     private var lastFitZoomScale: CGFloat = 1.0
     private let maxCanvasLongEdge: CGFloat = 2048
     var appearanceDidChangeHandler: ((UITraitCollection?) -> Void)?
+
+    var isShowingCachedDrawing: Bool {
+        canvasView.layer.mask === cachedDrawingMask
+            && !cachedDrawingImageView.isHidden
+            && cachedDrawingImageView.image != nil
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1094,6 +1383,9 @@ final class ZoomableCanvasContainerView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         canvasView.frame = bounds
+        updateDrawingPresentation {
+            cachedDrawingMask.frame = canvasView.bounds
+        }
 
         // Keep the user's zoom during normal layout passes.
         // On rotation/resizing, if the user was at "fit", we'll snap to the new fit scale.
@@ -1101,17 +1393,81 @@ final class ZoomableCanvasContainerView: UIView {
     }
 
     func applyTemplateImage(_ image: UIImage, templateID: String, resetZoom: Bool) {
-        imageView.image = image.stableDisplayImage()
         let templateChanged = currentTemplateID != templateID
+        let templateImageIdentity = ObjectIdentifier(image)
+        let nextCanvasSize = Self.normalizedCanvasSize(for: image, maxLongEdge: maxCanvasLongEdge)
+        if templateChanged || currentTemplateImageIdentity != templateImageIdentity || canvasBaseSize != nextCanvasSize {
+            clearCachedDrawing()
+        }
+        imageView.image = image.stableDisplayImage()
         currentTemplateID = templateID
+        currentTemplateImageIdentity = templateImageIdentity
 
-        canvasBaseSize = Self.normalizedCanvasSize(for: image, maxLongEdge: maxCanvasLongEdge)
+        canvasBaseSize = nextCanvasSize
         layoutContentFrame()
 
         setNeedsLayout()
         layoutIfNeeded()
 
         updateZoomScaleLimits(maintainUserZoom: !resetZoom && !templateChanged)
+    }
+
+    func setCachedDrawingImage(_ image: UIImage?) {
+        guard let image, image.size.width > 0, image.size.height > 0 else {
+            clearCachedDrawing()
+            return
+        }
+
+        updateDrawingPresentation {
+            cachedDrawingImageView.image = image
+            if canvasView.layer.mask !== cachedDrawingMask {
+                cachedDrawingImageView.isHidden = true
+            }
+        }
+    }
+
+    @discardableResult
+    func showCachedDrawing() -> Bool {
+        if isShowingCachedDrawing { return true }
+        guard cachedDrawingImageView.image != nil,
+              canvasView.layer.mask == nil || canvasView.layer.mask === cachedDrawingMask
+        else {
+            showLiveDrawing()
+            return false
+        }
+
+        updateDrawingPresentation {
+            cachedDrawingMask.frame = canvasView.bounds
+            canvasView.layer.mask = cachedDrawingMask
+            cachedDrawingImageView.isHidden = false
+        }
+        return true
+    }
+
+    func showLiveDrawing() {
+        updateDrawingPresentation {
+            if canvasView.layer.mask === cachedDrawingMask {
+                canvasView.layer.mask = nil
+            }
+            cachedDrawingImageView.isHidden = true
+        }
+    }
+
+    func clearCachedDrawing() {
+        updateDrawingPresentation {
+            if canvasView.layer.mask === cachedDrawingMask {
+                canvasView.layer.mask = nil
+            }
+            cachedDrawingImageView.isHidden = true
+            cachedDrawingImageView.image = nil
+        }
+    }
+
+    private func updateDrawingPresentation(_ update: () -> Void) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        update()
+        CATransaction.commit()
     }
 
     func updateCanvasViewport() {
@@ -1214,7 +1570,18 @@ final class ZoomableCanvasContainerView: UIView {
         belowLayerImageView.clipsToBounds = true
         contentView.addSubview(belowLayerImageView)
 
+        cachedDrawingImageView.isOpaque = false
+        cachedDrawingImageView.backgroundColor = .clear
+        cachedDrawingImageView.contentMode = .scaleToFill
+        cachedDrawingImageView.clipsToBounds = true
+        cachedDrawingImageView.isUserInteractionEnabled = false
+        cachedDrawingImageView.accessibilityElementsHidden = true
+        cachedDrawingImageView.isHidden = true
+        contentView.addSubview(cachedDrawingImageView)
+        cachedDrawingMask.backgroundColor = UIColor.clear.cgColor
+
         canvasView.isOpaque = false
+        canvasView.accessibilityIdentifier = "studio.canvas.surface"
         canvasView.backgroundColor = .clear
         canvasView.alwaysBounceVertical = false
         canvasView.alwaysBounceHorizontal = false
@@ -1246,6 +1613,7 @@ final class ZoomableCanvasContainerView: UIView {
             imageView,
             fillImageView,
             belowLayerImageView,
+            cachedDrawingImageView,
             canvasView,
             aboveLayerImageView
         ]
@@ -1271,6 +1639,7 @@ final class ZoomableCanvasContainerView: UIView {
         imageView.frame = contentView.bounds
         fillImageView.frame = contentView.bounds
         belowLayerImageView.frame = contentView.bounds
+        cachedDrawingImageView.frame = contentView.bounds
         aboveLayerImageView.transform = .identity
         aboveLayerImageView.bounds = contentBounds
         canvasView.contentSize = contentSize

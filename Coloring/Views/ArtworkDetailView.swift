@@ -41,6 +41,12 @@ struct ArtworkDetailView: View {
             }
             .navigationTitle(entry.sourceTemplateName)
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                viewModel.setDetailArtworkVisible(entry, isVisible: true)
+            }
+            .onDisappear {
+                viewModel.setDetailArtworkVisible(entry, isVisible: false)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {

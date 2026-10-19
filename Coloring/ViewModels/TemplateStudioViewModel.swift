@@ -43,6 +43,13 @@ final class TemplateStudioViewModel: ObservableObject {
     @Published private(set) var currentLayerStack: LayerStack = .singleLayer()
     @Published private(set) var belowLayerImage: UIImage?
     @Published private(set) var aboveLayerImage: UIImage?
+    private var belowLayerRenderInput: LayerOverlayRenderInput?
+    private var aboveLayerRenderInput: LayerOverlayRenderInput?
+
+    private struct LayerOverlayRenderInput: Equatable {
+        let canvasSize: CGSize
+        let layers: [DrawingLayer]
+    }
 
     // Brush state
     @Published private(set) var activeBrushPreset: BrushPreset = BrushPreset.builtInPresets.first(where: { $0.id == BrushPreset.defaultPresetID }) ?? BrushPreset.builtInPresets[0]
@@ -105,6 +112,9 @@ final class TemplateStudioViewModel: ObservableObject {
     private let progressEstimator: TemplateProgressEstimator
     private let progressSnapshotStore: any TemplateProgressSnapshotStoreProviding
     private let widgetSnapshotWriter: any ColoringWidgetSnapshotWriting
+    private let widgetArtworkRenderer = TemplateWidgetArtworkRenderer()
+    private var widgetPreviewTask: Task<Void, Never>?
+    private var widgetPreviewRevision = 0
     private let drawingStore: any TemplateDrawingStoreProviding
     private let floodFillService: any FloodFillProviding
     private let layerCompositor: any LayerCompositing
@@ -132,7 +142,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private struct LayerPersistenceRequest: Sendable {
         let templateID: String
-        let data: Data
+        let layerStack: LayerStack
         let revision: Int
     }
 
@@ -374,12 +384,15 @@ final class TemplateStudioViewModel: ObservableObject {
         persistLastSelectedTemplateID(templateID)
         markTemplateAsRecent(templateID)
         refreshEditAvailability()
-        restoreCachedDrawingForSelectedTemplate()
-        restoreCachedFillForSelectedTemplate()
+        let hasCachedDrawing = restoreCachedDrawingForSelectedTemplate()
+        let hasCachedFill = restoreCachedFillForSelectedTemplate()
 
         templateImageLoadTask?.cancel()
         templateImageLoadTask = Task { [weak self] in
-            await self?.prepareSelectedTemplateForDisplay(templateID)
+            await self?.prepareSelectedTemplateForDisplay(
+                templateID,
+                cachedState: (drawing: hasCachedDrawing, fill: hasCachedFill)
+            )
         }
 
         invalidateExport()
@@ -393,6 +406,7 @@ final class TemplateStudioViewModel: ObservableObject {
         }
 
         if isActive {
+            cancelPendingWidgetPreview()
             cancelPendingFillOverlayWork()
             isStrokeInteractionActive = true
             beginPendingStrokeEditChangeIfNeeded(for: selectedTemplateID)
@@ -415,6 +429,7 @@ final class TemplateStudioViewModel: ObservableObject {
 
             cancelPendingFillOverlayWork()
             isFillEraseInteractionActive = true
+            cancelPendingWidgetPreview()
             hasPendingCombinedFillEraseEdit = true
             didDrawingChangeDuringFillErase = false
             beginPendingStrokeEditChangeIfNeeded(for: selectedTemplateID)
@@ -734,16 +749,36 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func recompositeLayerOverlays() {
         let canvasSize = bestExportSize(for: selectedTemplateImage)
-        belowLayerImage = layerCompositor.compositeLayersBelow(
-            layers: currentLayerStack.layers,
-            activeLayerID: currentLayerStack.activeLayerID,
-            canvasSize: canvasSize
+        let sortedLayers = currentLayerStack.sortedLayers
+        let activeIndex = sortedLayers.firstIndex { $0.id == currentLayerStack.activeLayerID }
+            ?? sortedLayers.endIndex
+        let belowInput = LayerOverlayRenderInput(
+            canvasSize: canvasSize,
+            layers: sortedLayers.prefix(upTo: activeIndex).filter { $0.isVisible && !$0.drawingData.isEmpty }
         )
-        aboveLayerImage = layerCompositor.compositeLayersAbove(
-            layers: currentLayerStack.layers,
-            activeLayerID: currentLayerStack.activeLayerID,
-            canvasSize: canvasSize
+        let aboveInput = LayerOverlayRenderInput(
+            canvasSize: canvasSize,
+            layers: sortedLayers.dropFirst(min(activeIndex + 1, sortedLayers.count))
+                .filter { $0.isVisible && !$0.drawingData.isEmpty }
         )
+
+        // Reuse the two displayed overlays when only the opposite side changed.
+        if belowLayerRenderInput != belowInput || (belowLayerImage == nil && !belowInput.layers.isEmpty) {
+            belowLayerImage = layerCompositor.compositeLayersBelow(
+                layers: currentLayerStack.layers,
+                activeLayerID: currentLayerStack.activeLayerID,
+                canvasSize: canvasSize
+            )
+            belowLayerRenderInput = belowInput
+        }
+        if aboveLayerRenderInput != aboveInput || (aboveLayerImage == nil && !aboveInput.layers.isEmpty) {
+            aboveLayerImage = layerCompositor.compositeLayersAbove(
+                layers: currentLayerStack.layers,
+                activeLayerID: currentLayerStack.activeLayerID,
+                canvasSize: canvasSize
+            )
+            aboveLayerRenderInput = aboveInput
+        }
     }
 
     // MARK: - Brush Customization
@@ -834,12 +869,12 @@ final class TemplateStudioViewModel: ObservableObject {
             return
         }
 
-        activeBrushPreset = state.activeBrushPreset
-        userBrushPresets = state.userBrushPresets
+        assignIfChanged(\.activeBrushPreset, to: state.activeBrushPreset)
+        assignIfChanged(\.userBrushPresets, to: state.userBrushPresets)
         assignIfChanged(\.recentColors, to: state.recentColors)
-        activeColorToken = state.activeColorToken
-        appliedRecentColor = state.appliedRecentColor
-        appliedRecentColorRevision = state.appliedRecentColorRevision
+        assignIfChanged(\.activeColorToken, to: state.activeColorToken)
+        assignIfChanged(\.appliedRecentColor, to: state.appliedRecentColor)
+        assignIfChanged(\.appliedRecentColorRevision, to: state.appliedRecentColorRevision)
     }
 
     // MARK: - Template Categories
@@ -1327,8 +1362,8 @@ final class TemplateStudioViewModel: ObservableObject {
             try await importMutationCoordinator.deleteTemplate(templateID: templateID)
             removeLocalTemplateState(for: templateID)
 
-            await reloadTemplates()
             invalidateExport()
+            await reloadTemplates()
             persistFavoriteTemplateIDs()
             persistCompletedTemplateIDs()
             persistRecentTemplateIDs()
@@ -1351,8 +1386,8 @@ final class TemplateStudioViewModel: ObservableObject {
                 removeLocalTemplateState(for: templateID)
             }
 
-            await reloadTemplates()
             invalidateExport()
+            await reloadTemplates()
             persistFavoriteTemplateIDs()
             persistCompletedTemplateIDs()
             persistRecentTemplateIDs()
@@ -1423,13 +1458,16 @@ final class TemplateStudioViewModel: ObservableObject {
 
     // MARK: - Private: Image Loading
 
-    private func prepareSelectedTemplateForDisplay(_ templateID: String) async {
+    private func prepareSelectedTemplateForDisplay(
+        _ templateID: String,
+        cachedState: (drawing: Bool, fill: Bool)? = nil
+    ) async {
         guard selectedTemplateID == templateID else {
             return
         }
 
-        let hasCachedDrawing = restoreCachedDrawingForSelectedTemplate()
-        let hasCachedFill = restoreCachedFillForSelectedTemplate()
+        let hasCachedDrawing = cachedState?.drawing ?? restoreCachedDrawingForSelectedTemplate()
+        let hasCachedFill = cachedState?.fill ?? restoreCachedFillForSelectedTemplate()
         if (!hasCachedDrawing || !hasCachedFill) && shouldClearVisibleCanvasBeforePreparing(templateID: templateID) {
             selectedTemplateImage = nil
             loadedTemplateImageID = nil
@@ -1603,6 +1641,9 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func removeProgressSnapshot(for templateID: String) {
+        if selectedTemplateID == templateID {
+            cancelPendingWidgetPreview()
+        }
         Task { [widgetSnapshotWriter] in
             await widgetSnapshotWriter.removeCurrentArtwork(ifMatching: templateID)
         }
@@ -1721,6 +1762,7 @@ final class TemplateStudioViewModel: ObservableObject {
     }
 
     private func invalidateExport() {
+        cancelPendingWidgetPreview()
         exportCoordinator.invalidate()
         applyExportState(exportCoordinator.state)
     }
@@ -1953,21 +1995,35 @@ final class TemplateStudioViewModel: ObservableObject {
 
     private func updateWidgetCurrentArtwork(for snapshot: TemplateProgressSnapshot) {
         guard selectedTemplateID == snapshot.templateID,
+              !isStrokeInteractionActive,
+              !isFillEraseInteractionActive,
+              !isFillEraseRasterWorkPending,
               let template = selectedTemplate,
-              let templateImage = selectedTemplateImage,
-              let imageData = TemplateWidgetArtworkRenderer.makeImageData(
-                  templateImage: templateImage,
-                  drawing: currentDrawing,
-                  fillImage: currentFillImage,
-                  belowLayerImage: belowLayerImage,
-                  aboveLayerImage: aboveLayerImage,
-                  canvasSize: bestExportSize(for: templateImage)
-              )
+              let templateImage = selectedTemplateImage
         else {
             return
         }
 
-        Task { [widgetSnapshotWriter] in
+        cancelPendingWidgetPreview()
+        let input = TemplateWidgetArtworkRenderer.Input(
+            templateImage: templateImage,
+            drawing: currentDrawing,
+            fillImage: currentFillImage,
+            belowLayerImage: belowLayerImage,
+            aboveLayerImage: aboveLayerImage,
+            canvasSize: bestExportSize(for: templateImage)
+        )
+        let revision = widgetPreviewRevision
+        widgetPreviewTask = Task { [weak self, widgetArtworkRenderer, widgetSnapshotWriter] in
+            guard let imageData = await widgetArtworkRenderer.makeImageData(for: input),
+                  !Task.isCancelled,
+                  let self,
+                  self.widgetPreviewRevision == revision,
+                  self.selectedTemplateID == snapshot.templateID
+            else {
+                return
+            }
+
             await widgetSnapshotWriter.updateCurrentArtwork(
                 templateID: snapshot.templateID,
                 title: template.title,
@@ -1975,6 +2031,12 @@ final class TemplateStudioViewModel: ObservableObject {
                 imageData: imageData
             )
         }
+    }
+
+    private func cancelPendingWidgetPreview() {
+        widgetPreviewRevision &+= 1
+        widgetPreviewTask?.cancel()
+        widgetPreviewTask = nil
     }
 
     private func resolveFillImage(
@@ -2083,13 +2145,9 @@ final class TemplateStudioViewModel: ObservableObject {
             flushActiveDrawingToLayerStackIfNeeded()
         }
         let layerStack = layerStacksByTemplateID[templateID] ?? currentLayerStack
-        guard let data = try? JSONEncoder().encode(layerStack) else {
-            return nil
-        }
-
         return LayerPersistenceRequest(
             templateID: templateID,
-            data: data,
+            layerStack: layerStack,
             revision: persistenceRevisionStore.nextLayerRevision(for: templateID)
         )
     }
@@ -2139,8 +2197,8 @@ final class TemplateStudioViewModel: ObservableObject {
     private func scheduleLayerPersistence(_ request: LayerPersistenceRequest) {
         let taskID = UUID()
         inFlightPersistenceTasks[taskID] = Task { [weak self, persistenceCoordinator, request] in
-            await persistenceCoordinator.persistLayerStackData(
-                request.data,
+            await persistenceCoordinator.persistLayerStack(
+                request.layerStack,
                 for: request.templateID,
                 revision: request.revision
             )

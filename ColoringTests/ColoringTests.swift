@@ -5566,6 +5566,124 @@ final class ColoringTests: XCTestCase {
         XCTAssertTrue(cleared.isEmpty)
     }
 
+    func testLayerVisibilityReusesOppositeOverlayAndUndoRestoresVisibleArtwork() async {
+        let template = Self.makeTemplate(id: "overlay-reuse", title: "Layers")
+        let (viewModel, compositor) = await MainActor.run {
+            let compositor = CountingLayerCompositor()
+            let viewModel = TemplateStudioViewModel(
+                templateLibrary: StubTemplateLibrary(templates: [template]),
+                exportService: StubTemplateExportService(),
+                drawingStore: StubTemplateDrawingStore(),
+                floodFillService: FloodFillService(),
+                layerCompositor: compositor,
+                brushPresetStore: StubBrushPresetStore(),
+                categoryStore: StubCategoryStore(),
+                galleryStore: StubGalleryStore()
+            )
+            return (viewModel, compositor)
+        }
+        await viewModel.loadTemplatesIfNeeded()
+
+        await MainActor.run {
+            let bottomID = viewModel.currentLayerStack.activeLayerID
+            viewModel.updateDrawing(makeSampleTemplateDrawing(color: .blue))
+            viewModel.addLayer()
+            let middleID = viewModel.currentLayerStack.activeLayerID
+            viewModel.addLayer()
+            let topID = viewModel.currentLayerStack.activeLayerID
+            viewModel.updateDrawing(makeSampleTemplateDrawing(color: .red))
+            viewModel.selectActiveLayer(middleID)
+            let originalBelowImage = viewModel.belowLayerImage
+            let belowRenderCount = compositor.belowRenderCount
+            XCTAssertNotNil(originalBelowImage)
+            XCTAssertNotNil(viewModel.aboveLayerImage)
+
+            viewModel.toggleLayerVisibility(topID)
+
+            XCTAssertNil(viewModel.aboveLayerImage)
+            XCTAssertTrue(viewModel.belowLayerImage === originalBelowImage)
+            XCTAssertEqual(compositor.belowRenderCount, belowRenderCount)
+
+            viewModel.undoLastEdit()
+
+            XCTAssertNotNil(viewModel.aboveLayerImage)
+            XCTAssertTrue(viewModel.belowLayerImage === originalBelowImage)
+            XCTAssertEqual(compositor.belowRenderCount, belowRenderCount)
+            XCTAssertTrue(viewModel.currentDrawing.strokes.isEmpty)
+
+            viewModel.selectActiveLayer(bottomID)
+            viewModel.updateDrawing(makeSampleTemplateDrawing(color: .green))
+            viewModel.selectActiveLayer(middleID)
+            XCTAssertFalse(viewModel.belowLayerImage === originalBelowImage)
+            XCTAssertGreaterThan(compositor.belowRenderCount, belowRenderCount)
+        }
+    }
+
+    func testLayerStackEncodingPreservesLayerMetadataAndDrawingBytes() async throws {
+        let drawingStore = StubTemplateDrawingStore()
+        let coordinator = TemplateColoringPersistenceCoordinator(drawingStore: drawingStore)
+        var layerStack = LayerStack.singleLayer(drawingData: Data([0, 255, 128, 1]))
+        let addedLayer = layerStack.addLayer(name: "Translucent ink")
+        layerStack.updateDrawingData(Data([7, 8, 9]), for: addedLayer.id)
+        layerStack.layers[0].isVisible = false
+
+        await coordinator.persistLayerStack(layerStack, for: "encoding-test", revision: 1)
+
+        let storedData = try await drawingStore.loadLayerStackData(for: "encoding-test")
+        let data = try XCTUnwrap(storedData)
+        XCTAssertEqual(try JSONDecoder().decode(LayerStack.self, from: data), layerStack)
+    }
+
+    func testLayerStackEncodingCannotOverwriteANewerRevision() async throws {
+        let drawingStore = StubTemplateDrawingStore()
+        let coordinator = TemplateColoringPersistenceCoordinator(drawingStore: drawingStore)
+        let latest = LayerStack.singleLayer(drawingData: Data([2]))
+        let stale = LayerStack.singleLayer(drawingData: Data([1]))
+
+        await coordinator.persistLayerStack(latest, for: "revision-test", revision: 2)
+        await coordinator.persistLayerStack(stale, for: "revision-test", revision: 1)
+
+        let storedData = try await drawingStore.loadLayerStackData(for: "revision-test")
+        let data = try XCTUnwrap(storedData)
+        XCTAssertEqual(try JSONDecoder().decode(LayerStack.self, from: data), latest)
+    }
+
+    func testSelectingCachedDrawingDoesNotRestoreItsStrokesTwice() async {
+        let first = Self.makeTemplate(id: "cached-one", title: "One")
+        let second = Self.makeTemplate(id: "cached-two", title: "Two")
+        let viewModel = await MainActor.run {
+            Self.makeTemplateStudioViewModel(templates: [first, second])
+        }
+        await viewModel.loadTemplatesIfNeeded()
+        await MainActor.run {
+            viewModel.selectTemplate(first.id)
+        }
+        let firstReady = await waitForCondition {
+            await MainActor.run { viewModel.selectedTemplateImage != nil }
+        }
+        XCTAssertTrue(firstReady)
+        await MainActor.run {
+            viewModel.updateDrawing(makeSampleTemplateDrawing())
+            viewModel.selectTemplate(second.id)
+        }
+        let secondReady = await waitForCondition {
+            await MainActor.run { viewModel.selectedTemplateImage != nil }
+        }
+        XCTAssertTrue(secondReady)
+        let syncTokenAfterSelection = await MainActor.run {
+            viewModel.selectTemplate(first.id)
+            return viewModel.drawingSyncToken
+        }
+        let cachedDrawingReady = await waitForCondition {
+            await MainActor.run { viewModel.selectedTemplateImage != nil }
+        }
+        XCTAssertTrue(cachedDrawingReady)
+        await MainActor.run {
+            XCTAssertEqual(viewModel.drawingSyncToken, syncTokenAfterSelection)
+            XCTAssertEqual(viewModel.currentDrawing.strokes.count, 1)
+        }
+    }
+
     private static func makeTemplate(
         id: String,
         title: String,
@@ -6457,6 +6575,24 @@ private final class StubGalleryStore: GalleryStoreProviding {
     func deleteEntry(_ id: String) throws {
         let targetID = id
         entries.removeAll { entry in entry.id == targetID }
+    }
+}
+
+private final class CountingLayerCompositor: LayerCompositing {
+    private let compositor = LayerCompositorService()
+    private(set) var belowRenderCount = 0
+
+    func compositeLayersBelow(layers: [DrawingLayer], activeLayerID: UUID, canvasSize: CGSize) -> UIImage? {
+        belowRenderCount += 1
+        return compositor.compositeLayersBelow(layers: layers, activeLayerID: activeLayerID, canvasSize: canvasSize)
+    }
+
+    func compositeLayersAbove(layers: [DrawingLayer], activeLayerID: UUID, canvasSize: CGSize) -> UIImage? {
+        compositor.compositeLayersAbove(layers: layers, activeLayerID: activeLayerID, canvasSize: canvasSize)
+    }
+
+    func compositeAllVisibleLayers(layers: [DrawingLayer], canvasSize: CGSize) -> UIImage? {
+        compositor.compositeAllVisibleLayers(layers: layers, canvasSize: canvasSize)
     }
 }
 

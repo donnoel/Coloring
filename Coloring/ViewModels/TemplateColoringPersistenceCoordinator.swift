@@ -11,6 +11,21 @@ actor TemplateColoringPersistenceCoordinator {
         self.drawingStore = drawingStore
     }
 
+    func persistLayerStack(_ layerStack: LayerStack, for templateID: String, revision: Int) async {
+        guard shouldPersistLayerRevision(revision, for: templateID) else {
+            return
+        }
+
+        do {
+            let data = try JSONEncoder().encode(layerStack)
+            try await drawingStore.saveLayerStackData(data, for: templateID)
+        } catch {
+            logger.error(
+                "Failed to persist layer stack for template \(templateID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
     func persistLayerStackData(_ data: Data, for templateID: String, revision: Int) async {
         guard shouldPersistLayerRevision(revision, for: templateID) else {
             return
