@@ -190,6 +190,13 @@ struct TemplateStudioView: View {
                         .zIndex(1)
                 }
             }
+            .background {
+                StudioLibraryEdgeRevealView(isEnabled: columnVisibility == .detailOnly && !isToolPickerSuppressed) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        columnVisibility = .all
+                    }
+                }
+            }
         } else {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 templateLibrary
@@ -1030,6 +1037,97 @@ struct TemplateStudioView: View {
                     viewModel.reportImportFailure("Could not import the selected file.")
                 }
             }
+        }
+    }
+}
+
+private struct StudioLibraryEdgeRevealView: UIViewRepresentable {
+    var isEnabled: Bool
+    var onReveal: () -> Void
+
+    func makeUIView(context _: Context) -> GestureView {
+        GestureView()
+    }
+
+    func updateUIView(_ view: GestureView, context _: Context) {
+        view.onReveal = onReveal
+        if view.edgePan.isEnabled != isEnabled {
+            view.edgePan.isEnabled = isEnabled
+        }
+        view.updateGestureHost()
+    }
+
+    static func dismantleUIView(_ view: GestureView, coordinator _: ()) {
+        view.detachGesture()
+    }
+
+    final class GestureView: UIView, UIGestureRecognizerDelegate {
+        var onReveal: (() -> Void)?
+        private weak var gestureHost: UIView?
+        let edgePan = UIScreenEdgePanGestureRecognizer()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isUserInteractionEnabled = false
+            accessibilityElementsHidden = true
+            edgePan.edges = .left
+            edgePan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            edgePan.maximumNumberOfTouches = 1
+            edgePan.delegate = self
+            edgePan.addTarget(self, action: #selector(revealLibrary(_:)))
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            updateGestureHost()
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            updateGestureHost()
+        }
+
+        func updateGestureHost() {
+            // A SwiftUI background can have its own wrapper beside the canvas.
+            // Use the outer controller root so canvas touches reach the edge gesture.
+            var host: UIView?
+            var ancestor = window == nil ? nil : superview
+            while let candidate = ancestor, !(candidate is UIWindow) {
+                if candidate.next is UIViewController {
+                    host = candidate
+                }
+                ancestor = candidate.superview
+            }
+            guard host !== gestureHost else { return }
+            gestureHost?.removeGestureRecognizer(edgePan)
+            gestureHost = host
+            host?.addGestureRecognizer(edgePan)
+        }
+
+        func detachGesture() {
+            edgePan.isEnabled = false
+            gestureHost?.removeGestureRecognizer(edgePan)
+            gestureHost = nil
+            onReveal = nil
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer === edgePan, let gestureHost else { return false }
+            return otherGestureRecognizer.view?.isDescendant(of: gestureHost) == true
+        }
+
+        @objc private func revealLibrary(_ recognizer: UIScreenEdgePanGestureRecognizer) {
+            let translation = recognizer.translation(in: recognizer.view)
+            guard recognizer.state == .ended,
+                  translation.x > 40, translation.x > abs(translation.y)
+            else { return }
+
+            onReveal?()
         }
     }
 }
