@@ -1,16 +1,19 @@
 # **Coloring Room**
+
 ### *An iPad-first coloring studio with Apple Pencil-native drawing and resilient iCloud recovery.*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift">
-  <img src="https://img.shields.io/badge/Platform-iPadOS-blue">
-  <img src="https://img.shields.io/badge/Templates-50%20Built--In-purple">
-  <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud">
+  <img src="https://img.shields.io/badge/SwiftUI-PencilKit-orange?logo=swift" alt="SwiftUI: PencilKit">
+  <img src="https://img.shields.io/badge/Platform-iPadOS-blue" alt="Platform: iPadOS">
+  <img src="https://img.shields.io/badge/Templates-50%20Built--In-purple" alt="Templates: 50 Built-In">
+  <img src="https://img.shields.io/badge/Sync-iCloud%20Documents-green?logo=icloud" alt="Sync: iCloud Documents">
 </p>
 
 ---
 
-## What is Coloring Room?
+## ✨ Overview
+
+<a id="what-is-coloring-room"></a>
 
 **Coloring Room** is a fullscreen iPad coloring app designed around a direct workflow:
 
@@ -21,9 +24,21 @@
 
 The app is offline-first for day-to-day use and uses iCloud for recovery of imported templates, per-template drawing progress, library state (favorites/completed/recent/hidden/categories), and gallery artwork metadata.
 
----
+## 💎 Core Features
 
-## Core Features
+| Feature | What it does |
+| --- | --- |
+| **Fullscreen studio** | Color with native PencilKit tools, Apple Pencil, zoom, and pan. |
+| **Drawing library** | Choose from 50 built-in templates or import from Photos and Files. |
+| **Organization** | Use search, favorites, folders, and per-drawing progress. |
+| **Creative tools** | Combine strokes, fills, layers, recent colors, and undo/redo. |
+| **Export and Gallery** | Share composited PNG artwork and revisit finished pieces. |
+| **Recovery and widget** | Recover saved work through iCloud and reopen it from the medium widget. |
+
+<details>
+<summary>Feature details and controls</summary>
+
+<a id="core-features"></a>
 
 | Feature | Description |
 |--------|-------------|
@@ -66,9 +81,9 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 | **Destructive Action Confirmations** | Confirmation prompts for clear strokes, clear fills, and imported drawing deletions. |
 | **Template Name/Image Stability** | Built-in titles remain aligned to their correct artwork assets. |
 
----
+<a id="controls"></a>
 
-## Controls
+### Controls
 
 - **Template Selection**: Choose any built-in or imported template from the sidebar.
 - **Drawing Search**: Use **Search Drawings** to filter titles within the currently selected folder.
@@ -102,97 +117,13 @@ The app is offline-first for day-to-day use and uses iCloud for recovery of impo
 - **Widget Navigation**: Add the medium Coloring Room widget to continue the current drawing or open the newest Gallery artwork directly.
 - **Light/Dark Mode**: App chrome follows the current system appearance automatically; drawing/export colors remain stable and gallery previews are white-backed so transparent regions do not darken in dark UI.
 
----
-
-## How it works
-
-Coloring Room follows a predictable persistence and rendering pipeline:
-
-1. Load built-in templates from bundled manifest/resources.
-2. Load imported template metadata from local storage.
-3. Attempt imported template recovery from iCloud when local files are unavailable.
-4. Restore saved folder state (favorites, completed, recent order, hidden template IDs, custom folders, and imported-folder assignments) for available templates.
-5. Filter hidden template IDs out of normal library browsing and metadata-driven built-in folder counts.
-6. Load selected template image into the studio.
-7. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
-8. Persist recent color choices per drawing as small sRGB RGBA tokens for quick palette reselection.
-9. Persist drawing, fill, layer-stack, and lightweight progress snapshot updates per template locally.
-10. Mirror drawing/fill/imported-template/progress/category-state/gallery data to iCloud when available.
-11. Restore drawing/fill/layer state, progress snapshots, library metadata state, and gallery entries on reload/reinstall.
-12. Publish compact current-drawing and latest Gallery snapshots to the medium widget through the shared App Group.
-13. Export template image + fills + layer composites + active strokes into a composited PNG.
+</details>
 
 ---
 
-## Architecture Overview
+## 🚀 Getting Started
 
-### **TemplateStudioViewModel (`@MainActor`)**
-- Coordinates template selection, drawing state, import/export actions, and user-facing status messages.
-- Triggers drawing persistence and restoration by template identifier.
-- Applies hidden-template filtering before rendering normal library lists/categories.
-
-### **TemplateLibraryService (actor)**
-- Owns built-in/imported template catalog loading.
-- Handles atomic imported template writes and iCloud mirror/restore behavior.
-
-### **TemplateCategoryStoreService (actor)**
-- Persists lightweight template library state such as favorites/completed/recent ordering and hidden template IDs.
-
-### **TemplateDrawingStoreService (actor)**
-- Owns per-template drawing persistence.
-- Mirrors drawing data to iCloud Documents and restores when local data is missing.
-
-### **TemplateProgressEstimator / TemplateProgressSnapshotStoreService (actors)**
-- Estimate visible edit coverage from strokes, visible layers, and fills.
-- Persist lightweight per-template progress snapshots for fast library reloads.
-
-### **RecentColorsStoreService (actor)**
-- Persists small per-template, newest-first lists of quantized sRGB color tokens.
-- Deduplicates visually matching colors and keeps recent-color IO off the main actor.
-
-### **TemplateArtworkExportService (actor)**
-- Composites selected template bitmap + `PKDrawing` data.
-- Writes deterministic PNG output for share/export.
-
-### **FloodFillService**
-- Performs region flood-fill operations for fill mode.
-- Works with normalized tap mapping from the canvas bridge to maintain accurate fill placement.
-
-### **LayerCompositorService**
-- Composites visible layers into export-ready bitmaps.
-- Supports layered drawing workflows from the sidebar layer panel.
-
-### **UI Layer (SwiftUI + PencilKit bridge)**
-- `TemplateStudioView` provides iPad-first library + studio shell.
-- `PencilCanvasView` makes `PKCanvasView` the sole zoom/pan owner and keeps the template, fill, drawing, and overlay layers on that shared viewport.
-
-### **Medium Widget**
-- `ColoringWidgetSnapshotWriter` publishes compact current-drawing and latest Gallery snapshots through the shared App Group.
-- `ColoringWidgetExtension` displays only the medium widget family and deep-links into the corresponding Studio or Gallery destination.
-
----
-
-## Project Structure
-
-```text
-Coloring/
-├── Coloring/
-│   ├── Models/
-│   ├── Resources/
-│   │   └── Templates/
-│   ├── Services/
-│   ├── ViewModels/
-│   └── Views/
-├── ColoringWidget/
-├── ColoringWidgetShared/
-├── ColoringTests/
-├── ColoringUITests/
-└── Coloring.xcodeproj
-```
-
----
-
-## Getting Started
+<a id="getting-started"></a>
 
 ### Requirements
 - Xcode 26+
@@ -214,18 +145,118 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/pl
 xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=iOS Simulator,name=iPad (A16),OS=latest' test
 ```
 
----
+## 🧠 How It Works
 
-## Notes and Conventions
+<details>
+<summary>Architecture and component reference</summary>
+
+<a id="how-it-works"></a>
+
+Coloring Room follows a predictable persistence and rendering pipeline:
+
+1. Load built-in templates from bundled manifest/resources.
+2. Load imported template metadata from local storage.
+3. Attempt imported template recovery from iCloud when local files are unavailable.
+4. Restore saved folder state (favorites, completed, recent order, hidden template IDs, custom folders, and imported-folder assignments) for available templates.
+5. Filter hidden template IDs out of normal library browsing and metadata-driven built-in folder counts.
+6. Load selected template image into the studio.
+7. Convert fill taps into normalized image-space points and apply flood-fill updates to the active template overlay.
+8. Persist recent color choices per drawing as small sRGB RGBA tokens for quick palette reselection.
+9. Persist drawing, fill, layer-stack, and lightweight progress snapshot updates per template locally.
+10. Mirror drawing/fill/imported-template/progress/category-state/gallery data to iCloud when available.
+11. Restore drawing/fill/layer state, progress snapshots, library metadata state, and gallery entries on reload/reinstall.
+12. Publish compact current-drawing and latest Gallery snapshots to the medium widget through the shared App Group.
+13. Export template image + fills + layer composites + active strokes into a composited PNG.
+
+<a id="architecture-overview"></a>
+
+### Architecture Overview
+
+#### **TemplateStudioViewModel (`@MainActor`)**
+- Coordinates template selection, drawing state, import/export actions, and user-facing status messages.
+- Triggers drawing persistence and restoration by template identifier.
+- Applies hidden-template filtering before rendering normal library lists/categories.
+
+#### **TemplateLibraryService (actor)**
+- Owns built-in/imported template catalog loading.
+- Handles atomic imported template writes and iCloud mirror/restore behavior.
+
+#### **TemplateCategoryStoreService (actor)**
+- Persists lightweight template library state such as favorites/completed/recent ordering and hidden template IDs.
+
+#### **TemplateDrawingStoreService (actor)**
+- Owns per-template drawing persistence.
+- Mirrors drawing data to iCloud Documents and restores when local data is missing.
+
+#### **TemplateProgressEstimator / TemplateProgressSnapshotStoreService (actors)**
+- Estimate visible edit coverage from strokes, visible layers, and fills.
+- Persist lightweight per-template progress snapshots for fast library reloads.
+
+#### **RecentColorsStoreService (actor)**
+- Persists small per-template, newest-first lists of quantized sRGB color tokens.
+- Deduplicates visually matching colors and keeps recent-color IO off the main actor.
+
+#### **TemplateArtworkExportService (actor)**
+- Composites selected template bitmap + `PKDrawing` data.
+- Writes deterministic PNG output for share/export.
+
+#### **FloodFillService**
+- Performs region flood-fill operations for fill mode.
+- Works with normalized tap mapping from the canvas bridge to maintain accurate fill placement.
+
+#### **LayerCompositorService**
+- Composites visible layers into export-ready bitmaps.
+- Supports layered drawing workflows from the sidebar layer panel.
+
+#### **UI Layer (SwiftUI + PencilKit bridge)**
+- `TemplateStudioView` provides iPad-first library + studio shell.
+- `PencilCanvasView` makes `PKCanvasView` the sole zoom/pan owner and keeps the template, fill, drawing, and overlay layers on that shared viewport.
+
+#### **Medium Widget**
+- `ColoringWidgetSnapshotWriter` publishes compact current-drawing and latest Gallery snapshots through the shared App Group.
+- `ColoringWidgetExtension` displays only the medium widget family and deep-links into the corresponding Studio or Gallery destination.
+
+<a id="project-structure"></a>
+
+### Project Structure
+
+```text
+Coloring/
+├── Coloring/
+│   ├── Models/
+│   ├── Resources/
+│   │   └── Templates/
+│   ├── Services/
+│   ├── ViewModels/
+│   └── Views/
+├── ColoringWidget/
+├── ColoringWidgetShared/
+├── ColoringTests/
+├── ColoringUITests/
+└── Coloring.xcodeproj
+```
+
+</details>
+
+## 🔒 Data and Privacy
+
+<a id="notes-and-conventions"></a>
+
+### Notes and Conventions
 
 - Persistence is **offline-first** with iCloud used for backup and recovery.
 - Imported templates and drawing progress use atomic local writes where appropriate.
 - If iCloud is unavailable, the app remains fully usable with local storage.
 - Deferred restore retries are used to handle delayed iCloud availability at launch/foreground.
 
----
+## 📚 Documentation
 
-## Troubleshooting
+- [Repository guidance](AGENTS.md)
+- [Project guide](AGENTS.project.md)
+
+## 🛠️ Troubleshooting
+
+<a id="troubleshooting"></a>
 
 - **Imported template missing after reinstall**
   - Confirm same Apple ID and iCloud Drive enabled on device.
@@ -240,19 +271,19 @@ xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'platform=i
   - Ensure a template is selected and retry export.
   - Check free disk space and share-sheet availability.
 
----
+## 🗺️ Roadmap
 
-## Roadmap
+<a id="roadmap"></a>
 
 - [ ] Add targeted regression coverage for canvas launch, zoom, pan, and widget navigation.
 - [ ] After release stability, split `PencilCanvasView` and its coordinator into smaller components without changing behavior.
 
 ---
 
-## Credits
+## 🤝 Credits
+
+<a id="credits"></a>
 
 Built with care by **Don Noel** and Codex collaboration.
-
----
 
 > *Coloring is designed to keep the drawing experience simple, focused, and recoverable across app reinstalls.*
