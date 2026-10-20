@@ -11,7 +11,7 @@
 
 ---
 
-## ✨ Overview
+## 🧭 Overview
 
 <a id="what-is-coloring-room"></a>
 
