@@ -3,13 +3,30 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.mdx'
+      - 'LICENSE'
+      - 'LICENSE.*'
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
     runs-on: macos-26
+    timeout-minutes: 45
     env:
+      IOS_SIMULATOR_VERSION: '26.5'
+      TZ: UTC
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
       DERIVED_DATA: ${{ github.workspace }}/DerivedData
       RESULT_BUNDLE: ${{ github.workspace }}/TestResults/Coloring.xcresult
     steps:
@@ -19,17 +36,16 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '26.6'
 
       - name: Cache SwiftPM
         uses: actions/cache@v4
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex
-          key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-
+            spm-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Coloring.xcodeproj
@@ -48,6 +64,7 @@ jobs:
           set -euo pipefail
           SIMULATOR_ID="$(python3 <<'PY'
           import json
+          import os
           import subprocess
 
           runtimes = json.loads(
@@ -56,9 +73,10 @@ jobs:
           ios_runtimes = [
               runtime for runtime in runtimes
               if runtime.get("platform") == "iOS" and runtime.get("isAvailable")
+              and runtime.get("version") == os.environ["IOS_SIMULATOR_VERSION"]
           ]
           if not ios_runtimes:
-              raise SystemExit("No available iOS simulator runtimes.")
+              raise SystemExit("Required iOS 26.5 simulator runtime is unavailable.")
 
           def version_key(runtime):
               parts = []
@@ -114,21 +132,14 @@ jobs:
           xcrun simctl boot "${SIMULATOR_ID}" || true
           xcrun simctl bootstatus "${SIMULATOR_ID}" -b
 
-      - name: Build and test
-        run: |
-          set -euo pipefail
-          mkdir -p "$(dirname "$RESULT_BUNDLE")"
-          rm -rf "$RESULT_BUNDLE"
-          xcodebuild \
-            -project Coloring.xcodeproj \
-            -scheme Coloring \
-            -configuration Debug \
-            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
-            -derivedDataPath "$DERIVED_DATA" \
-            -resultBundlePath "$RESULT_BUNDLE" \
-            -parallel-testing-enabled NO \
-            -maximum-concurrent-test-simulator-destinations 1 \
-            clean test
+      - name: Build for testing
+        run: bash scripts/ci.sh build '${{ steps.simulator.outputs.id }}'
+
+      - name: Unit tests
+        run: bash scripts/ci.sh unit '${{ steps.simulator.outputs.id }}'
+
+      - name: UI tests
+        run: bash scripts/ci.sh ui '${{ steps.simulator.outputs.id }}'
 
       - name: Upload xcodebuild artifacts
         if: failure()
@@ -137,4 +148,5 @@ jobs:
           name: xcodebuild-artifacts
           path: |
             ${{ env.RESULT_BUNDLE }}
+            TestResults/**/*.xcresult
             ${{ env.DERIVED_DATA }}/Logs/Test
