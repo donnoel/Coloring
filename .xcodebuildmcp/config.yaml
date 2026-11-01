@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "sessionDefaultsProfiles": {
+    "local-ipad": {
+      "projectPath": "./Coloring.xcodeproj",
+      "scheme": "Coloring",
+      "configuration": "Debug",
+      "arch": "arm64",
+      "useLatestOS": false,
+      "extraArgs": [
+        "-parallel-testing-enabled",
+        "NO",
+        "-maximum-concurrent-test-simulator-destinations",
+        "1"
+      ],
+      "simulatorId": "7237AA6A-434E-47C6-9040-7DCC12646BAA",
+      "simulatorName": "Local iPad",
+      "simulatorPlatform": "iOS Simulator"
+    }
+  },
+  "activeSessionDefaultsProfile": "local-ipad"
+}
