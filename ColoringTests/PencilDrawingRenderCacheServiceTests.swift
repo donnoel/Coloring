@@ -83,6 +83,34 @@ final class PencilDrawingRenderCacheServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testCachePreservesArtworkColorsAcrossAmbientAppearances() async throws {
+        let canvasSize = CGSize(width: 128, height: 96)
+        let renderer = PencilDrawingRenderCacheService()
+        let colors: [UIColor] = [.black, .white, UIColor(red: 0.55, green: 0.35, blue: 0.12, alpha: 1)]
+
+        for inkType in [PKInk.InkType.pen, .marker, .monoline, .fountainPen, .watercolor, .crayon, .reed] {
+            for color in colors {
+                let drawing = makeDrawing(canvasSize: canvasSize, color: color, inkType: inkType)
+                let originalData = drawing.dataRepresentation()
+                let request = PencilDrawingRenderCacheRequest(drawing: drawing, canvasSize: canvasSize)
+                let lightImage = await renderer.image(for: request, ambientStyle: .light)
+                let darkImage = await renderer.image(for: request, ambientStyle: .dark)
+                XCTAssertEqual(darkImage?.renderingMode, .alwaysOriginal)
+                let lightPixel = try pixel(XCTUnwrap(lightImage), x: 64, y: 48)
+                let darkPixel = try pixel(XCTUnwrap(darkImage), x: 64, y: 48)
+                let message = "Expected identical cached \(inkType) ink for \(color) in light and dark appearance."
+
+                XCTAssertGreaterThan(lightPixel.alpha, 0.1)
+                XCTAssertEqual(darkPixel.red, lightPixel.red, accuracy: 1 / 255, message)
+                XCTAssertEqual(darkPixel.green, lightPixel.green, accuracy: 1 / 255, message)
+                XCTAssertEqual(darkPixel.blue, lightPixel.blue, accuracy: 1 / 255, message)
+                XCTAssertEqual(darkPixel.alpha, lightPixel.alpha, accuracy: 1 / 255, message)
+                XCTAssertEqual(drawing.dataRepresentation(), originalData)
+            }
+        }
+    }
+
+    @MainActor
     func testCacheSkipsCancelledWorkAndEmptyDrawing() async {
         let renderer = PencilDrawingRenderCacheService()
         let request = PencilDrawingRenderCacheRequest(
@@ -165,5 +193,17 @@ final class PencilDrawingRenderCacheServiceTests: XCTestCase {
             alpha > 0 ? CGFloat(bytes[2]) / alpha : 0,
             alpha / 255
         )
+    }
+}
+
+private extension PencilDrawingRenderCacheService {
+    // Set thread-local traits on the rendering actor itself; setting them on the
+    // caller does not carry the appearance across an actor hop.
+    func image(for request: PencilDrawingRenderCacheRequest, ambientStyle: UIUserInterfaceStyle) -> UIImage? {
+        var image: UIImage?
+        UITraitCollection(userInterfaceStyle: ambientStyle).performAsCurrent {
+            image = self.image(for: request)
+        }
+        return image
     }
 }

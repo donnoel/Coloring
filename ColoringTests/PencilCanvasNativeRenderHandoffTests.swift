@@ -59,7 +59,17 @@ final class PencilCanvasNativeRenderHandoffTests: XCTestCase {
     }
 
     func testNativeZoomKeepsCacheDuringNavigationAndRecoversLiveCanvas() async throws {
-        let fixture = try makeWindow()
+        try await assertNativeZoomHandoff(appearance: .light)
+    }
+
+    func testDarkModeZoomKeepsCacheDuringNavigationAndRecoversLiveCanvas() async throws {
+        try await assertNativeZoomHandoff(appearance: .dark)
+    }
+
+    private func assertNativeZoomHandoff(appearance: UIUserInterfaceStyle) async throws {
+        let fixture = try makeWindow(appearance: appearance)
+        XCTAssertEqual(fixture.window.traitCollection.userInterfaceStyle, appearance)
+        XCTAssertEqual(fixture.container.canvasView.traitCollection.userInterfaceStyle, .light)
         let drawing = Self.makeDrawing()
         let state = NativeHandoffDrawingState(drawing: drawing)
         let parent = PencilCanvasView(
@@ -138,7 +148,7 @@ final class PencilCanvasNativeRenderHandoffTests: XCTestCase {
         return condition()
     }
 
-    private func makeWindow() throws -> NativeHandoffWindow {
+    private func makeWindow(appearance: UIUserInterfaceStyle = .light) throws -> NativeHandoffWindow {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -147,7 +157,7 @@ final class PencilCanvasNativeRenderHandoffTests: XCTestCase {
             UIColor.white.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 600, height: 400))
         }
-        return NativeHandoffWindow(scene: scene, template: template)
+        return NativeHandoffWindow(scene: scene, template: template, appearance: appearance)
     }
 
     private static func makeDrawing() -> PKDrawing {
@@ -177,11 +187,12 @@ private final class NativeHandoffWindow {
     let templateID = "native-render-handoff"
     private let previousKeyWindow: UIWindow?
 
-    init(scene: UIWindowScene, template: UIImage) {
+    init(scene: UIWindowScene, template: UIImage, appearance: UIUserInterfaceStyle) {
         self.template = template
         previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
         window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+        window.overrideUserInterfaceStyle = appearance
         let controller = UIViewController()
         window.rootViewController = controller
         controller.view.frame = window.bounds

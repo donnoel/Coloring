@@ -45,24 +45,27 @@ actor PencilDrawingRenderCacheService: PencilDrawingRenderCacheRendering {
             )
             let sourceRect = CGRect(origin: .zero, size: request.canvasSize)
             let outputRect = CGRect(origin: .zero, size: outputSize)
-            let drawing = request.drawing.stableColorDrawing(
-                using: UITraitCollection(userInterfaceStyle: .light)
-            )
+            let artworkTraits = UITraitCollection(userInterfaceStyle: .light)
+            let drawing = request.drawing.stableColorDrawing(using: artworkTraits)
             guard !Task.isCancelled else {
                 return nil
             }
 
-            let strokesImage = drawing.image(from: sourceRect, scale: scale)
-            guard !Task.isCancelled else {
-                return nil
-            }
+            var image: UIImage?
+            // PencilKit also adapts rendered ink to the current traits, even when
+            // stroke colors are concrete. Match the light artwork surface through
+            // rasterization and flattening before presenting this cache during zoom.
+            artworkTraits.performAsCurrent {
+                let strokesImage = drawing.image(from: sourceRect, scale: scale).stableDisplayImage()
+                guard !Task.isCancelled else { return }
 
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1
-            format.opaque = false
-            format.preferredRange = .standard
-            let image = UIGraphicsImageRenderer(size: outputSize, format: format).image { _ in
-                strokesImage.stableDisplayImage().draw(in: outputRect)
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                format.opaque = false
+                format.preferredRange = .standard
+                image = UIGraphicsImageRenderer(size: outputSize, format: format).image { _ in
+                    strokesImage.draw(in: outputRect)
+                }.withRenderingMode(.alwaysOriginal)
             }
 
             return Task.isCancelled ? nil : image
