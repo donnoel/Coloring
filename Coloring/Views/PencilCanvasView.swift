@@ -245,6 +245,7 @@ struct PencilCanvasView: UIViewRepresentable {
         private var lastActivationToken = 0
         private var lastColorOverrideRevision = 0
         private var isDrawingInteractionActive = false
+        private var hasPendingArtworkAppearanceUpdate = false
         private var pendingToolPickerRecoveryWorkItem: DispatchWorkItem?
         private var toolPickerRecoveryAttemptCount = 0
         private let maximumToolPickerRecoveryAttemptCount = 6
@@ -370,6 +371,7 @@ struct PencilCanvasView: UIViewRepresentable {
             pendingToolPickerRecoveryWorkItem = nil
             toolPickerRecoveryAttemptCount = 0
             isDrawingInteractionActive = false
+            hasPendingArtworkAppearanceUpdate = false
             lastFillModeState = nil
             isToolPickerSuppressed = false
             lastAppliedToolPickerSuppression = nil
@@ -597,6 +599,21 @@ struct PencilCanvasView: UIViewRepresentable {
             if let toolPicker {
                 applyToolPickerAppearance(for: toolPicker, on: canvasView)
             }
+            hasPendingArtworkAppearanceUpdate = true
+            applyPendingArtworkAppearanceUpdateIfIdle()
+        }
+
+        private func applyPendingArtworkAppearanceUpdateIfIdle() {
+            guard hasPendingArtworkAppearanceUpdate,
+                  !isApplyingExternalDrawing, !isRenderCacheSuspended,
+                  !isDrawingInteractionActive, !isCacheToolInteractionActive,
+                  !isFillEraseInteractionActive, !isCacheZoomActive, !isCachePanActive,
+                  let canvasView
+            else { return }
+
+            // Replacing PencilKit's drawing/tool mid-interaction can interrupt its
+            // live stroke or viewport. Coalesce changes and use the final drawing.
+            hasPendingArtworkAppearanceUpdate = false
             let artworkTraitCollection = colorResolutionTraitCollection(for: canvasView)
             normalizeDisplayedDrawing(using: artworkTraitCollection, on: canvasView)
             normalizeCurrentTool(using: artworkTraitCollection, on: canvasView)
@@ -981,6 +998,7 @@ struct PencilCanvasView: UIViewRepresentable {
         }
 
         func refreshDrawingRenderCache() {
+            applyPendingArtworkAppearanceUpdateIfIdle()
             guard !isRenderCacheSuspended,
                   !isDrawingInteractionActive, !isCacheToolInteractionActive,
                   !isFillEraseInteractionActive, !isCacheZoomActive, !isCachePanActive,

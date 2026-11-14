@@ -58,12 +58,20 @@ extension PKDrawing {
             }
 
             didChangeStrokeColor = true
-            return PKStroke(
-                ink: PKInk(stroke.ink.inkType, color: normalizedColor),
-                path: stroke.path,
-                transform: stroke.transform,
-                mask: stroke.mask
-            )
+            // Reconstructing a stroke loses its texture seed, identity, and
+            // rendering/compositing state. Color resolution must only change color.
+            var normalizedStroke = stroke
+            var normalizedInk = stroke.ink
+            normalizedInk.color = normalizedColor
+            normalizedStroke.ink = normalizedInk
+            #if compiler(>=6.4)
+            if #available(iOS 27.0, *) {
+                // Assigning ink also invalidates these, even for an equivalent color.
+                normalizedStroke.renderGroupID = stroke.renderGroupID
+                normalizedStroke.renderState = stroke.renderState
+            }
+            #endif
+            return normalizedStroke
         }
 
         guard didChangeStrokeColor else {

@@ -7,6 +7,73 @@ import XCTest
 
 @MainActor
 final class PencilCanvasNativeRenderHandoffTests: XCTestCase {
+    func testAppearanceChangeWaitsForActiveStrokeAndUsesItsFinalDrawing() async throws {
+        try await withAppearanceCanvas { canvas, container, coordinator, state, appearanceCount in
+            let initialDrawing = canvas.drawing
+            coordinator.canvasViewDidBeginUsingTool(canvas)
+            container.appearanceDidChangeHandler?(nil)
+            container.appearanceDidChangeHandler?(nil)
+            XCTAssertEqual(appearanceCount(), 0, "Appearance must not replace a drawing during active coloring.")
+            XCTAssertEqual(canvas.drawing, initialDrawing)
+
+            let finalDrawing = initialDrawing.appending(Self.makeDrawing().transformed(using: .init(translationX: 10, y: 10)))
+            canvas.drawing = finalDrawing
+            coordinator.canvasViewDrawingDidChange(canvas)
+            coordinator.canvasViewDidEndUsingTool(canvas)
+
+            XCTAssertEqual(appearanceCount(), 1, "Apply the latest appearance once after the stroke ends.")
+            XCTAssertEqual(state.drawing.strokes.count, finalDrawing.strokes.count)
+            XCTAssertEqual(state.drawing.strokes.map(\.transform), finalDrawing.strokes.map(\.transform))
+            XCTAssertEqual(state.drawing.strokes.map(\.randomSeed), finalDrawing.strokes.map(\.randomSeed))
+        }
+    }
+
+    func testAppearanceChangeWaitsForZoomToEndWithoutMovingTheViewport() async throws {
+        try await withAppearanceCanvas { canvas, container, coordinator, _, appearanceCount in
+            coordinator.scrollViewWillBeginZooming(canvas, with: nil)
+            canvas.zoomScale = 2
+            canvas.contentOffset = CGPoint(x: 90, y: 70)
+            let offset = canvas.contentOffset
+            container.appearanceDidChangeHandler?(nil)
+            XCTAssertEqual(appearanceCount(), 0)
+
+            coordinator.scrollViewDidEndZooming(canvas, with: nil, atScale: 2)
+
+            XCTAssertEqual(appearanceCount(), 1)
+            XCTAssertEqual(canvas.zoomScale, 2)
+            XCTAssertEqual(canvas.contentOffset, offset)
+        }
+    }
+
+    private func withAppearanceCanvas(
+        _ body: (PKCanvasView, ZoomableCanvasContainerView, PencilCanvasView.Coordinator,
+                 NativeHandoffDrawingState, () -> Int) async throws -> Void
+    ) async throws {
+        let fixture = try makeWindow()
+        let drawing = Self.makeDrawing()
+        let state = NativeHandoffDrawingState(drawing: drawing)
+        var appearanceCount = 0
+        let parent = PencilCanvasView(
+            templateImage: fixture.template,
+            templateID: fixture.templateID,
+            drawing: Binding(get: { state.drawing }, set: { state.drawing = $0 }),
+            onAppearanceStyleChanged: { _ in appearanceCount += 1 },
+            isToolPickerSuppressed: true
+        )
+        let canvas = fixture.container.canvasView
+        let coordinator = parent.makeCoordinator()
+        canvas.delegate = coordinator
+        coordinator.connect(to: canvas, containerView: fixture.container)
+        coordinator.updateToolPickerSuppression(true, on: canvas)
+        canvas.drawing = drawing
+        defer {
+            canvas.delegate = nil
+            coordinator.disconnect(from: canvas)
+            fixture.close()
+        }
+        try await body(canvas, fixture.container, coordinator, state, { appearanceCount })
+    }
+
     func testNativeDrawingLoadFinishesWhileOwnedMaskCoversInk() async throws {
         let fixture = try makeWindow()
         defer { fixture.close() }
