@@ -129,8 +129,10 @@ Success means users can pick a scene, color it intuitively, and export finished 
   - `xcodebuild -project Coloring.xcodeproj -scheme Coloring -destination 'generic/platform=iOS Simulator' clean build`
 
 ## Near-term priorities
-- Add targeted regression coverage for canvas launch, zoom, pan, and widget navigation.
-- After release stability, split `PencilCanvasView` and its coordinator into smaller components without changing behavior.
+GitHub Issues is the authoritative task list; keep status and priority there rather than maintaining duplicate checklists here.
+
+- [#30: Complete the canvas and widget navigation regression coverage audit](https://github.com/donnoel/Coloring/issues/30). Existing tests already cover part of this work; review and fill the remaining gaps.
+- [#31: Split PencilCanvasView and its coordinator after release stability](https://github.com/donnoel/Coloring/issues/31). Deferred, behavior-preserving maintainability work.
 
 ## Output expectations per patch
 Provide:
